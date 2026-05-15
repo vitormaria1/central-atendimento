@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Central de Atendimento (WhatsApp via UAZAPI v2)
 
-## Getting Started
+## Requisitos
+- Node.js 22+
+- Docker + Docker Compose (para produção)
 
-First, run the development server:
+## Configuração
+1) Copie o `.env.example` para `.env` e preencha os valores:
+
+```bash
+cp .env.example .env
+```
+
+Variáveis importantes:
+- `UAZAPI_BASE_URL=https://varia.uazapi.com`
+- `UAZAPI_INSTANCE_NAME=juninho`
+- `UAZAPI_TOKEN=...`
+- `SESSION_SECRET=...`
+- `AGENT_VANDERLEI_PIN=...`
+- `AGENT_GUSTAVO_PIN=...`
+
+2) Rode em desenvolvimento:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Acesse `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Webhook (UAZAPI → Central)
+Configure na UAZAPI o webhook apontando para:
+- `https://prazer.varinteligencia.com/api/webhooks/uazapi`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+O endpoint valida:
+- `BaseUrl` == `UAZAPI_BASE_URL`
+- `instanceName` == `UAZAPI_INSTANCE_NAME`
+- `token` == `UAZAPI_TOKEN`
 
-## Learn More
+## Produção (Servidor próprio)
+1) Instale Docker no servidor.
+2) Crie um `.env` no servidor (baseado em `.env.example`).
+3) Suba:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+docker compose up -d --build
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+O Caddy vai provisionar TLS automaticamente para `prazer.varinteligencia.com`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Observação sobre endpoints UAZAPI
+Se sua instância usa caminhos diferentes, ajuste:
+- `UAZAPI_CHAT_FIND_PATH`
+- `UAZAPI_MESSAGE_FIND_PATH`
+- `UAZAPI_SEND_TEXT_PATH`
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Este projeto foi alinhado com a spec `uazapiGO - WhatsApp API v2.1.0` (endpoints `/chat/find`, `/message/find`, `/send/text`).
