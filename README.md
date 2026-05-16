@@ -54,3 +54,9 @@ Se sua instância usa caminhos diferentes, ajuste:
 - `UAZAPI_SEND_TEXT_PATH`
 
 Este projeto foi alinhado com a spec `uazapiGO - WhatsApp API v2.1.0` (endpoints `/chat/find`, `/message/find`, `/send/text`).
+
+## O que fica no banco
+- `agents`: atendentes (Vanderlei/Gustavo)
+- `chat_state`: status (pendente/resolvido), atribuição, tags
+
+Não armazenamos o conteúdo das mensagens.

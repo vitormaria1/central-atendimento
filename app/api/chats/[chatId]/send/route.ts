@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
-import { dbQuery } from "@/lib/db";
 import { publish } from "@/lib/stream";
 import { sendText } from "@/lib/uazapi";
 
@@ -32,12 +31,6 @@ export async function POST(req: Request, ctx: RouteContext<"/api/chats/[chatId]/
 
   const messageId = typeof result.messageid === "string" ? result.messageid : typeof result.id === "string" ? result.id : null;
 
-  await dbQuery(
-    "insert into audit_send (chat_id, agent_id, uazapi_message_id) values ($1, $2, $3)",
-    [decodedChatId, session.agentId, messageId],
-  );
-
   publish({ type: "chat_updated", chatId: decodedChatId });
   return NextResponse.json({ ok: true, messageId });
 }
-
