@@ -17,11 +17,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const agentName = useMemo(
-    () => AGENTS.find((a) => a.id === agentId)?.name ?? "Atendente",
-    [agentId],
-  );
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -49,41 +44,19 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-6">
-        <div className="grid w-full grid-cols-1 gap-8 md:grid-cols-2">
-          <div className="hidden md:flex flex-col justify-center">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-2xl bg-white/5 ring-1 ring-white/10 flex items-center justify-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo.png" alt="Logo" className="h-8 w-8" />
-              </div>
-              <div>
-                <div className="text-xl font-semibold">Central de Atendimento</div>
-                <div className="text-sm text-[var(--muted)]">WhatsApp • UAZAPI</div>
-              </div>
-            </div>
-            <div className="mt-6 text-sm leading-relaxed text-[var(--muted)]">
-              Entre como <span className="text-[var(--foreground)] font-medium">{agentName}</span>{" "}
-              para responder clientes. As mensagens enviadas recebem assinatura automática.
-            </div>
-            <div className="mt-6 rounded-2xl bg-white/5 ring-1 ring-white/10 p-4 text-xs text-[var(--muted)]">
-              Dica: se estiver testando localmente sem HTTPS, rode com{" "}
-              <span className="text-[var(--foreground)]">NODE_ENV=development</span>.
-            </div>
+      <div className="mx-auto flex min-h-screen w-full max-w-xl items-center justify-center px-6">
+        <div className="w-full rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] p-6 shadow-2xl">
+          <div className="flex flex-col items-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.png"
+              alt="Logo"
+              className="h-36 w-36 md:h-44 md:w-44 object-contain"
+            />
+            <div className="mt-4 text-xl font-semibold text-center">Central de Atendimento</div>
           </div>
 
-          <div className="rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] p-6 shadow-2xl">
-            <div className="flex items-center gap-3 md:hidden mb-6">
-              <div className="h-11 w-11 rounded-2xl bg-white/5 ring-1 ring-white/10 flex items-center justify-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo.png" alt="Logo" className="h-7 w-7" />
-              </div>
-              <div>
-                <div className="text-lg font-semibold">Central de Atendimento</div>
-                <div className="text-xs text-[var(--muted)]">WhatsApp • UAZAPI</div>
-              </div>
-            </div>
-
+          <div className="mt-8">
             <h1 className="text-lg font-semibold">Login</h1>
             <p className="mt-1 text-sm text-[var(--muted)]">Selecione o atendente e digite o PIN.</p>
 
@@ -140,15 +113,9 @@ export default function LoginPage() {
                 {loading ? "Entrando..." : "Entrar"}
               </button>
             </form>
-
-            <div className="mt-6 text-xs text-[var(--muted)]">
-              Ao enviar mensagem, o sistema adiciona automaticamente:{" "}
-              <span className="text-[var(--foreground)]">— {agentName}</span>
-            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
