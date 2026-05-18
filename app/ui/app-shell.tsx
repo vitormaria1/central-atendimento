@@ -409,7 +409,12 @@ export default function AppShell() {
                         {showAudioPlayer ? (
                           mediaUrl ? (
                             <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
-                              <audio controls preload="none" src={mediaUrl} className="w-full h-10" />
+                              <audio
+                                controls
+                                preload="none"
+                                src={mediaUrl}
+                                className="w-full h-14"
+                              />
                               <div className="mt-2 flex items-center justify-between gap-3">
                                 <div className="text-xs text-[var(--muted)] truncate">Áudio</div>
                                 <a
