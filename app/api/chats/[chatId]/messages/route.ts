@@ -14,18 +14,23 @@ export async function GET(req: Request, ctx: RouteContext<"/api/chats/[chatId]/m
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { chatId } = await ctx.params;
-  const url = new URL(req.url);
-  const parsed = querySchema.safeParse(Object.fromEntries(url.searchParams.entries()));
-  if (!parsed.success) return NextResponse.json({ error: "Invalid query" }, { status: 400 });
+  try {
+    const { chatId } = await ctx.params;
+    const url = new URL(req.url);
+    const parsed = querySchema.safeParse(Object.fromEntries(url.searchParams.entries()));
+    if (!parsed.success) return NextResponse.json({ error: "Invalid query" }, { status: 400 });
 
-  const decodedChatId = decodeURIComponent(chatId);
-  const messages = await findMessages({
-    chatid: decodedChatId,
-    limit: parsed.data.limit ?? 80,
-    offset: parsed.data.offset ?? 0,
-  });
+    const decodedChatId = decodeURIComponent(chatId);
+    const messages = await findMessages({
+      chatid: decodedChatId,
+      limit: parsed.data.limit ?? 80,
+      offset: parsed.data.offset ?? 0,
+    });
 
-  const items = [...messages].sort((a, b) => (a.messageTimestamp ?? 0) - (b.messageTimestamp ?? 0));
-  return NextResponse.json({ items });
+    const items = [...messages].sort((a, b) => (a.messageTimestamp ?? 0) - (b.messageTimestamp ?? 0));
+    return NextResponse.json({ items });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: "Failed to load messages", details: message }, { status: 502 });
+  }
 }

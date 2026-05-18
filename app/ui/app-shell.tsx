@@ -81,7 +81,11 @@ export default function AppShell() {
     const url = new URL("/api/chats", window.location.origin);
     if (search.trim()) url.searchParams.set("search", search.trim());
     const res = await fetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return;
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string; details?: string } | null;
+      setToast(data?.details ? `${data.error ?? "Erro"}: ${data.details}` : data?.error ?? "Falha ao carregar chats");
+      return;
+    }
     const data = (await res.json()) as { items: ChatListItem[] };
     setChats(data.items);
     if (!selectedChatId && data.items.length > 0) setSelectedChatId(data.items[0]!.chatId);
@@ -91,14 +95,22 @@ export default function AppShell() {
     const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}/messages?limit=80`, {
       cache: "no-store",
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string; details?: string } | null;
+      setToast(data?.details ? `${data.error ?? "Erro"}: ${data.details}` : data?.error ?? "Falha ao carregar mensagens");
+      return;
+    }
     const data = (await res.json()) as { items: MessageItem[] };
     setMessages(data.items);
   }
 
   async function loadChatState(chatId: string) {
     const res = await fetch(`/api/chat-state?chatIds=${encodeURIComponent(chatId)}`, { cache: "no-store" });
-    if (!res.ok) return;
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      setToast(data?.error ?? "Falha ao carregar status do chat");
+      return;
+    }
     const data = (await res.json()) as {
       items: Array<{ chatId: string; status: "pendente" | "resolvido"; assignedAgentId: "vanderlei" | "gustavo" | null }>;
     };
@@ -404,4 +416,3 @@ export default function AppShell() {
     </div>
   );
 }
-
