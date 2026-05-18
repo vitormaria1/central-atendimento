@@ -11,6 +11,9 @@ type TaskPriority = "low" | "normal" | "high" | "urgent";
 
 type Client = { id: string; name: string };
 
+type ViewType = "list" | "board" | "calendar";
+type SavedView = { id: string; name: string; viewType: ViewType; department: Department | null; config: Record<string, unknown> };
+
 type TaskListItem = {
   id: string;
   title: string;
@@ -32,6 +35,14 @@ type TaskDetails = TaskListItem & {
 
 type CommentItem = { id: string; authorName: string; body: string; createdAt: string };
 type AttachmentItem = { id: string; filename: string; mimetype: string | null; sizeBytes: number; createdAt: string };
+type ReactionSummary = { emoji: string; count: number; mine: boolean };
+type AuditItem = { id: string; actorName: string; eventType: string; data: any; createdAt: string };
+type ReportsData = {
+  wipByStatus: Array<{ status: string; count: number }>;
+  workloadByAssignee: Array<{ assigneeAgentId: string | null; assigneeName: string; count: number }>;
+  tasksByClient: Array<{ clientId: string | null; clientName: string; count: number }>;
+  sla: { overdueOpenTasks: number; avgLeadTimeHoursDone: number | null };
+};
 
 function deptLabel(d: Department) {
   switch (d) {
@@ -79,6 +90,39 @@ function formatTime(iso: string) {
   return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+function renderWithMentions(text: string) {
+  const parts: Array<{ t: string; mention?: boolean }> = [];
+  const re = /@([a-z0-9_]+)/gi;
+  let last = 0;
+  let m: RegExpExecArray | null = null;
+  while ((m = re.exec(text))) {
+    const start = m.index;
+    const end = start + m[0].length;
+    if (start > last) parts.push({ t: text.slice(last, start) });
+    const handle = (m[1] ?? "").toLowerCase();
+    const isKnown = handle === "vanderlei" || handle === "gustavo";
+    parts.push({ t: text.slice(start, end), mention: isKnown });
+    last = end;
+  }
+  if (last < text.length) parts.push({ t: text.slice(last) });
+  return (
+    <span>
+      {parts.map((p, idx) =>
+        p.mention ? (
+          <span
+            key={idx}
+            className="rounded-md bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--primary)_35%,transparent)] px-1"
+          >
+            {p.t}
+          </span>
+        ) : (
+          <span key={idx}>{p.t}</span>
+        ),
+      )}
+    </span>
+  );
+}
+
 export default function TasksShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
@@ -94,8 +138,17 @@ export default function TasksShell() {
   const [details, setDetails] = useState<TaskDetails | null>(null);
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
+  const [audit, setAudit] = useState<AuditItem[]>([]);
+  const [reports, setReports] = useState<ReportsData | null>(null);
+  const [reactionsByCommentId, setReactionsByCommentId] = useState<Record<string, ReactionSummary[]>>({});
 
   const [toast, setToast] = useState<string | null>(null);
+
+  const [viewType, setViewType] = useState<ViewType>("list");
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [selectedSavedViewId, setSelectedSavedViewId] = useState<string>("builtin:minhas");
+  const [creatingView, setCreatingView] = useState(false);
+  const [newViewName, setNewViewName] = useState("");
 
   // create task
   const [creating, setCreating] = useState(false);
@@ -108,10 +161,34 @@ export default function TasksShell() {
   const [newDueAt, setNewDueAt] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const commentFileRef = useRef<HTMLInputElement | null>(null);
+  const [commentBody, setCommentBody] = useState("");
+  const [commentSending, setCommentSending] = useState(false);
+  const [commentFiles, setCommentFiles] = useState<File[]>([]);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
+  }
+
+  function applyBuiltInView(id: string) {
+    setSelectedSavedViewId(id);
+    if (id === "builtin:minhas") {
+      setAssignee(me?.agentId ?? "all");
+      setStatus("all");
+      setQ("");
+    }
+    if (id === "builtin:urgentes_hoje") {
+      setAssignee(me?.agentId ?? "all");
+      setStatus("all");
+      setQ("");
+      // nothing else; backend will filter in UI by due date when rendering calendar/list
+    }
+    if (id === "builtin:atrasadas") {
+      setAssignee(me?.agentId ?? "all");
+      setStatus("all");
+      setQ("");
+    }
   }
 
   async function loadMe() {
@@ -119,6 +196,15 @@ export default function TasksShell() {
     if (!res.ok) return;
     const data = (await res.json()) as Agent;
     setMe(data);
+  }
+
+  async function loadSavedViews() {
+    const url = new URL("/api/task-views", window.location.origin);
+    url.searchParams.set("department", department);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as { items: SavedView[] };
+    setSavedViews(data.items);
   }
 
   async function loadTasks() {
@@ -148,7 +234,7 @@ export default function TasksShell() {
   async function loadTaskComments(taskId: string) {
     const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/comments`, { cache: "no-store" });
     if (!res.ok) return;
-    const data = (await res.json()) as { items: CommentItem[] };
+    const data = (await res.json()) as { items: Array<CommentItem & { mentions?: string[] }> };
     setComments(data.items);
   }
 
@@ -160,7 +246,7 @@ export default function TasksShell() {
   }
 
   async function refreshTask(taskId: string) {
-    await Promise.all([loadTaskDetails(taskId), loadTaskComments(taskId), loadTaskAttachments(taskId)]);
+    await Promise.all([loadTaskDetails(taskId), loadTaskComments(taskId), loadTaskAttachments(taskId), loadTaskAudit(taskId)]);
     await loadTasks();
   }
 
@@ -238,6 +324,50 @@ export default function TasksShell() {
     }
   }
 
+  async function loadTaskAudit(taskId: string) {
+    const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/audit`, { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as { items: AuditItem[] };
+    setAudit(data.items);
+  }
+
+  async function loadReports() {
+    const url = new URL("/api/reports/tasks", window.location.origin);
+    url.searchParams.set("department", department);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as ReportsData;
+    setReports(data);
+  }
+
+  async function loadReactions(commentId: string) {
+    const res = await fetch(`/api/tasks/comments/${encodeURIComponent(commentId)}/reactions`, { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as { items: ReactionSummary[] };
+    setReactionsByCommentId((prev) => ({ ...prev, [commentId]: data.items }));
+  }
+
+  async function toggleReaction(commentId: string, emoji: string, mine: boolean) {
+    const method = mine ? "DELETE" : "POST";
+    const res = await fetch(`/api/tasks/comments/${encodeURIComponent(commentId)}/reactions`, {
+      method,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ emoji }),
+    });
+    if (!res.ok) return;
+    await loadReactions(commentId);
+  }
+
+  async function uploadCommentAttachments(commentId: string, files: File[]) {
+    const form = new FormData();
+    for (const f of files) form.append("files", f);
+    const res = await fetch(`/api/tasks/comments/${encodeURIComponent(commentId)}/attachments`, { method: "POST", body: form });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error ?? "Falha ao enviar arquivo");
+    }
+  }
+
   async function uploadAttachments(taskId: string, files: File[]) {
     const form = new FormData();
     for (const f of files) form.append("files", f);
@@ -245,6 +375,33 @@ export default function TasksShell() {
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       throw new Error(data?.error ?? "Falha ao enviar arquivo");
+    }
+  }
+
+  async function createSavedView() {
+    const name = newViewName.trim();
+    if (!name) return;
+    setCreatingView(true);
+    try {
+      const config = {
+        q: q.trim() || null,
+        status,
+        assignee,
+      };
+      const res = await fetch("/api/task-views", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, viewType, department, config }),
+      });
+      if (!res.ok) throw new Error("Falha ao criar view");
+      const data = (await res.json()) as { id: string };
+      setNewViewName("");
+      await loadSavedViews();
+      setSelectedSavedViewId(data.id);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Falha ao criar view");
+    } finally {
+      setCreatingView(false);
     }
   }
 
@@ -256,6 +413,8 @@ export default function TasksShell() {
   useEffect(() => {
     void loadTasks();
     setNewDepartment(department);
+    void loadSavedViews();
+    void loadReports();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [department]);
 
@@ -305,6 +464,95 @@ export default function TasksShell() {
           </div>
 
           <div className="p-4 space-y-3 border-b border-[var(--border)]">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setViewType("list")}
+                className={[
+                  "rounded-2xl px-3 py-2 text-sm ring-1",
+                  viewType === "list"
+                    ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
+                    : "bg-white/5 ring-white/10 hover:bg-white/8",
+                ].join(" ")}
+              >
+                Lista
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewType("board")}
+                className={[
+                  "rounded-2xl px-3 py-2 text-sm ring-1",
+                  viewType === "board"
+                    ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
+                    : "bg-white/5 ring-white/10 hover:bg-white/8",
+                ].join(" ")}
+              >
+                Board
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewType("calendar")}
+                className={[
+                  "rounded-2xl px-3 py-2 text-sm ring-1 col-span-2",
+                  viewType === "calendar"
+                    ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
+                    : "bg-white/5 ring-white/10 hover:bg-white/8",
+                ].join(" ")}
+              >
+                Calendário
+              </button>
+            </div>
+
+            <div className="grid gap-2">
+              <select
+                value={selectedSavedViewId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (id.startsWith("builtin:")) {
+                    applyBuiltInView(id);
+                    return;
+                  }
+                  setSelectedSavedViewId(id);
+                  const v = savedViews.find((x) => x.id === id);
+                  if (!v) return;
+                  const cfg = v.config ?? {};
+                  const cfgQ = typeof cfg.q === "string" ? cfg.q : "";
+                  const cfgStatus = (cfg.status as TaskStatus | "all") ?? "all";
+                  const cfgAssignee = (cfg.assignee as typeof assignee) ?? "all";
+                  setQ(cfgQ);
+                  setStatus(cfgStatus);
+                  setAssignee(cfgAssignee);
+                }}
+                className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+              >
+                <option value="builtin:minhas">Minhas tarefas</option>
+                <option value="builtin:urgentes_hoje">Urgentes hoje</option>
+                <option value="builtin:atrasadas">Atrasadas</option>
+                {savedViews.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex gap-2">
+                <input
+                  value={newViewName}
+                  onChange={(e) => setNewViewName(e.target.value)}
+                  placeholder="Salvar filtro como..."
+                  className="flex-1 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => void createSavedView()}
+                  disabled={creatingView || !newViewName.trim()}
+                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm hover:bg-white/8 disabled:opacity-60"
+                >
+                  Salvar
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-2">
               <select
                 value={department}
@@ -409,6 +657,96 @@ export default function TasksShell() {
           </header>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {viewType === "board" ? (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                {(["to_do", "in_progress", "blocked", "done"] as TaskStatus[]).map((s) => (
+                  <div key={s} className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                    <div className="text-sm font-semibold">{statusLabel(s)}</div>
+                    <div className="mt-3 space-y-2">
+                      {tasks
+                        .filter((t) => t.status === s)
+                        .slice(0, 50)
+                        .map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setSelectedTaskId(t.id)}
+                            className="w-full text-left rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
+                          >
+                            <div className="text-sm font-medium truncate">{t.title}</div>
+                            <div className="mt-1 text-xs text-[var(--muted)] truncate">
+                              {t.client ? t.client.name : "Sem cliente"} • {priorityLabel(t.priority)}
+                            </div>
+                          </button>
+                        ))}
+                      {tasks.filter((t) => t.status === s).length === 0 ? (
+                        <div className="text-xs text-[var(--muted)]">Sem tarefas.</div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {viewType === "calendar" ? (
+              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
+                <div className="text-sm font-semibold">Calendário (por prazo)</div>
+                <div className="mt-3 space-y-2">
+                  {tasks
+                    .filter((t) => t.dueAt)
+                    .slice()
+                    .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime())
+                    .map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setSelectedTaskId(t.id)}
+                        className="w-full text-left rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-medium truncate">{t.title}</div>
+                          <div className="text-xs text-[var(--muted)] shrink-0">{formatTime(t.dueAt!)}</div>
+                        </div>
+                        <div className="mt-1 text-xs text-[var(--muted)] truncate">
+                          {statusLabel(t.status)} • {t.client ? t.client.name : "Sem cliente"} • {priorityLabel(t.priority)}
+                        </div>
+                      </button>
+                    ))}
+                  {tasks.filter((t) => t.dueAt).length === 0 ? (
+                    <div className="text-xs text-[var(--muted)]">Nenhuma tarefa com prazo.</div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
+            {viewType === "list" ? (
+              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
+                <div className="text-sm font-semibold">Lista</div>
+                <div className="mt-3 space-y-2">
+                  {tasks.slice(0, 200).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSelectedTaskId(t.id)}
+                      className="w-full text-left rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-medium truncate">{t.title}</div>
+                        <div className="text-xs text-[var(--muted)] shrink-0">{priorityLabel(t.priority)}</div>
+                      </div>
+                      <div className="mt-1 text-xs text-[var(--muted)] truncate">
+                        {deptLabel(t.department)} • {statusLabel(t.status)}
+                        {t.assignee ? ` • ${t.assignee.name}` : " • Sem responsável"}
+                        {t.client ? ` • ${t.client.name}` : ""}
+                        {t.dueAt ? ` • ${formatTime(t.dueAt)}` : ""}
+                      </div>
+                    </button>
+                  ))}
+                  {tasks.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem tarefas.</div> : null}
+                </div>
+              </div>
+            ) : null}
+
             <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
               <div className="text-sm font-semibold">Criar tarefa</div>
               <div className="mt-4 grid gap-3">
@@ -581,27 +919,103 @@ export default function TasksShell() {
                             <div className="text-xs font-semibold">{c.authorName}</div>
                             <div className="text-[10px] text-[var(--muted)]">{formatTime(c.createdAt)}</div>
                           </div>
-                          <div className="mt-1 text-sm whitespace-pre-wrap">{c.body}</div>
+                          <div className="mt-1 text-sm whitespace-pre-wrap">{renderWithMentions(c.body)}</div>
+
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            {(reactionsByCommentId[c.id] ?? []).map((r) => (
+                              <button
+                                key={r.emoji}
+                                type="button"
+                                onClick={() => void toggleReaction(c.id, r.emoji, r.mine)}
+                                className={[
+                                  "text-xs rounded-full px-3 py-1 ring-1 transition",
+                                  r.mine
+                                    ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
+                                    : "bg-white/5 ring-white/10 hover:bg-white/8",
+                                ].join(" ")}
+                              >
+                                {r.emoji} {r.count}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void loadReactions(c.id);
+                              }}
+                              className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
+                            >
+                              Atualizar reações
+                            </button>
+                            {["👍", "✅", "🔥"].map((e) => (
+                              <button
+                                key={e}
+                                type="button"
+                                onClick={() => void toggleReaction(c.id, e, Boolean((reactionsByCommentId[c.id] ?? []).find((x) => x.emoji === e)?.mine))}
+                                className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
+                              >
+                                {e}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       ))}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const body = window.prompt("Comentário:");
-                          if (!body) return;
-                          void (async () => {
-                            try {
-                              await addComment(details.id, body);
-                              await refreshTask(details.id);
-                            } catch (err) {
-                              setToast(err instanceof Error ? err.message : "Falha ao comentar");
-                            }
-                          })();
-                        }}
-                        className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm hover:bg-white/8"
-                      >
-                        Adicionar comentário
-                      </button>
+                      <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
+                        <textarea
+                          value={commentBody}
+                          onChange={(e) => setCommentBody(e.target.value)}
+                          rows={3}
+                          placeholder="Escreva um comentário... (use @vanderlei / @gustavo)"
+                          className="w-full resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
+                        />
+                        <div className="mt-2 flex items-center justify-between gap-3">
+                          <label className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8 cursor-pointer">
+                            Anexar
+                            <input
+                              ref={commentFileRef}
+                              type="file"
+                              multiple
+                              className="hidden"
+                              onChange={(e) => {
+                                const files = Array.from(e.target.files ?? []);
+                                setCommentFiles(files.slice(0, 5));
+                              }}
+                            />
+                          </label>
+                          <div className="text-xs text-[var(--muted)] truncate">
+                            {commentFiles.length > 0 ? commentFiles.map((f) => f.name).join(", ") : "Até 5 arquivos"}
+                          </div>
+                          <button
+                            type="button"
+                            disabled={commentSending || commentBody.trim().length === 0}
+                            onClick={() => {
+                              void (async () => {
+                                setCommentSending(true);
+                                try {
+                                  await addComment(details.id, commentBody.trim());
+                                  setCommentBody("");
+                                  await refreshTask(details.id);
+                                  // upload after comment exists: fetch latest to get last id
+                                  if (commentFiles.length > 0) {
+                                    const latest = await fetch(`/api/tasks/${encodeURIComponent(details.id)}/comments`, { cache: "no-store" });
+                                    const latestData = (await latest.json()) as { items: CommentItem[] };
+                                    const last = latestData.items[latestData.items.length - 1];
+                                    if (last?.id) await uploadCommentAttachments(last.id, commentFiles);
+                                    setCommentFiles([]);
+                                  }
+                                  await refreshTask(details.id);
+                                } catch (err) {
+                                  setToast(err instanceof Error ? err.message : "Falha ao comentar");
+                                } finally {
+                                  setCommentSending(false);
+                                }
+                              })();
+                            }}
+                            className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                          >
+                            {commentSending ? "Enviando..." : "Comentar"}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -650,10 +1064,80 @@ export default function TasksShell() {
                     </div>
                   </div>
                 </div>
+
+                <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                  <div className="text-sm font-semibold">Histórico</div>
+                  <div className="mt-3 space-y-2">
+                    {audit.map((a) => (
+                      <div key={a.id} className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs font-semibold">{a.actorName}</div>
+                          <div className="text-[10px] text-[var(--muted)]">{formatTime(a.createdAt)}</div>
+                        </div>
+                        <div className="mt-1 text-xs text-[var(--muted)]">{a.eventType}</div>
+                      </div>
+                    ))}
+                    {audit.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem alterações registradas.</div> : null}
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="text-sm text-[var(--muted)]">Selecione uma tarefa na lista.</div>
             )}
+
+            {reports ? (
+              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
+                <div className="text-sm font-semibold">Dashboard • {deptLabel(department)}</div>
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                    <div className="text-xs text-[var(--muted)]">Atrasadas (SLA)</div>
+                    <div className="mt-1 text-2xl font-semibold">{reports.sla.overdueOpenTasks}</div>
+                  </div>
+                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                    <div className="text-xs text-[var(--muted)]">Lead time médio (concluídas)</div>
+                    <div className="mt-1 text-2xl font-semibold">
+                      {reports.sla.avgLeadTimeHoursDone === null ? "—" : `${Math.round(reports.sla.avgLeadTimeHoursDone)}h`}
+                    </div>
+                  </div>
+                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                    <div className="text-xs text-[var(--muted)]">WIP por status</div>
+                    <div className="mt-2 space-y-1">
+                      {reports.wipByStatus.map((s) => (
+                        <div key={s.status} className="flex items-center justify-between text-sm">
+                          <div className="text-[var(--muted)]">{s.status}</div>
+                          <div>{s.count}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                    <div className="text-sm font-semibold">Carga por responsável</div>
+                    <div className="mt-3 space-y-2">
+                      {reports.workloadByAssignee.slice(0, 8).map((x) => (
+                        <div key={x.assigneeName} className="flex items-center justify-between text-sm">
+                          <div className="text-[var(--muted)]">{x.assigneeName}</div>
+                          <div>{x.count}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                    <div className="text-sm font-semibold">Tarefas por cliente</div>
+                    <div className="mt-3 space-y-2">
+                      {reports.tasksByClient.slice(0, 8).map((x) => (
+                        <div key={x.clientName} className="flex items-center justify-between text-sm">
+                          <div className="text-[var(--muted)] truncate">{x.clientName}</div>
+                          <div>{x.count}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {toast ? (

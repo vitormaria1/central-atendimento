@@ -10,6 +10,18 @@ const createSchema = z.object({
   body: z.string().min(1).max(20_000),
 });
 
+function extractMentions(body: string) {
+  const mentions = new Set<string>();
+  const re = /@([a-z0-9_]+)/gi;
+  let m: RegExpExecArray | null = null;
+  while ((m = re.exec(body))) {
+    const v = (m[1] ?? "").toLowerCase();
+    if (!v) continue;
+    if (v === "vanderlei" || v === "gustavo") mentions.add(v);
+  }
+  return Array.from(mentions);
+}
+
 export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/[taskId]/comments">) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -22,10 +34,11 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/[taskId]/
     id: string;
     author_name: string;
     body: string;
+    mentions: string[];
     created_at: string;
   }>(
     `
-      select id::text, author_name, body, created_at::text
+      select id::text, author_name, body, mentions, created_at::text
       from task_comments
       where task_id = $1
       order by id asc
@@ -34,7 +47,13 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/[taskId]/
   );
 
   return NextResponse.json({
-    items: rows.map((r) => ({ id: r.id, authorName: r.author_name, body: r.body, createdAt: r.created_at })),
+    items: rows.map((r) => ({
+      id: r.id,
+      authorName: r.author_name,
+      body: r.body,
+      mentions: r.mentions ?? [],
+      createdAt: r.created_at,
+    })),
   });
 }
 
@@ -51,14 +70,15 @@ export async function POST(req: Request, ctx: RouteContext<"/api/tasks/[taskId]/
   if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
   const body = parsed.data.body.trim();
+  const mentions = extractMentions(body);
 
   const { rows } = await dbQuery<{ id: string }>(
     `
-      insert into task_comments (task_id, author_agent_id, author_name, body)
-      values ($1, $2, $3, $4)
+      insert into task_comments (task_id, author_agent_id, author_name, body, mentions)
+      values ($1, $2, $3, $4, $5)
       returning id::text
     `,
-    [id, session.agentId, session.agentName, body],
+    [id, session.agentId, session.agentName, body, mentions],
   );
 
   const row = rows[0];
@@ -66,4 +86,3 @@ export async function POST(req: Request, ctx: RouteContext<"/api/tasks/[taskId]/
 
   return NextResponse.json({ id: row.id });
 }
-

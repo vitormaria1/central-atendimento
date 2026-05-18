@@ -114,6 +114,15 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[taskId]
   const fields: string[] = [];
   const values: unknown[] = [];
 
+  const before = await dbQuery<{
+    status: string;
+    assignee_agent_id: string | null;
+    due_at: string | null;
+    priority: string;
+    department: string;
+  }>("select status::text, assignee_agent_id, due_at::text, priority::text, department::text from tasks where id = $1", [id]);
+  if (!before.rows[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   function setField(sql: string, value: unknown) {
     values.push(value);
     fields.push(`${sql} = $${values.length}`);
@@ -138,6 +147,32 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[taskId]
   values.push(id);
   await dbQuery(`update tasks set ${fields.join(", ")} where id = $${values.length}`, values);
 
+  const after = await dbQuery<{
+    status: string;
+    assignee_agent_id: string | null;
+    due_at: string | null;
+    priority: string;
+    department: string;
+  }>("select status::text, assignee_agent_id, due_at::text, priority::text, department::text from tasks where id = $1", [id]);
+
+  const b = before.rows[0];
+  const a = after.rows[0]!;
+  const changes: Record<string, { from: unknown; to: unknown }> = {};
+  if (b.status !== a.status) changes.status = { from: b.status, to: a.status };
+  if (b.assignee_agent_id !== a.assignee_agent_id) changes.assigneeAgentId = { from: b.assignee_agent_id, to: a.assignee_agent_id };
+  if ((b.due_at ?? null) !== (a.due_at ?? null)) changes.dueAt = { from: b.due_at, to: a.due_at };
+  if (b.priority !== a.priority) changes.priority = { from: b.priority, to: a.priority };
+  if (b.department !== a.department) changes.department = { from: b.department, to: a.department };
+
+  if (Object.keys(changes).length > 0) {
+    await dbQuery(
+      `
+        insert into task_audit_events (task_id, actor_agent_id, actor_name, event_type, data)
+        values ($1, $2, $3, $4, $5::jsonb)
+      `,
+      [id, session.agentId, session.agentName, "task_updated", JSON.stringify({ changes })],
+    );
+  }
+
   return NextResponse.json({ ok: true });
 }
-
