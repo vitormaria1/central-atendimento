@@ -99,6 +99,7 @@ export default function TasksShell() {
 
   // create task
   const [creating, setCreating] = useState(false);
+  const [newDepartment, setNewDepartment] = useState<Department>("fiscal");
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newClientName, setNewClientName] = useState("");
@@ -198,7 +199,7 @@ export default function TasksShell() {
         body: JSON.stringify({
           title,
           description: newDescription.trim() || undefined,
-          department,
+          department: newDepartment,
           priority: newPriority,
           assigneeAgentId: newAssignee === "none" ? null : newAssignee,
           clientId,
@@ -254,6 +255,7 @@ export default function TasksShell() {
 
   useEffect(() => {
     void loadTasks();
+    setNewDepartment(department);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [department]);
 
@@ -408,8 +410,19 @@ export default function TasksShell() {
 
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-              <div className="text-sm font-semibold">Criar tarefa em {deptLabel(department)}</div>
+              <div className="text-sm font-semibold">Criar tarefa</div>
               <div className="mt-4 grid gap-3">
+                <select
+                  value={newDepartment}
+                  onChange={(e) => setNewDepartment(e.target.value as Department)}
+                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                >
+                  <option value="fiscal">Fiscal</option>
+                  <option value="contabil">Contábil</option>
+                  <option value="pessoal">Pessoal</option>
+                  <option value="societario_paralegal">Societário</option>
+                  <option value="administrativo">Administrativo</option>
+                </select>
                 <input
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
@@ -653,4 +666,3 @@ export default function TasksShell() {
     </div>
   );
 }
-
