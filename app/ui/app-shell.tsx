@@ -75,12 +75,17 @@ export default function AppShell() {
   );
 
   const lastRefreshAtRef = useRef<number>(0);
+  const selectedChatIdRef = useRef<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const selectedChat = useMemo(
     () => chats.find((c) => c.chatId === selectedChatId) ?? null,
     [chats, selectedChatId],
   );
+
+  useEffect(() => {
+    selectedChatIdRef.current = selectedChatId;
+  }, [selectedChatId]);
 
   async function loadMe() {
     const res = await fetch("/api/me", { cache: "no-store" });
@@ -96,11 +101,12 @@ export default function AppShell() {
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string; details?: string } | null;
       setToast(data?.details ? `${data.error ?? "Erro"}: ${data.details}` : data?.error ?? "Falha ao carregar chats");
-      return;
+      return [] as ChatListItem[];
     }
     const data = (await res.json()) as { items: ChatListItem[] };
     setChats(data.items);
     if (!selectedChatId && data.items.length > 0) setSelectedChatId(data.items[0]!.chatId);
+    return data.items;
   }
 
   async function loadMessages(chatId: string) {
@@ -137,12 +143,14 @@ export default function AppShell() {
     if (now - lastRefreshAtRef.current < 500) return;
     lastRefreshAtRef.current = now;
 
-    await loadChats();
-    if (selectedChatId) {
-      await Promise.all([loadMessages(selectedChatId), loadChatState(selectedChatId)]);
+    const items = await loadChats();
+    const chatIdToLoad = selectedChatIdRef.current ?? items[0]?.chatId ?? null;
+    if (chatIdToLoad) {
+      await Promise.all([loadMessages(chatIdToLoad), loadChatState(chatIdToLoad)]);
     }
     // eslint-disable-next-line no-console
     console.debug("refreshed", reason);
+    setToast("Atualizado");
   }
 
   async function saveState(chatId: string, patch: { status?: "pendente" | "resolvido"; assignedAgentId?: "vanderlei" | "gustavo" | null }) {
@@ -296,7 +304,6 @@ export default function AppShell() {
               >
                 Atualizar
               </button>
-              <span className="text-xs text-[var(--muted)] self-center">Tempo real via webhook</span>
             </div>
           </div>
 
