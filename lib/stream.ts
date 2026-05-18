@@ -25,3 +25,28 @@ export function subscribe(listener: Listener) {
   return () => listeners.delete(listener);
 }
 
+type WebhookDebugItem = {
+  at: number;
+  accepted: boolean;
+  reason?: string;
+  payload: unknown;
+};
+
+const globalForWebhookDebug = globalThis as unknown as {
+  __ca_webhook_debug?: WebhookDebugItem[];
+};
+
+function getWebhookDebugStore() {
+  if (!globalForWebhookDebug.__ca_webhook_debug) globalForWebhookDebug.__ca_webhook_debug = [];
+  return globalForWebhookDebug.__ca_webhook_debug;
+}
+
+export function recordWebhookDebug(item: WebhookDebugItem) {
+  const store = getWebhookDebugStore();
+  store.unshift(item);
+  if (store.length > 50) store.length = 50;
+}
+
+export function getWebhookDebugItems() {
+  return getWebhookDebugStore();
+}

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getEnv } from "@/lib/env";
-import { publish } from "@/lib/stream";
+import { publish, recordWebhookDebug } from "@/lib/stream";
 
 export const dynamic = "force-dynamic";
 
@@ -32,29 +32,39 @@ export async function POST(req: Request) {
   // O webhook pode vir envelopado em array (exemplo do n8n)
   const maybeItem = Array.isArray(body) ? body[0]?.body ?? body[0] : body;
   const parsed = payloadSchema.safeParse(maybeItem);
-  if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  if (!parsed.success) {
+    recordWebhookDebug({ at: Date.now(), accepted: false, reason: "invalid_payload", payload: maybeItem });
+    return NextResponse.json({ ok: true, accepted: false }, { status: 200 });
+  }
 
   const env = getEnv();
-  if (parsed.data.BaseUrl !== env.UAZAPI_BASE_URL) {
-    return NextResponse.json({ error: "Invalid BaseUrl" }, { status: 403 });
-  }
-  if (parsed.data.instanceName !== env.UAZAPI_INSTANCE_NAME) {
-    return NextResponse.json({ error: "Invalid instanceName" }, { status: 403 });
-  }
-  if (parsed.data.token !== env.UAZAPI_TOKEN) {
-    return NextResponse.json({ error: "Invalid token" }, { status: 403 });
-  }
+  const normalizeUrl = (url: string) => url.replace(/\/+$/, "");
+  const baseUrlOk = normalizeUrl(parsed.data.BaseUrl) === normalizeUrl(env.UAZAPI_BASE_URL);
+  const instanceOk = parsed.data.instanceName === env.UAZAPI_INSTANCE_NAME;
+  const tokenOk = parsed.data.token === env.UAZAPI_TOKEN;
 
   const chatId =
     parsed.data.message?.chatid ?? parsed.data.chat?.wa_chatid ?? parsed.data.chat?.wa_fastid ?? null;
 
   if (chatId) {
-    publish({
-      type: "message_received",
-      chatId,
-      messageId: parsed.data.message?.messageid ?? parsed.data.message?.id,
+    const accepted = baseUrlOk && instanceOk && tokenOk;
+    recordWebhookDebug({
+      at: Date.now(),
+      accepted,
+      reason: accepted
+        ? undefined
+        : `rejected:${baseUrlOk ? "" : "baseUrl"}${instanceOk ? "" : "|instance"}${tokenOk ? "" : "|token"}`,
+      payload: parsed.data,
     });
-    publish({ type: "chat_updated", chatId });
+
+    if (accepted) {
+      publish({
+        type: "message_received",
+        chatId,
+        messageId: parsed.data.message?.messageid ?? parsed.data.message?.id,
+      });
+      publish({ type: "chat_updated", chatId });
+    }
   }
 
   return NextResponse.json({ ok: true }, { status: 200 });
