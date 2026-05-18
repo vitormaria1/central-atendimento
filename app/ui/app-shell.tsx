@@ -150,7 +150,7 @@ export default function AppShell() {
     }
     // eslint-disable-next-line no-console
     console.debug("refreshed", reason);
-    setToast("Atualizado");
+    if (reason === "manual") setToast("Atualizado");
   }
 
   async function saveState(chatId: string, patch: { status?: "pendente" | "resolvido"; assignedAgentId?: "vanderlei" | "gustavo" | null }) {
@@ -296,15 +296,6 @@ export default function AppShell() {
               placeholder="Buscar conversas..."
               className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-3 text-sm outline-none focus:ring-[color-mix(in_srgb,var(--primary)_55%,transparent)]"
             />
-            <div className="mt-3 flex gap-2">
-              <button
-                className={chipClass(true)}
-                onClick={() => void refreshAll("manual")}
-                type="button"
-              >
-                Atualizar
-              </button>
-            </div>
           </div>
 
           <div className="overflow-y-auto h-[calc(100vh-64px-88px)]">
@@ -415,20 +406,20 @@ export default function AppShell() {
                       <div className="mt-2">
                         {showAudioPlayer ? (
                           mediaUrl ? (
-                            <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
+                            <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4">
                               <audio
                                 controls
                                 preload="none"
                                 src={mediaUrl}
-                                className="w-full h-14"
+                                className="w-full h-16 scale-110 origin-left"
                               />
-                              <div className="mt-2 flex items-center justify-between gap-3">
-                                <div className="text-xs text-[var(--muted)] truncate">Áudio</div>
+                              <div className="mt-3 flex items-center justify-between gap-3">
+                                <div className="text-sm text-[var(--muted)] truncate">Áudio</div>
                                 <a
                                   href={mediaUrl}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
+                                  className="text-sm rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 hover:bg-white/8"
                                 >
                                   Baixar
                                 </a>
@@ -437,7 +428,7 @@ export default function AppShell() {
                           ) : id ? (
                             <button
                               type="button"
-                              className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
+                              className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3 text-sm hover:bg-white/8"
                               onClick={() => {
                                 void (async () => {
                                   try {
