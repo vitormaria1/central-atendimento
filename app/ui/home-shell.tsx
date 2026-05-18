@@ -35,7 +35,7 @@ export default function HomeShell() {
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 flex items-center justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo.png" alt="Logo" className="h-7 w-7" />
+                <img src="/logo-mark.png" alt="Logo" className="h-7 w-7" />
               </div>
               <div>
                 <div className="text-sm font-semibold leading-tight">Central</div>
@@ -117,4 +117,3 @@ export default function HomeShell() {
     </div>
   );
 }
-

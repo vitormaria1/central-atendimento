@@ -49,7 +49,7 @@ export default function LoginPage() {
           <div className="flex flex-col items-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/logo.png"
+              src="/logo-mark.png"
               alt="Logo"
               className="h-36 w-36 md:h-44 md:w-44 object-contain"
             />
