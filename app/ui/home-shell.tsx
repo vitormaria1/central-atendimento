@@ -67,6 +67,21 @@ export default function HomeShell() {
                   <div className="mt-1 text-xs text-[var(--muted)]">Atender conversas e enviar documentos</div>
                 </button>
 
+                <button
+                  className={itemClass(false)}
+                  onClick={() => {
+                    router.push("/team-chat");
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">Chat Interno</div>
+                    <div className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--primary)_22%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--primary)_55%,transparent)] px-2 py-1">
+                      Time
+                    </div>
+                  </div>
+                  <div className="mt-1 text-xs text-[var(--muted)]">Comunicação rápida entre atendentes</div>
+                </button>
+
                 <button className={itemClass(true)} disabled>
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-medium">Instagram</div>
