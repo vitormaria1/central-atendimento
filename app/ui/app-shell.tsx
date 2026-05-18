@@ -387,7 +387,8 @@ export default function AppShell() {
                 <div key={m.messageid ?? m.id ?? Math.random()} className={mine ? "flex justify-end" : "flex justify-start"}>
                   <div
                     className={[
-                      "max-w-[78%] rounded-3xl px-4 py-3 ring-1",
+                      showAudioPlayer ? "max-w-[92%]" : "max-w-[78%]",
+                      "rounded-3xl px-4 py-3 ring-1",
                       mine
                         ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
                         : "bg-white/5 ring-white/10",
@@ -411,7 +412,7 @@ export default function AppShell() {
                                 controls
                                 preload="none"
                                 src={mediaUrl}
-                                className="w-full h-16 scale-110 origin-left"
+                                className="w-[520px] max-w-full h-16 scale-110 origin-left"
                               />
                               <div className="mt-3 flex items-center justify-between gap-3">
                                 <div className="text-sm text-[var(--muted)] truncate">Áudio</div>
