@@ -38,7 +38,7 @@ export async function GET(req: Request) {
       select id::text, channel, parent_id::text, sender_name, body, created_at::text
       from team_chat_messages
       where channel = $1
-        and search_tsv @@ websearch_to_tsquery('simple', $2)
+        and search_tsv @@ websearch_to_tsquery('portuguese', unaccent($2))
       order by id desc
       limit $3
     `,
@@ -56,4 +56,3 @@ export async function GET(req: Request) {
     })),
   });
 }
-
