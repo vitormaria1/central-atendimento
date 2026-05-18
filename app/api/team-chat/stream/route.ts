@@ -46,14 +46,17 @@ export async function GET(req: Request) {
           while (!cancelled) {
             const { rows } = await dbQuery<{
               id: string;
+              parent_id: string | null;
               sender_name: string;
               body: string;
               created_at: string;
             }>(
               `
-                select id::text, sender_name, body, created_at::text
+                select id::text, parent_id::text, sender_name, body, created_at::text
                 from team_chat_messages
-                where channel = $1 and id > $2
+                where channel = $1
+                  and parent_id is null
+                  and id > $2
                 order by id asc
                 limit 50
               `,
@@ -68,6 +71,7 @@ export async function GET(req: Request) {
                 item: {
                   id: row.id,
                   channel,
+                  parentId: row.parent_id,
                   senderName: row.sender_name,
                   body: row.body,
                   createdAt: row.created_at,

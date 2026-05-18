@@ -8,7 +8,8 @@ export const runtime = "nodejs";
 
 const bodySchema = z.object({
   channel: z.string().optional(),
-  body: z.string(),
+  body: z.string().optional(),
+  parentId: z.string().optional(),
 });
 
 export async function POST(req: Request) {
@@ -20,23 +21,29 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
   const channel = (parsed.data.channel ?? "geral").trim() || "geral";
-  const body = parsed.data.body.trim();
+  const parentId = parsed.data.parentId ? Number.parseInt(parsed.data.parentId, 10) : null;
+  if (parentId !== null && !Number.isFinite(parentId)) {
+    return NextResponse.json({ error: "Invalid parentId" }, { status: 400 });
+  }
+
+  const body = (parsed.data.body ?? "").trim();
   if (!body) return NextResponse.json({ error: "Mensagem vazia" }, { status: 400 });
   if (body.length > 4000) return NextResponse.json({ error: "Mensagem muito grande" }, { status: 400 });
 
   const { rows } = await dbQuery<{
     id: string;
     channel: string;
+    parent_id: string | null;
     sender_name: string;
     body: string;
     created_at: string;
   }>(
     `
-      insert into team_chat_messages (channel, sender_agent_id, sender_name, body)
-      values ($1, $2, $3, $4)
-      returning id::text, channel, sender_name, body, created_at::text
+      insert into team_chat_messages (channel, parent_id, sender_agent_id, sender_name, body)
+      values ($1, $2, $3, $4, $5)
+      returning id::text, channel, parent_id::text, sender_name, body, created_at::text
     `,
-    [channel, session.agentId, session.agentName, body],
+    [channel, parentId, session.agentId, session.agentName, body],
   );
 
   const row = rows[0];
@@ -46,6 +53,7 @@ export async function POST(req: Request) {
     item: {
       id: row.id,
       channel: row.channel,
+      parentId: row.parent_id,
       senderName: row.sender_name,
       body: row.body,
       createdAt: row.created_at,

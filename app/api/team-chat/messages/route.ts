@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 
 const querySchema = z.object({
   channel: z.string().optional(),
+  parentId: z.string().optional(),
   afterId: z.string().optional(),
   limit: z.string().optional(),
 });
@@ -29,9 +30,13 @@ export async function GET(req: Request) {
   const channel = (parsed.data.channel ?? "geral").trim() || "geral";
   const limit = clampLimit(parsed.data.limit);
   const afterId = parsed.data.afterId ? Number.parseInt(parsed.data.afterId, 10) : null;
+  const parentId = parsed.data.parentId ? Number.parseInt(parsed.data.parentId, 10) : null;
 
   if (afterId !== null && !Number.isFinite(afterId)) {
     return NextResponse.json({ error: "Invalid afterId" }, { status: 400 });
+  }
+  if (parentId !== null && !Number.isFinite(parentId)) {
+    return NextResponse.json({ error: "Invalid parentId" }, { status: 400 });
   }
 
   const rows = await (async () => {
@@ -39,18 +44,21 @@ export async function GET(req: Request) {
       const { rows } = await dbQuery<{
         id: string;
         channel: string;
+        parent_id: string | null;
         sender_name: string;
         body: string;
         created_at: string;
       }>(
         `
-          select id::text, channel, sender_name, body, created_at::text
+          select id::text, channel, parent_id::text, sender_name, body, created_at::text
           from team_chat_messages
-          where channel = $1 and id > $2
+          where channel = $1
+            and parent_id is not distinct from $2
+            and id > $3
           order by id asc
-          limit $3
+          limit $4
         `,
-        [channel, afterId, limit],
+        [channel, parentId, afterId, limit],
       );
       return rows;
     }
@@ -58,6 +66,7 @@ export async function GET(req: Request) {
     const { rows } = await dbQuery<{
       id: string;
       channel: string;
+      parent_id: string | null;
       sender_name: string;
       body: string;
       created_at: string;
@@ -65,15 +74,16 @@ export async function GET(req: Request) {
       `
         select *
         from (
-          select id::text, channel, sender_name, body, created_at::text
+          select id::text, channel, parent_id::text, sender_name, body, created_at::text
           from team_chat_messages
           where channel = $1
+            and parent_id is not distinct from $3
           order by id desc
           limit $2
         ) t
         order by id asc
       `,
-      [channel, limit],
+      [channel, limit, parentId],
     );
     return rows;
   })();
@@ -82,6 +92,7 @@ export async function GET(req: Request) {
     items: rows.map((r) => ({
       id: r.id,
       channel: r.channel,
+      parentId: r.parent_id,
       senderName: r.sender_name,
       body: r.body,
       createdAt: r.created_at,

@@ -8,10 +8,13 @@ type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gusta
 type TeamMessage = {
   id: string;
   channel: string;
+  parentId?: string | null;
   senderName: string;
   body: string;
   createdAt: string;
 };
+
+type Channel = { slug: string; name: string; createdAt: string };
 
 function formatTime(iso: string) {
   const d = new Date(iso);
@@ -21,16 +24,32 @@ function formatTime(iso: string) {
 export default function TeamChatShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
-  const [channel] = useState("geral");
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [channel, setChannel] = useState("geral");
   const [messages, setMessages] = useState<TeamMessage[]>([]);
   const [composer, setComposer] = useState("");
+  const [composerFiles, setComposerFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<TeamMessage[]>([]);
+  const [creatingChannel, setCreatingChannel] = useState(false);
+  const [newChannelSlug, setNewChannelSlug] = useState("");
+  const [newChannelName, setNewChannelName] = useState("");
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const lastIdRef = useRef<number>(0);
   const [streamSinceId, setStreamSinceId] = useState<number | null>(null);
+  const [threadRoot, setThreadRoot] = useState<TeamMessage | null>(null);
+  const [threadMessages, setThreadMessages] = useState<TeamMessage[]>([]);
+  const [threadComposer, setThreadComposer] = useState("");
+  const [threadSending, setThreadSending] = useState(false);
+
+  const [attachmentsByMessageId, setAttachmentsByMessageId] = useState<
+    Record<string, Array<{ id: string; filename: string; mimetype?: string | null; sizeBytes: number }>>
+  >({});
 
   function scrollToBottom() {
     const el = scrollRef.current;
@@ -43,6 +62,16 @@ export default function TeamChatShell() {
     if (!res.ok) return;
     const data = (await res.json()) as Agent;
     setMe(data);
+  }
+
+  async function loadChannels() {
+    const res = await fetch("/api/team-chat/channels", { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as { items: Channel[] };
+    setChannels(data.items);
+    if (data.items.length > 0 && !data.items.some((c) => c.slug === channel)) {
+      setChannel(data.items[0]!.slug);
+    }
   }
 
   async function loadInitial() {
@@ -66,6 +95,18 @@ export default function TeamChatShell() {
     queueMicrotask(scrollToBottom);
   }
 
+  async function loadThread(root: TeamMessage) {
+    setThreadRoot(root);
+    const url = new URL("/api/team-chat/messages", window.location.origin);
+    url.searchParams.set("channel", channel);
+    url.searchParams.set("parentId", root.id);
+    url.searchParams.set("limit", "120");
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as { items: TeamMessage[] };
+    setThreadMessages(data.items);
+  }
+
   async function pollNew() {
     const afterId = lastIdRef.current;
     const url = new URL("/api/team-chat/messages", window.location.origin);
@@ -86,6 +127,50 @@ export default function TeamChatShell() {
     queueMicrotask(scrollToBottom);
   }
 
+  async function ensureAttachments(messageId: string) {
+    if (attachmentsByMessageId[messageId]) return;
+    const url = new URL("/api/team-chat/attachments", window.location.origin);
+    url.searchParams.set("messageId", messageId);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as {
+      items: Array<{ id: string; filename: string; mimetype?: string | null; sizeBytes: number }>;
+    };
+    setAttachmentsByMessageId((prev) => ({ ...prev, [messageId]: data.items }));
+  }
+
+  async function uploadAttachments(messageId: string, files: File[]) {
+    if (files.length === 0) return;
+    const form = new FormData();
+    form.set("messageId", messageId);
+    for (const f of files) form.append("files", f);
+    const res = await fetch("/api/team-chat/attachments/upload", { method: "POST", body: form });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error ?? "Falha ao enviar arquivo");
+    }
+  }
+
+  async function runSearch(q: string) {
+    const query = q.trim();
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const url = new URL("/api/team-chat/search", window.location.origin);
+      url.searchParams.set("channel", channel);
+      url.searchParams.set("q", query);
+      const res = await fetch(url.toString(), { cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as { items: TeamMessage[] };
+      setSearchResults(data.items);
+    } finally {
+      setSearching(false);
+    }
+  }
+
   async function sendMessage() {
     const body = composer.trim();
     if (!body) return;
@@ -100,12 +185,69 @@ export default function TeamChatShell() {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(data?.error ?? "Falha ao enviar");
       }
+      const data = (await res.json()) as { item: TeamMessage };
+      const createdId = data.item?.id;
+      if (createdId && composerFiles.length > 0) {
+        await uploadAttachments(createdId, composerFiles);
+      }
       setComposer("");
+      setComposerFiles([]);
       await pollNew();
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Falha ao enviar");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function sendThreadMessage() {
+    const root = threadRoot;
+    if (!root) return;
+    const body = threadComposer.trim();
+    if (!body) return;
+    setThreadSending(true);
+    try {
+      const res = await fetch("/api/team-chat/send", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ channel, parentId: root.id, body }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? "Falha ao enviar");
+      }
+      setThreadComposer("");
+      await loadThread(root);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Falha ao enviar");
+    } finally {
+      setThreadSending(false);
+    }
+  }
+
+  async function createChannel() {
+    const slug = newChannelSlug.trim().toLowerCase();
+    const name = newChannelName.trim();
+    if (!slug || !name) return;
+    setCreatingChannel(true);
+    try {
+      const res = await fetch("/api/team-chat/channels", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ slug, name }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? "Falha ao criar canal");
+      }
+      setNewChannelSlug("");
+      setNewChannelName("");
+      await loadChannels();
+      setChannel(slug);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Falha ao criar canal");
+    } finally {
+      setCreatingChannel(false);
     }
   }
 
@@ -118,9 +260,23 @@ export default function TeamChatShell() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadMe();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadInitial();
+    void loadChannels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadInitial();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setThreadRoot(null);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setThreadMessages([]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSearch("");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSearchResults([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel]);
 
   useEffect(() => {
     if (streamSinceId === null) return;
@@ -167,6 +323,17 @@ export default function TeamChatShell() {
   }, [channel, streamSinceId]);
 
   useEffect(() => {
+    if (!search.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSearchResults([]);
+      return;
+    }
+    const t = window.setTimeout(() => void runSearch(search), 250);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, channel]);
+
+  useEffect(() => {
     if (!toast) return;
     const t = window.setTimeout(() => setToast(null), 3500);
     return () => window.clearTimeout(t);
@@ -202,16 +369,61 @@ export default function TeamChatShell() {
 
           <div className="p-4 space-y-3">
             <div className="text-xs font-semibold text-[var(--muted)] tracking-wide uppercase">Canais</div>
-            <button
-              type="button"
-              className="w-full rounded-2xl px-4 py-3 text-left ring-1 transition bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium"># geral</div>
-                <div className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">Time</div>
+            <div className="space-y-2">
+              {channels.length === 0 ? (
+                <div className="text-xs text-[var(--muted)]">Carregando canais...</div>
+              ) : null}
+              {channels.map((c) => {
+                const active = c.slug === channel;
+                return (
+                  <button
+                    key={c.slug}
+                    type="button"
+                    onClick={() => setChannel(c.slug)}
+                    className={[
+                      "w-full rounded-2xl px-4 py-3 text-left ring-1 transition",
+                      active
+                        ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
+                        : "bg-white/5 ring-white/10 hover:bg-white/8",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium"># {c.slug}</div>
+                      <div className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">Time</div>
+                    </div>
+                    <div className="mt-1 text-xs text-[var(--muted)]">{c.name}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="pt-2">
+              <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
+                <div className="text-xs font-semibold">Criar canal</div>
+                <div className="mt-2 grid gap-2">
+                  <input
+                    value={newChannelSlug}
+                    onChange={(e) => setNewChannelSlug(e.target.value)}
+                    placeholder="slug (ex: suporte)"
+                    className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                  />
+                  <input
+                    value={newChannelName}
+                    onChange={(e) => setNewChannelName(e.target.value)}
+                    placeholder="nome (ex: Suporte)"
+                    className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void createChannel()}
+                    disabled={creatingChannel || !newChannelSlug.trim() || !newChannelName.trim()}
+                    className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  >
+                    {creatingChannel ? "Criando..." : "Criar"}
+                  </button>
+                </div>
               </div>
-              <div className="mt-1 text-xs text-[var(--muted)]">Comunicação interna rápida</div>
-            </button>
+            </div>
 
             <div className="pt-3 text-xs text-[var(--muted)]">Dica: Enter envia • Shift+Enter quebra linha</div>
           </div>
@@ -224,43 +436,197 @@ export default function TeamChatShell() {
               <div className="text-xs text-[var(--muted)]">Somente para o time</div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => void pollNew()}
-              className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-            >
-              Atualizar
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="hidden md:block">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar mensagens..."
+                  className="w-[320px] rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => void pollNew()}
+                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+              >
+                Atualizar
+              </button>
+            </div>
           </header>
 
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-3">
-            {messages.length === 0 ? (
-              <div className="text-sm text-[var(--muted)]">Sem mensagens ainda. Escreva a primeira.</div>
-            ) : null}
-
-            {messages.map((m) => {
-              const mine = m.senderName === me?.agentName;
-              return (
-                <div key={m.id} className={mine ? "flex justify-end" : "flex justify-start"}>
-                  <div className="max-w-[70%]">
-                    <div
-                      className={[
-                        "rounded-3xl px-4 py-3 ring-1",
-                        mine
-                          ? "bg-[color-mix(in_srgb,var(--primary)_20%,transparent)] ring-[color-mix(in_srgb,var(--primary)_55%,transparent)]"
-                          : "bg-white/5 ring-white/10",
-                      ].join(" ")}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-xs font-semibold">{m.senderName}</div>
-                        <div className="text-[10px] text-[var(--muted)]">{formatTime(m.createdAt)}</div>
-                      </div>
-                      <div className="mt-2 text-sm whitespace-pre-wrap break-words">{m.body}</div>
-                    </div>
+          <div className="flex-1 flex min-h-0">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-3 min-w-0">
+              {search.trim() ? (
+                <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold">Busca</div>
+                    <div className="text-xs text-[var(--muted)]">{searching ? "Procurando..." : `${searchResults.length} resultados`}</div>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {searchResults.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => {
+                          const rootId = r.parentId ? r.parentId : r.id;
+                          const root = messages.find((m) => m.id === rootId) ?? (r.parentId ? null : r);
+                          if (root) void loadThread(root);
+                        }}
+                        className="w-full text-left rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs font-semibold truncate">{r.senderName}</div>
+                          <div className="text-[10px] text-[var(--muted)]">{formatTime(r.createdAt)}</div>
+                        </div>
+                        <div className="mt-1 text-sm truncate">{r.body}</div>
+                      </button>
+                    ))}
+                    {searchResults.length === 0 && !searching ? (
+                      <div className="text-xs text-[var(--muted)]">Nenhum resultado.</div>
+                    ) : null}
                   </div>
                 </div>
-              );
-            })}
+              ) : null}
+
+              {messages.length === 0 ? (
+                <div className="text-sm text-[var(--muted)]">Sem mensagens ainda. Escreva a primeira.</div>
+              ) : null}
+
+              {messages.map((m) => {
+                const mine = m.senderName === me?.agentName;
+                const attachments = attachmentsByMessageId[m.id];
+                return (
+                  <div key={m.id} className={mine ? "flex justify-end" : "flex justify-start"}>
+                    <div className="max-w-[78%]">
+                      <div
+                        className={[
+                          "rounded-3xl px-4 py-3 ring-1",
+                          mine
+                            ? "bg-[color-mix(in_srgb,var(--primary)_20%,transparent)] ring-[color-mix(in_srgb,var(--primary)_55%,transparent)]"
+                            : "bg-white/5 ring-white/10",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs font-semibold">{m.senderName}</div>
+                          <div className="text-[10px] text-[var(--muted)]">{formatTime(m.createdAt)}</div>
+                        </div>
+                        <div className="mt-2 text-sm whitespace-pre-wrap break-words">{m.body}</div>
+
+                        <div className="mt-3 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void loadThread(m)}
+                            className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
+                          >
+                            Abrir tópico
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void ensureAttachments(m.id)}
+                            className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
+                          >
+                            {attachments ? `Anexos (${attachments.length})` : "Ver anexos"}
+                          </button>
+                        </div>
+
+                        {attachments && attachments.length > 0 ? (
+                          <div className="mt-3 space-y-2">
+                            {attachments.map((a) => (
+                              <a
+                                key={a.id}
+                                href={`/api/team-chat/attachments/download?id=${encodeURIComponent(a.id)}`}
+                                className="block text-sm rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
+                              >
+                                {a.filename}
+                              </a>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {threadRoot ? (
+              <div className="w-[420px] shrink-0 border-l border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_88%,black)] flex flex-col">
+                <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--border)]">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold truncate">Tópico</div>
+                    <div className="text-xs text-[var(--muted)] truncate">{threadRoot.body}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setThreadRoot(null);
+                      setThreadMessages([]);
+                      setThreadComposer("");
+                    }}
+                    className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                  >
+                    Fechar
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {threadMessages.length === 0 ? (
+                    <div className="text-xs text-[var(--muted)]">Sem respostas ainda.</div>
+                  ) : null}
+                  {threadMessages.map((m) => {
+                    const mine = m.senderName === me?.agentName;
+                    return (
+                      <div key={m.id} className={mine ? "flex justify-end" : "flex justify-start"}>
+                        <div className="max-w-[92%]">
+                          <div
+                            className={[
+                              "rounded-3xl px-4 py-3 ring-1",
+                              mine
+                                ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_55%,transparent)]"
+                                : "bg-white/5 ring-white/10",
+                            ].join(" ")}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="text-xs font-semibold">{m.senderName}</div>
+                              <div className="text-[10px] text-[var(--muted)]">{formatTime(m.createdAt)}</div>
+                            </div>
+                            <div className="mt-2 text-sm whitespace-pre-wrap break-words">{m.body}</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="border-t border-[var(--border)] p-4">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 rounded-3xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
+                      <textarea
+                        value={threadComposer}
+                        onChange={(e) => setThreadComposer(e.target.value)}
+                        rows={2}
+                        placeholder="Responder no tópico..."
+                        className="w-full resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            void sendThreadMessage();
+                          }
+                        }}
+                      />
+                    </div>
+                    <button
+                      disabled={threadSending || threadComposer.trim().length === 0}
+                      onClick={() => void sendThreadMessage()}
+                      className="h-10 rounded-2xl bg-[var(--primary)] px-4 text-sm font-medium text-white disabled:opacity-60"
+                    >
+                      {threadSending ? "Enviando..." : "Enviar"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <footer className="border-t border-[var(--border)] p-4 bg-[var(--background)]/80 backdrop-blur">
@@ -279,6 +645,25 @@ export default function TeamChatShell() {
                     }
                   }}
                 />
+                <div className="mt-2 flex items-center gap-3">
+                  <label className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8 cursor-pointer">
+                    Anexar
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? []);
+                        setComposerFiles(files.slice(0, 5));
+                      }}
+                    />
+                  </label>
+                  {composerFiles.length > 0 ? (
+                    <div className="text-xs text-[var(--muted)] truncate">{composerFiles.map((f) => f.name).join(", ")}</div>
+                  ) : (
+                    <div className="text-xs text-[var(--muted)]">Até 5 arquivos (10MB cada)</div>
+                  )}
+                </div>
               </div>
 
               <button
