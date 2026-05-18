@@ -43,6 +43,13 @@ function getMessageText(m: MessageItem) {
   return m.text ?? m.content ?? "";
 }
 
+function isAudioLike(m: MessageItem, mimetype?: string) {
+  if (mimetype?.startsWith("audio/")) return true;
+  const mt = (m.messageType ?? "").toLowerCase();
+  const t = (m.type ?? "").toLowerCase();
+  return mt.includes("audio") || t === "audio" || t === "ptt" || mt.includes("ptt") || mt.includes("voice");
+}
+
 function chipClass(active: boolean) {
   return [
     "rounded-full px-3 py-1 text-xs ring-1 transition",
@@ -373,8 +380,11 @@ export default function AppShell() {
               const mine = Boolean(m.fromMe);
               const text = getMessageText(m);
               const id = m.messageid ?? m.id ?? "";
-              const mediaUrl = (id && downloadByMessageId[id]?.fileURL) || m.fileURL || null;
+              const cached = id ? downloadByMessageId[id] : undefined;
+              const mediaUrl = (id && cached?.fileURL) || m.fileURL || null;
+              const mimetype = cached?.mimetype;
               const showMedia = Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation" && text.trim().length === 0);
+              const showAudioPlayer = showMedia && isAudioLike(m, mimetype);
               return (
                 <div key={m.messageid ?? m.id ?? Math.random()} className={mine ? "flex justify-end" : "flex justify-start"}>
                   <div
@@ -396,7 +406,42 @@ export default function AppShell() {
 
                     {showMedia ? (
                       <div className="mt-2">
-                        {mediaUrl ? (
+                        {showAudioPlayer ? (
+                          mediaUrl ? (
+                            <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
+                              <audio controls preload="none" src={mediaUrl} className="w-full h-10" />
+                              <div className="mt-2 flex items-center justify-between gap-3">
+                                <div className="text-xs text-[var(--muted)] truncate">Áudio</div>
+                                <a
+                                  href={mediaUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
+                                >
+                                  Baixar
+                                </a>
+                              </div>
+                            </div>
+                          ) : id ? (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
+                              onClick={() => {
+                                void (async () => {
+                                  try {
+                                    await ensureDownload(id);
+                                  } catch (err) {
+                                    setToast(err instanceof Error ? err.message : "Falha ao baixar áudio");
+                                  }
+                                })();
+                              }}
+                            >
+                              Carregar áudio
+                            </button>
+                          ) : (
+                            <div className="text-xs text-[var(--muted)]">Áudio sem ID</div>
+                          )
+                        ) : mediaUrl ? (
                           <a
                             href={mediaUrl}
                             target="_blank"
