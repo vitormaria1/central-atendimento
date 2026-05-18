@@ -18,6 +18,11 @@ export default function HomeShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
 
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  }
+
   useEffect(() => {
     void (async () => {
       const res = await fetch("/api/me", { cache: "no-store" });
@@ -44,6 +49,14 @@ export default function HomeShell() {
                 </div>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+            >
+              Sair
+            </button>
           </div>
 
           <div className="p-4 space-y-6">
