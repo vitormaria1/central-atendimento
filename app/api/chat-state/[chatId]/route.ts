@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const patchSchema = z.object({
   status: z.enum(["pendente", "resolvido"]).optional(),
@@ -41,4 +42,3 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/chat-state/[ch
 
   return NextResponse.json({ ok: true });
 }
-

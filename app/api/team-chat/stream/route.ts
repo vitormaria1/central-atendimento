@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 function encodeSse(data: unknown) {
   return `data: ${JSON.stringify(data)}\n\n`;
@@ -101,4 +102,3 @@ export async function GET(req: Request) {
     },
   });
 }
-

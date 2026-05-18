@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { subscribe } from "@/lib/stream";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 function encodeSse(data: unknown) {
   return `data: ${JSON.stringify(data)}\n\n`;

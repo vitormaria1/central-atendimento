@@ -5,6 +5,7 @@ import { dbQuery } from "@/lib/db";
 import { listChats } from "@/lib/uazapi";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const querySchema = z.object({
   search: z.string().optional(),

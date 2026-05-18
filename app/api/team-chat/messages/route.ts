@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const querySchema = z.object({
   channel: z.string().optional(),
@@ -87,4 +88,3 @@ export async function GET(req: Request) {
     })),
   });
 }
-

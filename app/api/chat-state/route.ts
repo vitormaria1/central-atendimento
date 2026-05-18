@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const getQuerySchema = z.object({
   chatIds: z.string().optional(),
