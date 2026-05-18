@@ -1,0 +1,8 @@
+import AppShell from "../ui/app-shell";
+
+export const dynamic = "force-dynamic";
+
+export default function WhatsAppPage() {
+  return <AppShell />;
+}
+

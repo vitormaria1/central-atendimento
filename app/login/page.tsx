@@ -53,7 +53,9 @@ export default function LoginPage() {
               alt="Logo"
               className="h-36 w-36 md:h-44 md:w-44 object-contain"
             />
-            <div className="mt-4 text-xl font-semibold text-center">Central de Atendimento</div>
+            <div className="mt-4 text-xl font-semibold text-center">
+              Central de Atendimento e Inteligência
+            </div>
           </div>
 
           <div className="mt-8">
