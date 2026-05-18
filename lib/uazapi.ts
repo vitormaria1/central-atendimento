@@ -19,11 +19,13 @@ export type UazapiMessage = {
   chatid?: string;
   fromMe?: boolean;
   messageTimestamp?: number;
+  messageType?: string;
   senderName?: string;
   sender_pn?: string;
   text?: string;
   content?: string;
   type?: string;
+  fileURL?: string;
 };
 
 type PathKind = "chatFind" | "messageFind" | "sendText";
@@ -122,6 +124,21 @@ async function resolvePath(kind: PathKind) {
   const fallback = candidates[0]!;
   setCachedPath(kind, fallback);
   return fallback;
+}
+
+export async function downloadMessage(params: { id: string; return_link?: boolean; return_base64?: boolean }) {
+  const data = await uazapiFetch<{ fileURL?: string; mimetype?: string; base64Data?: string; transcription?: string }>(
+    "/message/download",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        id: params.id,
+        return_link: params.return_link ?? true,
+        return_base64: params.return_base64 ?? false,
+      }),
+    },
+  );
+  return data;
 }
 
 export async function listChats(params: { search?: string; limit?: number; offset?: number }) {

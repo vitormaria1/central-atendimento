@@ -25,10 +25,12 @@ type MessageItem = {
   chatid?: string;
   fromMe?: boolean;
   messageTimestamp?: number;
+  messageType?: string;
   senderName?: string;
   text?: string;
   content?: string;
   type?: string;
+  fileURL?: string;
 };
 
 function formatTime(ts?: number) {
@@ -61,6 +63,9 @@ export default function AppShell() {
   const [status, setStatus] = useState<"pendente" | "resolvido">("pendente");
   const [assignedAgentId, setAssignedAgentId] = useState<"vanderlei" | "gustavo" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [downloadByMessageId, setDownloadByMessageId] = useState<Record<string, { fileURL: string; mimetype?: string }>>(
+    {},
+  );
 
   const lastRefreshAtRef = useRef<number>(0);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -165,6 +170,19 @@ export default function AppShell() {
     } finally {
       setSending(false);
     }
+  }
+
+  async function ensureDownload(messageId: string) {
+    if (downloadByMessageId[messageId]?.fileURL) return downloadByMessageId[messageId]!;
+    const res = await fetch(`/api/messages/${encodeURIComponent(messageId)}/download`, { cache: "no-store" });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error ?? "Falha ao baixar mídia");
+    }
+    const data = (await res.json()) as { fileURL?: string; mimetype?: string };
+    if (!data.fileURL) throw new Error("Arquivo indisponível (sem fileURL)");
+    setDownloadByMessageId((prev) => ({ ...prev, [messageId]: { fileURL: data.fileURL!, mimetype: data.mimetype } }));
+    return { fileURL: data.fileURL, mimetype: data.mimetype };
   }
 
   async function logout() {
@@ -354,6 +372,9 @@ export default function AppShell() {
             {messages.map((m) => {
               const mine = Boolean(m.fromMe);
               const text = getMessageText(m);
+              const id = m.messageid ?? m.id ?? "";
+              const mediaUrl = (id && downloadByMessageId[id]?.fileURL) || m.fileURL || null;
+              const showMedia = Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation" && text.trim().length === 0);
               return (
                 <div key={m.messageid ?? m.id ?? Math.random()} className={mine ? "flex justify-end" : "flex justify-start"}>
                   <div
@@ -364,11 +385,52 @@ export default function AppShell() {
                         : "bg-white/5 ring-white/10",
                     ].join(" ")}
                   >
-                    <div className="text-xs text-[var(--muted)] mb-1 flex items-center justify-between gap-2">
-                      <span className="truncate">{mine ? "Você" : (m.senderName ?? "Cliente")}</span>
-                      <span className="shrink-0">{formatTime(m.messageTimestamp)}</span>
+                    <div className="text-sm font-semibold">
+                      {mine ? (me?.agentName ?? "Você") : (m.senderName ?? "Cliente")}
+                      {":"}
                     </div>
-                    <div className="text-sm whitespace-pre-wrap break-words">{text}</div>
+
+                    {text.trim().length > 0 ? (
+                      <div className="mt-1 text-sm whitespace-pre-wrap break-words">{text}</div>
+                    ) : null}
+
+                    {showMedia ? (
+                      <div className="mt-2">
+                        {mediaUrl ? (
+                          <a
+                            href={mediaUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
+                          >
+                            Abrir documento/arquivo
+                          </a>
+                        ) : id ? (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
+                            onClick={() => {
+                              void (async () => {
+                                try {
+                                  const d = await ensureDownload(id);
+                                  window.open(d.fileURL, "_blank", "noopener,noreferrer");
+                                } catch (err) {
+                                  setToast(err instanceof Error ? err.message : "Falha ao baixar mídia");
+                                }
+                              })();
+                            }}
+                          >
+                            Baixar/abrir documento
+                          </button>
+                        ) : (
+                          <div className="text-xs text-[var(--muted)]">Mídia sem ID</div>
+                        )}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-2 text-[10px] text-[var(--muted)] text-right">
+                      {formatTime(m.messageTimestamp)}
+                    </div>
                   </div>
                 </div>
               );

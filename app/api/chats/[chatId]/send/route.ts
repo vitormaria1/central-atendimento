@@ -21,7 +21,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/chats/[chatId]/
 
   const { chatId } = await ctx.params;
   const decodedChatId = decodeURIComponent(chatId);
-  const textWithSignature = `${parsed.data.text}\n\n— ${session.agentName}`;
+  const textWithSignature = `*${session.agentName}:*\n${parsed.data.text}`;
 
   const result = await sendText({
     number: decodedChatId,
