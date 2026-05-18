@@ -120,13 +120,19 @@ export default function HomeShell() {
                 Central de Inteligência
               </div>
               <div className="space-y-2">
-                <button className={itemClass(true)} disabled>
+                <button
+                  className={itemClass(false)}
+                  onClick={() => {
+                    router.push("/tasks");
+                  }}
+                >
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">ClickUp</div>
-                    <div className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">
-                      Bloqueado
+                    <div className="text-sm font-medium">Tarefas</div>
+                    <div className="text-[10px] rounded-full bg-[var(--primary)] text-white px-2 py-1">
+                      Ativo
                     </div>
                   </div>
+                  <div className="mt-1 text-xs text-[var(--muted)]">Gerenciar tarefas por departamento</div>
                 </button>
               </div>
             </div>
