@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   const filename = row.filename || "arquivo";
   const mimetype = row.mimetype || "application/octet-stream";
 
-  return new Response(row.content, {
+  return new Response(new Uint8Array(row.content), {
     headers: {
       "content-type": mimetype,
       "content-disposition": `attachment; filename=\"${encodeURIComponent(filename)}\"`,
@@ -41,4 +41,3 @@ export async function GET(req: Request) {
     },
   });
 }
-
