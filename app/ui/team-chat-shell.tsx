@@ -364,12 +364,21 @@ export default function TeamChatShell() {
               </div>
             </button>
 
-            <button
-              onClick={logout}
-              className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-            >
-              Sair
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={goBack}
+                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,var(--border))] hover:bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
+              >
+                ← Voltar
+              </button>
+              <button
+                onClick={logout}
+                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+              >
+                Sair
+              </button>
+            </div>
           </div>
 
           <div className="p-4 space-y-3">
