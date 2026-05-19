@@ -36,7 +36,7 @@ type TaskDetails = TaskListItem & {
 type CommentItem = { id: string; authorName: string; body: string; createdAt: string };
 type AttachmentItem = { id: string; filename: string; mimetype: string | null; sizeBytes: number; createdAt: string };
 type ReactionSummary = { emoji: string; count: number; mine: boolean };
-type AuditItem = { id: string; actorName: string; eventType: string; data: any; createdAt: string };
+type AuditItem = { id: string; actorName: string; eventType: string; data: unknown; createdAt: string };
 type ReportsData = {
   wipByStatus: Array<{ status: string; count: number }>;
   workloadByAssignee: Array<{ assigneeAgentId: string | null; assigneeName: string; count: number }>;
