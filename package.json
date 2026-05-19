@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "review": "node ./scripts/review.mjs",
+    "review:report": "node ./scripts/review-report.mjs",
     "db:migrate": "node ./scripts/migrate.mjs"
   },
   "dependencies": {
