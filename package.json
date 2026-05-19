@@ -9,6 +9,7 @@
     "lint": "eslint",
     "review": "node ./scripts/review.mjs",
     "review:report": "node ./scripts/review-report.mjs",
+    "review:improve": "node ./scripts/review-improve.mjs",
     "db:migrate": "node ./scripts/migrate.mjs"
   },
   "dependencies": {
