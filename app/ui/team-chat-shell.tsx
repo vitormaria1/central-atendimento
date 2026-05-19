@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
@@ -51,11 +51,11 @@ export default function TeamChatShell() {
     Record<string, Array<{ id: string; filename: string; mimetype?: string | null; sizeBytes: number }>>
   >({});
 
-  function scrollToBottom() {
+  const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }
+  }, []);
 
   async function loadMe() {
     const res = await fetch("/api/me", { cache: "no-store" });
@@ -107,7 +107,7 @@ export default function TeamChatShell() {
     setThreadMessages(data.items);
   }
 
-  async function pollNew() {
+  const pollNew = useCallback(async () => {
     const afterId = lastIdRef.current;
     const url = new URL("/api/team-chat/messages", window.location.origin);
     url.searchParams.set("channel", channel);
@@ -125,7 +125,7 @@ export default function TeamChatShell() {
       return next;
     });
     queueMicrotask(scrollToBottom);
-  }
+  }, [channel, scrollToBottom]);
 
   async function ensureAttachments(messageId: string) {
     if (attachmentsByMessageId[messageId]) return;
@@ -325,7 +325,7 @@ export default function TeamChatShell() {
       eventSourceRef.current?.close();
       eventSourceRef.current = null;
     };
-  }, [channel, streamSinceId]);
+  }, [channel, pollNew, scrollToBottom, streamSinceId]);
 
   useEffect(() => {
     if (!search.trim()) {

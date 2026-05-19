@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
 
@@ -69,6 +69,7 @@ export default function AppShell() {
 
   const lastRefreshAtRef = useRef<number>(0);
   const selectedChatIdRef = useRef<string | null>(null);
+  const searchRef = useRef<string>("");
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const selectedChat = useMemo(
@@ -80,16 +81,21 @@ export default function AppShell() {
     selectedChatIdRef.current = selectedChatId;
   }, [selectedChatId]);
 
-  async function loadMe() {
+  useEffect(() => {
+    searchRef.current = search;
+  }, [search]);
+
+  const loadMe = useCallback(async () => {
     const res = await fetch("/api/me", { cache: "no-store" });
     if (!res.ok) return;
     const data = (await res.json()) as Agent;
     setMe(data);
-  }
+  }, []);
 
-  async function loadChats() {
+  const loadChats = useCallback(async () => {
     const url = new URL("/api/chats", window.location.origin);
-    if (search.trim()) url.searchParams.set("search", search.trim());
+    const q = searchRef.current.trim();
+    if (q) url.searchParams.set("search", q);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string; details?: string } | null;
@@ -98,11 +104,11 @@ export default function AppShell() {
     }
     const data = (await res.json()) as { items: ChatListItem[] };
     setChats(data.items);
-    if (!selectedChatId && data.items.length > 0) setSelectedChatId(data.items[0]!.chatId);
+    if (!selectedChatIdRef.current && data.items.length > 0) setSelectedChatId(data.items[0]!.chatId);
     return data.items;
-  }
+  }, []);
 
-  async function loadMessages(chatId: string) {
+  const loadMessages = useCallback(async (chatId: string) => {
     const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}/messages?limit=80`, {
       cache: "no-store",
     });
@@ -113,9 +119,9 @@ export default function AppShell() {
     }
     const data = (await res.json()) as { items: MessageItem[] };
     setMessages(data.items);
-  }
+  }, []);
 
-  async function loadChatState(chatId: string) {
+  const loadChatState = useCallback(async (chatId: string) => {
     const res = await fetch(`/api/chat-state?chatIds=${encodeURIComponent(chatId)}`, { cache: "no-store" });
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -129,9 +135,9 @@ export default function AppShell() {
     if (!state) return;
     setStatus(state.status);
     setAssignedAgentId(state.assignedAgentId);
-  }
+  }, []);
 
-  async function refreshAll(reason: string) {
+  const refreshAll = useCallback(async (reason: string) => {
     const now = Date.now();
     if (now - lastRefreshAtRef.current < 500) return;
     lastRefreshAtRef.current = now;
@@ -143,7 +149,7 @@ export default function AppShell() {
     }
     console.debug("refreshed", reason);
     if (reason === "manual") setToast("Atualizado");
-  }
+  }, [loadChatState, loadChats, loadMessages]);
 
   async function saveState(chatId: string, patch: { status?: "pendente" | "resolvido"; assignedAgentId?: "vanderlei" | "gustavo" | null }) {
     await fetch(`/api/chat-state/${encodeURIComponent(chatId)}`, {
@@ -203,20 +209,15 @@ export default function AppShell() {
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadMe();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadChats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadChats, loadMe]);
 
   useEffect(() => {
     if (!selectedChatId) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadMessages(selectedChatId);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadChatState(selectedChatId);
-  }, [selectedChatId]);
+  }, [loadChatState, loadMessages, selectedChatId]);
 
   // SSE + fallback polling
   useEffect(() => {
@@ -256,7 +257,7 @@ export default function AppShell() {
       eventSourceRef.current?.close();
       eventSourceRef.current = null;
     };
-  }, [selectedChatId, search]);
+  }, [refreshAll]);
 
   useEffect(() => {
     if (!toast) return;
