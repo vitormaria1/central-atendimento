@@ -140,6 +140,7 @@ export default function TasksShell() {
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [audit, setAudit] = useState<AuditItem[]>([]);
   const [reports, setReports] = useState<ReportsData | null>(null);
+  const [dashboardDepartment, setDashboardDepartment] = useState<"all" | Department>("all");
   const [reactionsByCommentId, setReactionsByCommentId] = useState<Record<string, ReactionSummary[]>>({});
 
   const [toast, setToast] = useState<string | null>(null);
@@ -334,7 +335,7 @@ export default function TasksShell() {
 
   async function loadReports() {
     const url = new URL("/api/reports/tasks", window.location.origin);
-    url.searchParams.set("department", department);
+    if (dashboardDepartment !== "all") url.searchParams.set("department", dashboardDepartment);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return;
     const data = (await res.json()) as ReportsData;
@@ -415,9 +416,15 @@ export default function TasksShell() {
     void loadTasks();
     setNewDepartment(department);
     void loadSavedViews();
+    setDashboardDepartment("all");
     void loadReports();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [department]);
+
+  useEffect(() => {
+    void loadReports();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashboardDepartment]);
 
   useEffect(() => {
     if (!selectedTaskId) {
@@ -1108,7 +1115,23 @@ export default function TasksShell() {
 
             {reports ? (
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-                <div className="text-sm font-semibold">Dashboard • {deptLabel(department)}</div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold">
+                    Dashboard • {dashboardDepartment === "all" ? "Geral" : deptLabel(dashboardDepartment)}
+                  </div>
+                  <select
+                    value={dashboardDepartment}
+                    onChange={(e) => setDashboardDepartment(e.target.value as typeof dashboardDepartment)}
+                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                  >
+                    <option value="all">Geral</option>
+                    <option value="fiscal">Fiscal</option>
+                    <option value="contabil">Contábil</option>
+                    <option value="pessoal">Pessoal</option>
+                    <option value="societario_paralegal">Societário/Paralegal</option>
+                    <option value="administrativo">Administrativo</option>
+                  </select>
+                </div>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
                     <div className="text-xs text-[var(--muted)]">Atrasadas (SLA)</div>
