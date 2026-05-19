@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ const createSchema = z.object({
   config: z.record(z.string(), z.unknown()).optional(),
 });
 
-export async function GET(req: Request) {
+export const GET = withApi(async (req: Request) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -62,9 +63,9 @@ export async function GET(req: Request) {
       updatedAt: r.updated_at,
     })),
   });
-}
+});
 
-export async function POST(req: Request) {
+export const POST = withApi(async (req: Request) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -89,4 +90,4 @@ export async function POST(req: Request) {
   const row = rows[0];
   if (!row) return NextResponse.json({ error: "Falha ao criar view" }, { status: 500 });
   return NextResponse.json({ id: row.id });
-}
+});

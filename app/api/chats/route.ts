@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 import { listChats } from "@/lib/uazapi";
 
@@ -21,7 +22,7 @@ type ChatStateRow = {
   updated_at: string;
 };
 
-export async function GET(req: Request) {
+export const GET = withApi(async (req: Request) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -79,4 +80,4 @@ export async function GET(req: Request) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: "Failed to list chats", details: message }, { status: 502 });
   }
-}
+});

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ const patchSchema = z.object({
   tags: z.array(z.string().min(1).max(40)).optional(),
 });
 
-export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/[taskId]">) {
+export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[taskId]">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -96,9 +97,9 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/[taskId]"
       updatedAt: row.updated_at,
     },
   });
-}
+});
 
-export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[taskId]">) {
+export const PATCH = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/[taskId]">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -175,4 +176,4 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/tasks/[taskId]
   }
 
   return NextResponse.json({ ok: true });
-}
+});

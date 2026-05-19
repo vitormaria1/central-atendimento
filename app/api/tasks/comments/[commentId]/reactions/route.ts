@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ const emojiSchema = z.object({
   emoji: z.string().min(1).max(32),
 });
 
-export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/comments/[commentId]/reactions">) {
+export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/comments/[commentId]/reactions">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -39,9 +40,9 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/comments/
   return NextResponse.json({
     items: rows.map((r) => ({ emoji: r.emoji, count: Number.parseInt(r.count, 10), mine: Boolean(r.mine) })),
   });
-}
+});
 
-export async function POST(req: Request, ctx: RouteContext<"/api/tasks/comments/[commentId]/reactions">) {
+export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/comments/[commentId]/reactions">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -66,9 +67,9 @@ export async function POST(req: Request, ctx: RouteContext<"/api/tasks/comments/
   );
 
   return NextResponse.json({ ok: true });
-}
+});
 
-export async function DELETE(req: Request, ctx: RouteContext<"/api/tasks/comments/[commentId]/reactions">) {
+export const DELETE = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/comments/[commentId]/reactions">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -90,5 +91,4 @@ export async function DELETE(req: Request, ctx: RouteContext<"/api/tasks/comment
   ]);
 
   return NextResponse.json({ ok: true });
-}
-
+});

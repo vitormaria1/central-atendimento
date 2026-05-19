@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ const patchSchema = z.object({
   config: z.record(z.string(), z.unknown()).optional(),
 });
 
-export async function PATCH(req: Request, ctx: RouteContext<"/api/task-views/[viewId]">) {
+export const PATCH = withApi(async (req: Request, ctx: RouteContext<"/api/task-views/[viewId]">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -54,9 +55,9 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/task-views/[vi
 
   if (!rowCount) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
-}
+});
 
-export async function DELETE(_req: Request, ctx: RouteContext<"/api/task-views/[viewId]">) {
+export const DELETE = withApi(async (_req: Request, ctx: RouteContext<"/api/task-views/[viewId]">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -67,4 +68,4 @@ export async function DELETE(_req: Request, ctx: RouteContext<"/api/task-views/[
   const { rowCount } = await dbQuery("delete from task_views where owner_agent_id = $1 and id = $2", [session.agentId, id]);
   if (!rowCount) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
-}
+});

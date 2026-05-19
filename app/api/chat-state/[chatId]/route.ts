@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ const patchSchema = z.object({
   tags: z.array(z.string().min(1)).optional(),
 });
 
-export async function PATCH(req: Request, ctx: RouteContext<"/api/chat-state/[chatId]">) {
+export const PATCH = withApi(async (req: Request, ctx: RouteContext<"/api/chat-state/[chatId]">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -41,4 +42,4 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/chat-state/[ch
   );
 
   return NextResponse.json({ ok: true });
-}
+});

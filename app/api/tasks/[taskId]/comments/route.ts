@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ function extractMentions(body: string) {
   return Array.from(mentions);
 }
 
-export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/[taskId]/comments">) {
+export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[taskId]/comments">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -55,9 +56,9 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/[taskId]/
       createdAt: r.created_at,
     })),
   });
-}
+});
 
-export async function POST(req: Request, ctx: RouteContext<"/api/tasks/[taskId]/comments">) {
+export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/[taskId]/comments">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -85,4 +86,4 @@ export async function POST(req: Request, ctx: RouteContext<"/api/tasks/[taskId]/
   if (!row) return NextResponse.json({ error: "Falha ao comentar" }, { status: 500 });
 
   return NextResponse.json({ id: row.id });
-}
+});

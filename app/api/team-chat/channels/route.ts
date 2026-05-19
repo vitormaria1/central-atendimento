@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ const createSchema = z.object({
   name: z.string().min(1).max(60),
 });
 
-export async function GET() {
+export const GET = withApi(async () => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -28,9 +29,9 @@ export async function GET() {
   return NextResponse.json({
     items: rows.map((r) => ({ slug: r.slug, name: r.name, createdAt: r.created_at })),
   });
-}
+});
 
-export async function POST(req: Request) {
+export const POST = withApi(async (req: Request) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -52,5 +53,4 @@ export async function POST(req: Request) {
   );
 
   return NextResponse.json({ ok: true });
-}
-
+});

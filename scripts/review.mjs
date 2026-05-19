@@ -19,16 +19,13 @@ async function main() {
 
   let failed = false;
   for (const s of steps) {
-    // eslint-disable-next-line no-console
     console.log(`\n=== Review Agent: ${s.name} ===\n`);
     const code = await run(s.cmd, s.args);
     if (code !== 0) {
       failed = true;
-      // eslint-disable-next-line no-console
       console.error(`\n❌ Falhou: ${s.name} (exit ${code})\n`);
       break;
     }
-    // eslint-disable-next-line no-console
     console.log(`\n✅ OK: ${s.name}\n`);
   }
 
@@ -37,4 +34,3 @@ async function main() {
 }
 
 await main();
-

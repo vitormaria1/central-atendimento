@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ function safeFilename(name: string) {
   return base || "arquivo";
 }
 
-export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/comments/[commentId]/attachments">) {
+export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/comments/[commentId]/attachments">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -46,9 +47,9 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/comments/
       createdAt: r.created_at,
     })),
   });
-}
+});
 
-export async function POST(req: Request, ctx: RouteContext<"/api/tasks/comments/[commentId]/attachments">) {
+export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/comments/[commentId]/attachments">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -84,5 +85,4 @@ export async function POST(req: Request, ctx: RouteContext<"/api/tasks/comments/
   }
 
   return NextResponse.json({ items: created });
-}
-
+});

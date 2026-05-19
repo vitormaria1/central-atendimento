@@ -414,7 +414,6 @@ export default function TasksShell() {
 
   useEffect(() => {
     void loadMe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

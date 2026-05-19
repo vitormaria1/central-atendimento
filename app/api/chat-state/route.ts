@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ const getQuerySchema = z.object({
   chatIds: z.string().optional(),
 });
 
-export async function GET(req: Request) {
+export const GET = withApi(async (req: Request) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -45,4 +46,4 @@ export async function GET(req: Request) {
       updatedAt: r.updated_at,
     })),
   });
-}
+});

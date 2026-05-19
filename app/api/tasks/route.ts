@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ const createSchema = z.object({
   tags: z.array(z.string().min(1).max(40)).optional(),
 });
 
-export async function GET(req: Request) {
+export const GET = withApi(async (req: Request) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -127,9 +128,9 @@ export async function GET(req: Request) {
       updatedAt: r.updated_at,
     })),
   });
-}
+});
 
-export async function POST(req: Request) {
+export const POST = withApi(async (req: Request) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -162,5 +163,4 @@ export async function POST(req: Request) {
   if (!row) return NextResponse.json({ error: "Falha ao criar tarefa" }, { status: 500 });
 
   return NextResponse.json({ id: row.id });
-}
-
+});

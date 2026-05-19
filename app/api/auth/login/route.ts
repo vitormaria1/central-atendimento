@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { withApi } from "@/lib/api";
 import { createSessionCookie, setSessionCookie } from "@/lib/auth";
 import { getEnv } from "@/lib/env";
 
@@ -10,7 +11,7 @@ const bodySchema = z.object({
   pin: z.string().min(1),
 });
 
-export async function POST(req: Request) {
+export const POST = withApi(async (req: Request) => {
   const json = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
@@ -28,5 +29,4 @@ export async function POST(req: Request) {
   await setSessionCookie(token);
 
   return NextResponse.json({ ok: true });
-}
-
+});

@@ -70,9 +70,7 @@ async function main() {
   await writeFile(path, md, "utf8");
 
   // Keep stdout short and actionable.
-  // eslint-disable-next-line no-console
   console.log(`Relatório gerado em: ${path}`);
-  // eslint-disable-next-line no-console
   console.log(`Resumo: lint=${okLint ? "OK" : "FALHOU"} • build=${okBuild ? "OK" : "FALHOU"}`);
 
   if (!okLint || !okBuild) process.exit(1);
@@ -80,4 +78,3 @@ async function main() {
 }
 
 await main();
-

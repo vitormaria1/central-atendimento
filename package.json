@@ -10,6 +10,7 @@
     "review": "node ./scripts/review.mjs",
     "review:report": "node ./scripts/review-report.mjs",
     "review:improve": "node ./scripts/review-improve.mjs",
+    "test:smoke": "node ./scripts/smoke.mjs",
     "db:migrate": "node ./scripts/migrate.mjs"
   },
   "dependencies": {

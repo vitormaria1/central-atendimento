@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 
 function runCapture(cmd, args, opts = {}) {
   return new Promise((resolve) => {
@@ -34,14 +34,6 @@ function topFindings({ scans, max = 20 }) {
     out.push({ title: s.title, lines: first, totalLines: lines.split("\n").length });
   }
   return out;
-}
-
-async function safeReadText(path) {
-  try {
-    return await readFile(path, "utf8");
-  } catch {
-    return "";
-  }
 }
 
 function buildRecommendations({ lintText, scans }) {
@@ -196,9 +188,7 @@ async function main() {
   const path = "reports/review-improve.md";
   await writeFile(path, md, "utf8");
 
-  // eslint-disable-next-line no-console
   console.log(`Relatório gerado em: ${path}`);
-  // eslint-disable-next-line no-console
   console.log(`Resumo: lint=${lint.code === 0 ? "OK" : "FALHOU"} • build=${build.code === 0 ? "OK" : "FALHOU"} • recs=${recs.length}`);
 
   // Exit non-zero if lint/build fails (useful for CI), but report is always generated.
@@ -207,4 +197,3 @@ async function main() {
 }
 
 await main();
-

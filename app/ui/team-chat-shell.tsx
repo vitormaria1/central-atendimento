@@ -57,14 +57,14 @@ export default function TeamChatShell() {
     el.scrollTop = el.scrollHeight;
   }, []);
 
-  async function loadMe() {
+  const loadMe = useCallback(async () => {
     const res = await fetch("/api/me", { cache: "no-store" });
     if (!res.ok) return;
     const data = (await res.json()) as Agent;
     setMe(data);
-  }
+  }, []);
 
-  async function loadChannels() {
+  const loadChannels = useCallback(async () => {
     const res = await fetch("/api/team-chat/channels", { cache: "no-store" });
     if (!res.ok) return;
     const data = (await res.json()) as { items: Channel[] };
@@ -72,9 +72,9 @@ export default function TeamChatShell() {
     if (data.items.length > 0 && !data.items.some((c) => c.slug === channel)) {
       setChannel(data.items[0]!.slug);
     }
-  }
+  }, [channel]);
 
-  async function loadInitial() {
+  const loadInitial = useCallback(async () => {
     const url = new URL("/api/team-chat/messages", window.location.origin);
     url.searchParams.set("channel", channel);
     url.searchParams.set("limit", "80");
@@ -93,7 +93,7 @@ export default function TeamChatShell() {
     }
     setStreamSinceId(lastIdRef.current);
     queueMicrotask(scrollToBottom);
-  }
+  }, [channel, scrollToBottom]);
 
   async function loadThread(root: TeamMessage) {
     setThreadRoot(root);
@@ -262,26 +262,17 @@ export default function TeamChatShell() {
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadMe();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadChannels();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadChannels, loadMe]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadInitial();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setThreadRoot(null);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setThreadMessages([]);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSearch("");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSearchResults([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channel]);
+  }, [channel, loadInitial]);
 
   useEffect(() => {
     if (streamSinceId === null) return;
@@ -329,7 +320,6 @@ export default function TeamChatShell() {
 
   useEffect(() => {
     if (!search.trim()) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSearchResults([]);
       return;
     }

@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/[taskId]/audit">) {
+export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[taskId]/audit">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -39,5 +40,4 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/tasks/[taskId]/
       createdAt: r.created_at,
     })),
   });
-}
-
+});

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
+import { withApi } from "@/lib/api";
 import { findMessages } from "@/lib/uazapi";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ const querySchema = z.object({
   offset: z.coerce.number().int().min(0).optional(),
 });
 
-export async function GET(req: Request, ctx: RouteContext<"/api/chats/[chatId]/messages">) {
+export const GET = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[chatId]/messages">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -33,4 +34,4 @@ export async function GET(req: Request, ctx: RouteContext<"/api/chats/[chatId]/m
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: "Failed to load messages", details: message }, { status: 502 });
   }
-}
+});

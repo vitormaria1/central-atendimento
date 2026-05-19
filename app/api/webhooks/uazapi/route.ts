@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { withApi } from "@/lib/api";
 import { getEnv } from "@/lib/env";
 import { publish, recordWebhookDebug } from "@/lib/stream";
 
@@ -26,7 +27,7 @@ const payloadSchema = z.object({
     .optional(),
 });
 
-export async function POST(req: Request) {
+export const POST = withApi(async (req: Request) => {
   const body = await req.json().catch(() => null);
 
   // O webhook pode vir envelopado em array (exemplo do n8n)
@@ -68,4 +69,4 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true }, { status: 200 });
-}
+});
