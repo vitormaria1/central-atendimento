@@ -197,6 +197,11 @@ export default function AppShell() {
     window.location.href = "/login";
   }
 
+  function goBack() {
+    if (window.history.length > 1) router.back();
+    else router.push("/");
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadMe();
@@ -265,7 +270,7 @@ export default function AppShell() {
         <aside className="w-[360px] shrink-0 border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_80%,black)]">
           <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--border)]">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-2xl bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] flex items-center justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/logo-mark.png" alt="Logo" className="h-7 w-7" />
               </div>
@@ -280,8 +285,15 @@ export default function AppShell() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={goBack}
+                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,var(--border))] hover:bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
+              >
+                ← Voltar
+              </button>
+              <button
+                type="button"
                 onClick={() => router.push("/team-chat")}
-                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                className="rounded-xl px-3 py-2 text-xs bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]"
               >
                 Chat
               </button>
@@ -299,7 +311,7 @@ export default function AppShell() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar conversas..."
-              className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-3 text-sm outline-none focus:ring-[color-mix(in_srgb,var(--primary)_55%,transparent)]"
+              className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
             />
           </div>
 
@@ -326,7 +338,7 @@ export default function AppShell() {
                       <div className="text-[10px] text-[var(--muted)]">{formatTime(chat.lastMsgTimestamp ?? undefined)}</div>
                       <div className="flex items-center gap-2">
                         {chat.isGroup ? (
-                          <span className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">
+                          <span className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_45%,transparent)] px-2 py-1">
                             Grupo
                           </span>
                         ) : null}
@@ -359,7 +371,12 @@ export default function AppShell() {
                   setStatus(next);
                   void saveState(selectedChatId, { status: next });
                 }}
-                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60"
+                className={[
+                  "rounded-xl px-3 py-2 text-xs ring-1 hover:bg-white/8 disabled:opacity-60 transition",
+                  status === "pendente"
+                    ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]"
+                    : "bg-[color-mix(in_srgb,var(--warning)_12%,transparent)] ring-[color-mix(in_srgb,var(--warning)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--warning)_18%,transparent)]",
+                ].join(" ")}
               >
                 {status === "pendente" ? "Marcar resolvido" : "Marcar pendente"}
               </button>

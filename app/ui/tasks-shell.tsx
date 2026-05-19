@@ -173,6 +173,11 @@ export default function TasksShell() {
     window.location.href = "/login";
   }
 
+  function goBack() {
+    if (window.history.length > 1) router.back();
+    else router.push("/");
+  }
+
   function applyBuiltInView(id: string) {
     setSelectedSavedViewId(id);
     if (id === "builtin:minhas") {
@@ -655,13 +660,22 @@ export default function TasksShell() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowCreateForm(true)}
-              className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-            >
-              Nova tarefa
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={goBack}
+                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,var(--border))] hover:bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
+              >
+                ← Voltar
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreateForm(true)}
+                className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                Nova tarefa
+              </button>
+            </div>
           </header>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -1133,11 +1147,11 @@ export default function TasksShell() {
                   </select>
                 </div>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                  <div className="rounded-3xl bg-[color-mix(in_srgb,var(--warning)_10%,var(--card))] ring-1 ring-[color-mix(in_srgb,var(--warning)_30%,var(--border))] p-4">
                     <div className="text-xs text-[var(--muted)]">Atrasadas (SLA)</div>
                     <div className="mt-1 text-2xl font-semibold">{reports.sla.overdueOpenTasks}</div>
                   </div>
-                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                  <div className="rounded-3xl bg-[color-mix(in_srgb,var(--accent)_10%,var(--card))] ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,var(--border))] p-4">
                     <div className="text-xs text-[var(--muted)]">Lead time médio (concluídas)</div>
                     <div className="mt-1 text-2xl font-semibold">
                       {reports.sla.avgLeadTimeHoursDone === null ? "—" : `${Math.round(reports.sla.avgLeadTimeHoursDone)}h`}

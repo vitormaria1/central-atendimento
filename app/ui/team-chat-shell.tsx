@@ -256,6 +256,11 @@ export default function TeamChatShell() {
     window.location.href = "/login";
   }
 
+  function goBack() {
+    if (window.history.length > 1) router.back();
+    else router.push("/");
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadMe();
@@ -349,10 +354,10 @@ export default function TeamChatShell() {
               onClick={() => router.push("/")}
               className="flex items-center gap-3 rounded-2xl px-2 py-2 hover:bg-white/3"
             >
-              <div className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 flex items-center justify-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo-mark.png" alt="Logo" className="h-7 w-7" />
-              </div>
+	              <div className="h-10 w-10 rounded-2xl bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] flex items-center justify-center">
+	                {/* eslint-disable-next-line @next/next/no-img-element */}
+	                <img src="/logo-mark.png" alt="Logo" className="h-7 w-7" />
+	              </div>
               <div className="text-left">
                 <div className="text-sm font-semibold leading-tight">Chat Interno</div>
                 <div className="text-xs text-[var(--muted)] leading-tight">{me ? me.agentName : "Carregando..."}</div>
@@ -387,10 +392,12 @@ export default function TeamChatShell() {
                         : "bg-white/5 ring-white/10 hover:bg-white/8",
                     ].join(" ")}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-medium"># {c.slug}</div>
-                      <div className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">Time</div>
-                    </div>
+	                      <div className="flex items-center justify-between">
+	                      <div className="text-sm font-medium"># {c.slug}</div>
+	                      <div className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_45%,transparent)] px-2 py-1">
+	                        Time
+	                      </div>
+	                    </div>
                     <div className="mt-1 text-xs text-[var(--muted)]">{c.name}</div>
                   </button>
                 );
@@ -398,21 +405,21 @@ export default function TeamChatShell() {
             </div>
 
             <div className="pt-2">
-              <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
-                <div className="text-xs font-semibold">Criar canal</div>
-                <div className="mt-2 grid gap-2">
-                  <input
-                    value={newChannelSlug}
-                    onChange={(e) => setNewChannelSlug(e.target.value)}
-                    placeholder="slug (ex: suporte)"
-                    className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                  />
-                  <input
-                    value={newChannelName}
-                    onChange={(e) => setNewChannelName(e.target.value)}
-                    placeholder="nome (ex: Suporte)"
-                    className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                  />
+	              <div className="rounded-2xl bg-[color-mix(in_srgb,var(--accent)_6%,var(--card))] ring-1 ring-[color-mix(in_srgb,var(--accent)_18%,var(--border))] p-3">
+	                <div className="text-xs font-semibold">Criar canal</div>
+	                <div className="mt-2 grid gap-2">
+	                  <input
+	                    value={newChannelSlug}
+	                    onChange={(e) => setNewChannelSlug(e.target.value)}
+	                    placeholder="slug (ex: suporte)"
+	                    className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
+	                  />
+	                  <input
+	                    value={newChannelName}
+	                    onChange={(e) => setNewChannelName(e.target.value)}
+	                    placeholder="nome (ex: Suporte)"
+	                    className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
+	                  />
                   <button
                     type="button"
                     onClick={() => void createChannel()}
@@ -437,12 +444,19 @@ export default function TeamChatShell() {
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={goBack}
+                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,var(--border))] hover:bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
+              >
+                ← Voltar
+              </button>
               <div className="hidden md:block">
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Buscar mensagens..."
-                  className="w-[320px] rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                  className="w-[320px] rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
                 />
               </div>
               <button

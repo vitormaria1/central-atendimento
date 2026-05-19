@@ -8,6 +8,10 @@
   --border: rgba(255, 255, 255, 0.10);
   --primary: #434cf1;
   --primary-foreground: #ffffff;
+  --accent: #16c2a5; /* teal */
+  --accent-foreground: #041512;
+  --warning: #f59e0b; /* amber */
+  --warning-foreground: #140a00;
 }
 
 @theme inline {

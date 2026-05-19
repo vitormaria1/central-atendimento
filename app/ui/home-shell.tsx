@@ -88,7 +88,7 @@ export default function HomeShell() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-medium">Chat Interno</div>
-                    <div className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--primary)_22%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--primary)_55%,transparent)] px-2 py-1">
+                    <div className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_55%,transparent)] px-2 py-1">
                       Time
                     </div>
                   </div>
