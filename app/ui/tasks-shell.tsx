@@ -149,6 +149,7 @@ export default function TasksShell() {
   const [selectedSavedViewId, setSelectedSavedViewId] = useState<string>("builtin:minhas");
   const [creatingView, setCreatingView] = useState(false);
   const [newViewName, setNewViewName] = useState("");
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   // create task
   const [creating, setCreating] = useState(false);
@@ -425,6 +426,7 @@ export default function TasksShell() {
       setAttachments([]);
       return;
     }
+    setShowCreateForm(false);
     void refreshTask(selectedTaskId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId]);
@@ -648,11 +650,10 @@ export default function TasksShell() {
 
             <button
               type="button"
-              onClick={() => void createTask()}
-              disabled={creating || newTitle.trim().length === 0}
+              onClick={() => setShowCreateForm(true)}
               className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
             >
-              {creating ? "Criando..." : "Nova tarefa"}
+              Nova tarefa
             </button>
           </header>
 
@@ -747,9 +748,19 @@ export default function TasksShell() {
               </div>
             ) : null}
 
-            <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-              <div className="text-sm font-semibold">Criar tarefa</div>
-              <div className="mt-4 grid gap-3">
+            {showCreateForm ? (
+              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold">Criar tarefa</div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateForm(false)}
+                    className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                  >
+                    Fechar
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-3">
                 <select
                   value={newDepartment}
                   onChange={(e) => setNewDepartment(e.target.value as Department)}
@@ -807,8 +818,18 @@ export default function TasksShell() {
                     className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
                   />
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => void createTask()}
+                  disabled={creating || newTitle.trim().length === 0}
+                  className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                >
+                  {creating ? "Criando..." : "Criar tarefa"}
+                </button>
               </div>
-            </div>
+              </div>
+            ) : null}
 
             {details ? (
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 space-y-4">
