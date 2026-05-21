@@ -9,6 +9,16 @@ export const runtime = "nodejs";
 
 const bodySchema = z.object({
   prompt: z.string().min(1).max(10_000),
+  attachments: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(200),
+        mimeType: z.string().min(1).max(200),
+        dataBase64: z.string().min(1),
+      }),
+    )
+    .max(6)
+    .optional(),
   history: z
     .array(
       z.object({
@@ -33,6 +43,19 @@ export const POST = withApi(async (req: Request) => {
   if (!apiKey) return NextResponse.json({ error: "GEMINI_API_KEY não configurada" }, { status: 500 });
 
   const history = parsed.data.history ?? [];
+  const attachments = parsed.data.attachments ?? [];
+
+  const attachmentParts = attachments.map((a) => ({
+    inlineData: {
+      mimeType: a.mimeType,
+      data: a.dataBase64,
+    },
+  }));
+
+  const attachmentLabelText = attachments.length
+    ? `Anexos: ${attachments.map((a) => a.name).join(", ")}`
+    : null;
+
   const contents = [
     ...history.slice(-12).map((h) => ({
       role: h.role,
@@ -40,7 +63,11 @@ export const POST = withApi(async (req: Request) => {
     })),
     {
       role: "user",
-      parts: [{ text: parsed.data.prompt }],
+      parts: [
+        ...(attachmentLabelText ? [{ text: attachmentLabelText }] : []),
+        ...attachmentParts,
+        { text: parsed.data.prompt },
+      ],
     },
   ];
 
@@ -55,6 +82,26 @@ export const POST = withApi(async (req: Request) => {
       generationConfig: {
         temperature: 0.3,
         maxOutputTokens: 800,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            text: { type: "string" },
+            files: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  filename: { type: "string" },
+                  mimeType: { type: "string" },
+                  base64: { type: "string" },
+                },
+                required: ["filename", "mimeType", "base64"],
+              },
+            },
+          },
+          required: ["text"],
+        },
       },
     }),
   });
@@ -68,13 +115,37 @@ export const POST = withApi(async (req: Request) => {
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
-  const parts = (data as { candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }> } | null)?.candidates?.[0]?.content
-    ?.parts;
-  const text = (parts ?? [])
+  const parts = (data as { candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }> } | null)?.candidates?.[0]
+    ?.content?.parts;
+  const rawText = (parts ?? [])
     .map((p) => (typeof p?.text === "string" ? p.text : ""))
     .filter(Boolean)
-    .join("\n");
-  if (!text) return NextResponse.json({ error: "Resposta vazia" }, { status: 502 });
+    .join("\n")
+    .trim();
+  if (!rawText) return NextResponse.json({ error: "Resposta vazia" }, { status: 502 });
 
-  return NextResponse.json({ text });
+  // In JSON mode, model returns JSON as text.
+  const parsedJson = (() => {
+    try {
+      return JSON.parse(rawText) as unknown;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (
+    parsedJson &&
+    typeof (parsedJson as { text?: unknown }).text === "string" &&
+    (() => {
+      const rec = parsedJson as Record<string, unknown>;
+      return !("files" in rec) || Array.isArray(rec.files);
+    })()
+  ) {
+    const json = parsedJson as { text: string; files?: Array<{ filename: string; mimeType: string; base64: string }> };
+    const files = Array.isArray(json.files) ? json.files.slice(0, 3) : [];
+    return NextResponse.json({ text: json.text, files });
+  }
+
+  // Fallback: treat as plain text.
+  return NextResponse.json({ text: rawText });
 });

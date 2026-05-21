@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
 type AiMsg = { role: "user" | "model"; text: string };
+type AiAttachment = { name: string; mimeType: string; dataBase64: string; sizeBytes: number };
+type AiFile = { filename: string; mimeType: string; base64: string };
+type AiMsgWithFiles = AiMsg & { files?: AiFile[]; attachments?: Array<{ name: string; mimeType: string; sizeBytes: number }> };
 
 function itemClass(disabled: boolean) {
   return [
@@ -19,9 +22,10 @@ export default function HomeShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
   const [aiInput, setAiInput] = useState("");
-  const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([]);
+  const [aiMsgs, setAiMsgs] = useState<AiMsgWithFiles[]>([]);
   const [aiSending, setAiSending] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [aiAttachments, setAiAttachments] = useState<AiAttachment[]>([]);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -37,6 +41,53 @@ export default function HomeShell() {
     })();
   }, []);
 
+  function base64ToBlob(base64: string, mimeType: string) {
+    const bin = atob(base64);
+    const len = bin.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mimeType || "application/octet-stream" });
+  }
+
+  function downloadFile(f: AiFile) {
+    const blob = base64ToBlob(f.base64, f.mimeType);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = f.filename || "arquivo";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (!files.length) return;
+
+    const MAX_FILES = 6;
+    const MAX_BYTES = 10 * 1024 * 1024; // 10MB each
+
+    const next: AiAttachment[] = [];
+    for (const f of files.slice(0, MAX_FILES)) {
+      if (f.size > MAX_BYTES) {
+        setAiError(`Arquivo muito grande: ${f.name} (máx 10MB)`);
+        continue;
+      }
+      const buf = new Uint8Array(await f.arrayBuffer());
+      let binary = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < buf.length; i += chunk) {
+        binary += String.fromCharCode(...buf.subarray(i, i + chunk));
+      }
+      const dataBase64 = btoa(binary);
+      next.push({ name: f.name, mimeType: f.type || "application/octet-stream", dataBase64, sizeBytes: f.size });
+    }
+
+    setAiAttachments((prev) => [...prev, ...next].slice(0, MAX_FILES));
+  }
+
   async function sendToAi() {
     const prompt = aiInput.trim();
     if (!prompt || aiSending) return;
@@ -44,24 +95,32 @@ export default function HomeShell() {
     setAiError(null);
     setAiSending(true);
     setAiInput("");
-    const nextHistory = [...aiMsgs, { role: "user", text: prompt } satisfies AiMsg];
+    const nextHistory = [
+      ...aiMsgs,
+      {
+        role: "user",
+        text: prompt,
+        attachments: aiAttachments.map((a) => ({ name: a.name, mimeType: a.mimeType, sizeBytes: a.sizeBytes })),
+      } satisfies AiMsgWithFiles,
+    ];
     setAiMsgs(nextHistory);
 
     try {
       const res = await fetch("/api/ai/gemini", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ prompt, history: aiMsgs }),
+        body: JSON.stringify({ prompt, history: aiMsgs, attachments: aiAttachments.map(({ name, mimeType, dataBase64 }) => ({ name, mimeType, dataBase64 })) }),
       });
-      const data = (await res.json().catch(() => null)) as { text?: string; error?: string } | null;
+      const data = (await res.json().catch(() => null)) as { text?: string; files?: AiFile[]; error?: string } | null;
       if (!res.ok) throw new Error(data?.error || "Falha ao chamar IA");
       const text = (data?.text ?? "").trim();
       if (!text) throw new Error("IA retornou vazio");
-      setAiMsgs((prev) => [...prev, { role: "model", text }]);
+      setAiMsgs((prev) => [...prev, { role: "model", text, files: data?.files ?? [] }]);
     } catch (err) {
       setAiError(err instanceof Error ? err.message : "Falha ao chamar IA");
     } finally {
       setAiSending(false);
+      setAiAttachments([]);
     }
   }
 
@@ -234,6 +293,35 @@ export default function HomeShell() {
                               {m.role === "user" ? "Você" : "J.U.S.S.A.R.A."}
                             </div>
                             <div className="mt-1">{m.text}</div>
+                            {m.attachments && m.attachments.length ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {m.attachments.map((a, j) => (
+                                  <div
+                                    key={`${a.name}:${j}`}
+                                    className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1"
+                                  >
+                                    📎 {a.name}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                            {m.files && m.files.length ? (
+                              <div className="mt-2 space-y-2">
+                                {m.files.slice(0, 3).map((f, j) => (
+                                  <button
+                                    key={`${f.filename}:${j}`}
+                                    type="button"
+                                    onClick={() => downloadFile(f)}
+                                    className="w-full text-left rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
+                                  >
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="text-xs font-semibold truncate">⬇ {f.filename}</div>
+                                      <div className="text-[10px] text-[var(--muted)] shrink-0">{f.mimeType}</div>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         ))}
                       </div>
@@ -243,6 +331,36 @@ export default function HomeShell() {
 
                     <div className="mt-4 flex items-end gap-3">
                       <div className="flex-1 rounded-3xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
+                        <div className="flex items-center justify-between gap-3 pb-2">
+                          <label className="text-xs text-[var(--muted)] cursor-pointer hover:text-[var(--foreground)]">
+                            <input type="file" className="hidden" multiple onChange={onPickFiles} />
+                            📎 Anexar
+                          </label>
+                          {aiAttachments.length ? (
+                            <button
+                              type="button"
+                              onClick={() => setAiAttachments([])}
+                              className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                            >
+                              Limpar anexos
+                            </button>
+                          ) : null}
+                        </div>
+                        {aiAttachments.length ? (
+                          <div className="pb-2 flex flex-wrap gap-2">
+                            {aiAttachments.map((a, j) => (
+                              <button
+                                key={`${a.name}:${j}`}
+                                type="button"
+                                onClick={() => setAiAttachments((prev) => prev.filter((_, i) => i !== j))}
+                                className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1 hover:bg-white/8"
+                                title="Remover"
+                              >
+                                📎 {a.name} ✕
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
                         <textarea
                           rows={2}
                           value={aiInput}
