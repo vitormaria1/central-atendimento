@@ -13,6 +13,8 @@ const envSchema = z.object({
   UAZAPI_MESSAGE_FIND_PATH: z.string().optional(),
   UAZAPI_SEND_TEXT_PATH: z.string().optional(),
   DATABASE_URL: z.string().min(1),
+  GEMINI_API_KEY: z.string().min(1).optional(),
+  GEMINI_MODEL: z.string().min(1).optional(),
 });
 
 export function getEnv() {

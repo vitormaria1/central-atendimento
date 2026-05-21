@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
+type AiMsg = { role: "user" | "model"; text: string };
 
 function itemClass(disabled: boolean) {
   return [
@@ -17,6 +18,10 @@ function itemClass(disabled: boolean) {
 export default function HomeShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
+  const [aiInput, setAiInput] = useState("");
+  const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([]);
+  const [aiSending, setAiSending] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -31,6 +36,34 @@ export default function HomeShell() {
       setMe(data);
     })();
   }, []);
+
+  async function sendToAi() {
+    const prompt = aiInput.trim();
+    if (!prompt || aiSending) return;
+
+    setAiError(null);
+    setAiSending(true);
+    setAiInput("");
+    const nextHistory = [...aiMsgs, { role: "user", text: prompt } satisfies AiMsg];
+    setAiMsgs(nextHistory);
+
+    try {
+      const res = await fetch("/api/ai/gemini", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt, history: aiMsgs }),
+      });
+      const data = (await res.json().catch(() => null)) as { text?: string; error?: string } | null;
+      if (!res.ok) throw new Error(data?.error || "Falha ao chamar IA");
+      const text = (data?.text ?? "").trim();
+      if (!text) throw new Error("IA retornou vazio");
+      setAiMsgs((prev) => [...prev, { role: "model", text }]);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Falha ao chamar IA");
+    } finally {
+      setAiSending(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -164,8 +197,7 @@ export default function HomeShell() {
                   J.U.S.S.A.R.A.
                 </div>
                 <div className="mt-2 text-sm text-[var(--muted)] max-w-xl">
-                  Seu “cérebro” de IA da operação. Em breve você poderá conversar com a agente para ajudar em tarefas,
-                  análises e automações.
+                  Seu “cérebro” de IA da operação. Converse com a agente para ajudar em tarefas, análises e automações.
                 </div>
 
                 <div className="mt-8 w-full">
@@ -177,30 +209,61 @@ export default function HomeShell() {
                       <div className="text-left">
                         <div className="text-sm font-medium">Input da agente</div>
                         <div className="text-xs text-[var(--muted)]">
-                          Bloqueado por enquanto
+                          Gemini 2.5 Flash
                           {me ? ` • Logado como ${me.agentName}` : ""}
                         </div>
                       </div>
                       <div className="ml-auto text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">
-                        🔒
+                        IA
                       </div>
                     </div>
+
+                    {aiMsgs.length > 0 ? (
+                      <div className="mt-4 max-h-[240px] overflow-y-auto space-y-2">
+                        {aiMsgs.slice(-12).map((m, idx) => (
+                          <div
+                            key={`${m.role}:${idx}`}
+                            className={[
+                              "rounded-2xl px-3 py-2 ring-1 text-sm whitespace-pre-wrap",
+                              m.role === "user"
+                                ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
+                                : "bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]",
+                            ].join(" ")}
+                          >
+                            <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
+                              {m.role === "user" ? "Você" : "J.U.S.S.A.R.A."}
+                            </div>
+                            <div className="mt-1">{m.text}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {aiError ? <div className="mt-3 text-xs text-[color-mix(in_srgb,var(--warning)_80%,white)]">{aiError}</div> : null}
 
                     <div className="mt-4 flex items-end gap-3">
                       <div className="flex-1 rounded-3xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
                         <textarea
                           rows={2}
-                          disabled
-                          placeholder="Em breve: escreva aqui para conversar com a J.U.S.S.A.R.A..."
-                          className="w-full resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)] opacity-70"
+                          value={aiInput}
+                          onChange={(e) => setAiInput(e.target.value)}
+                          placeholder="Escreva aqui para conversar com a J.U.S.S.A.R.A..."
+                          className="w-full resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              void sendToAi();
+                            }
+                          }}
                         />
                       </div>
                       <button
                         type="button"
-                        disabled
-                        className="h-12 rounded-2xl bg-[var(--primary)] px-5 text-sm font-medium text-white opacity-60 cursor-not-allowed"
+                        onClick={() => void sendToAi()}
+                        disabled={aiSending || !aiInput.trim()}
+                        className="h-12 rounded-2xl bg-[var(--primary)] px-5 text-sm font-medium text-white disabled:opacity-60"
                       >
-                        Enviar
+                        {aiSending ? "Enviando..." : "Enviar"}
                       </button>
                     </div>
                   </div>
