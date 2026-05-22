@@ -31,6 +31,26 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  font-size: calc(16px * var(--font-scale, 1));
+  line-height: 1.35;
+}
+
+/* A11y preferences via <html data-*> */
+html[data-font-scale="1.1"] {
+  --font-scale: 1.1;
+}
+
+html[data-font-scale="1.2"] {
+  --font-scale: 1.2;
+}
+
+html[data-high-contrast="1"] {
+  --muted: #b9c7e7;
+  --border: rgba(255, 255, 255, 0.18);
+}
+
+html[data-reduce-motion="1"] {
+  scroll-behavior: auto !important;
 }
 
 /* Accessible focus ring (global) */

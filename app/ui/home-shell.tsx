@@ -29,6 +29,8 @@ export default function HomeShell() {
   const [aiAttachments, setAiAttachments] = useState<AiAttachment[]>([]);
   const [templates, setTemplates] = useState<Array<{ slug: string; name: string }>>([]);
   const [selectedTemplateSlug, setSelectedTemplateSlug] = useState<string | null>(null);
+  const [templateQuery, setTemplateQuery] = useState("");
+  const [showAllTemplates, setShowAllTemplates] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -56,6 +58,17 @@ export default function HomeShell() {
         e.preventDefault();
         composerRef.current?.focus();
         setAiAnnounce("Foco no campo de mensagem.");
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        if (!selectedTemplateSlug) {
+          setAiAnnounce("Busca de modelos disponível.");
+          // focus first search input if present
+          const el = document.querySelector<HTMLInputElement>('input[aria-label="Buscar modelo de documento"]');
+          el?.focus();
+        }
         return;
       }
 
@@ -125,6 +138,19 @@ export default function HomeShell() {
 
     setAiAttachments((prev) => [...prev, ...next].slice(0, MAX_FILES));
   }
+
+  const attachmentsSummary = (() => {
+    if (!aiAttachments.length) return null;
+    const bytes = aiAttachments.reduce((sum, a) => sum + (a.sizeBytes || 0), 0);
+    const mb = bytes / (1024 * 1024);
+    return `${aiAttachments.length} anexo(s) • ${mb.toFixed(mb >= 10 ? 0 : 1)}MB`;
+  })();
+
+  const filteredTemplates = (() => {
+    const q = templateQuery.trim().toLowerCase();
+    const list = q ? templates.filter((t) => t.name.toLowerCase().includes(q)) : templates;
+    return showAllTemplates ? list : list.slice(0, 8);
+  })();
 
   async function sendToAi() {
     const prompt = aiInput.trim();
@@ -328,6 +354,20 @@ export default function HomeShell() {
                       </div>
                     </div>
 
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-xs text-[var(--muted)]">
+                        Dica: <span className="text-[var(--foreground)]">Ctrl/Cmd+K</span> foca no campo •{" "}
+                        <span className="text-[var(--foreground)]">Ctrl/Cmd+M</span> busca modelos •{" "}
+                        <span className="text-[var(--foreground)]">Enter</span> envia •{" "}
+                        <span className="text-[var(--foreground)]">Shift+Enter</span> quebra linha
+                      </div>
+                      {aiSending ? (
+                        <div className="text-xs rounded-full bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-1">
+                          Aguardando resposta…
+                        </div>
+                      ) : null}
+                    </div>
+
                     {aiMsgs.length > 0 ? (
                       <div
                         className="mt-4 max-h-[240px] overflow-y-auto space-y-2"
@@ -439,17 +479,40 @@ export default function HomeShell() {
                           ) : null}
                         </div>
                         {!selectedTemplateSlug && templates.length ? (
-                          <div className="pb-2 flex flex-wrap gap-2">
-                            {templates.slice(0, 12).map((t) => (
+                          <div className="pb-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                value={templateQuery}
+                                onChange={(e) => setTemplateQuery(e.target.value)}
+                                placeholder="Buscar modelo…"
+                                aria-label="Buscar modelo de documento"
+                                className="h-10 w-full rounded-2xl bg-[color-mix(in_srgb,var(--background)_55%,black)] ring-1 ring-white/10 px-3 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
+                              />
                               <button
-                                key={t.slug}
                                 type="button"
-                                onClick={() => setSelectedTemplateSlug(t.slug)}
-                                className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-2 py-1 hover:bg-[color-mix(in_srgb,var(--accent)_22%,transparent)]"
+                                onClick={() => setShowAllTemplates((v) => !v)}
+                                className="h-10 shrink-0 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 text-sm hover:bg-white/8"
+                                aria-pressed={showAllTemplates}
+                                title="Mostrar mais modelos"
                               >
-                                {t.name}
+                                {showAllTemplates ? "Menos" : "Mais"}
                               </button>
-                            ))}
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {filteredTemplates.map((t) => (
+                                <button
+                                  key={t.slug}
+                                  type="button"
+                                  onClick={() => setSelectedTemplateSlug(t.slug)}
+                                  className="min-h-[44px] text-[11px] md:text-xs rounded-2xl bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-2 hover:bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] active:scale-[0.99]"
+                                >
+                                  {t.name}
+                                </button>
+                              ))}
+                              {filteredTemplates.length === 0 ? (
+                                <div className="text-xs text-[var(--muted)]">Nenhum modelo encontrado.</div>
+                              ) : null}
+                            </div>
                           </div>
                         ) : null}
                         {aiAttachments.length ? (
@@ -459,12 +522,17 @@ export default function HomeShell() {
                                 key={`${a.name}:${j}`}
                                 type="button"
                                 onClick={() => setAiAttachments((prev) => prev.filter((_, i) => i !== j))}
-                                className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1 hover:bg-white/8"
+                                className="min-h-[44px] text-[11px] md:text-xs rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
                                 title="Remover"
                               >
                                 📎 {a.name} ✕
                               </button>
                             ))}
+                            {attachmentsSummary ? (
+                              <div className="min-h-[44px] flex items-center text-xs text-[var(--muted)] px-2">
+                                {attachmentsSummary}
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
                         <textarea
@@ -488,7 +556,7 @@ export default function HomeShell() {
                         onClick={() => void sendToAi()}
                         disabled={aiSending || !aiInput.trim()}
                         aria-disabled={aiSending || !aiInput.trim()}
-                        className="h-12 rounded-2xl bg-[var(--primary)] px-5 text-sm font-medium text-white disabled:opacity-60"
+                        className="h-12 min-w-[110px] rounded-2xl bg-[var(--primary)] px-5 text-sm font-medium text-white shadow-lg shadow-[color-mix(in_srgb,var(--primary)_35%,transparent)] disabled:opacity-60"
                       >
                         {aiSending ? "Enviando..." : "Enviar"}
                       </button>

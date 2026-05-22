@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import A11yPreferences from "./ui/a11y-preferences";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,6 +35,7 @@ export default function RootLayout({
         <div id="main-content" className="flex-1 min-h-full">
           {children}
         </div>
+        <A11yPreferences />
       </body>
     </html>
   );
