@@ -3,6 +3,7 @@ import { z } from "zod";
 import { withApi } from "@/lib/api";
 import { getSession } from "@/lib/auth";
 import { getEnv } from "@/lib/env";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -71,6 +72,18 @@ export const POST = withApi(async (req: Request) => {
     },
   ];
 
+  const systemInstruction = {
+    role: "user",
+    parts: [
+      {
+        text:
+          "Você é a J.U.S.S.A.R.A. Responda SEMPRE em JSON válido no formato {\"text\": string, \"files\"?: [{\"filename\": string, \"mimeType\": string, \"base64\": string}]}. " +
+          "Quando o usuário pedir para criar/gerar um arquivo (PDF, DOC, planilha, etc.), inclua o arquivo em \"files\" com base64 do conteúdo do arquivo e um nome em \"filename\". " +
+          "Se não for possível gerar um binário real, gere o arquivo como texto/markdown/csv/json (conforme solicitado) e coloque em files com mimeType apropriado (ex.: text/plain, text/markdown, text/csv, application/json).",
+      },
+    ],
+  };
+
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: {
@@ -78,6 +91,7 @@ export const POST = withApi(async (req: Request) => {
       "x-goog-api-key": apiKey,
     },
     body: JSON.stringify({
+      systemInstruction,
       contents,
       generationConfig: {
         temperature: 0.3,
@@ -133,6 +147,47 @@ export const POST = withApi(async (req: Request) => {
     }
   })();
 
+  async function makePdfBase64(text: string) {
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([595.28, 841.89]); // A4
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontSize = 11;
+    const margin = 48;
+    const maxWidth = page.getWidth() - margin * 2;
+    const lineHeight = fontSize * 1.35;
+
+    const words = text.replaceAll("\r\n", "\n").split(/\s+/);
+    const lines: string[] = [];
+    let cur = "";
+    for (const w of words) {
+      const next = cur ? `${cur} ${w}` : w;
+      const width = font.widthOfTextAtSize(next, fontSize);
+      if (width <= maxWidth) cur = next;
+      else {
+        if (cur) lines.push(cur);
+        cur = w;
+      }
+    }
+    if (cur) lines.push(cur);
+
+    let y = page.getHeight() - margin;
+    for (const line of lines) {
+      if (y < margin + lineHeight) {
+        // new page
+        const p = pdfDoc.addPage([595.28, 841.89]);
+        y = p.getHeight() - margin;
+        p.drawText(line, { x: margin, y, size: fontSize, font, color: rgb(0, 0, 0) });
+        y -= lineHeight;
+      } else {
+        page.drawText(line, { x: margin, y, size: fontSize, font, color: rgb(0, 0, 0) });
+        y -= lineHeight;
+      }
+    }
+
+    const bytes = await pdfDoc.save();
+    return Buffer.from(bytes).toString("base64");
+  }
+
   if (
     parsedJson &&
     typeof (parsedJson as { text?: unknown }).text === "string" &&
@@ -142,10 +197,27 @@ export const POST = withApi(async (req: Request) => {
     })()
   ) {
     const json = parsedJson as { text: string; files?: Array<{ filename: string; mimeType: string; base64: string }> };
-    const files = Array.isArray(json.files) ? json.files.slice(0, 3) : [];
+    let files = Array.isArray(json.files) ? json.files.slice(0, 3) : [];
+
+    const wantsPdf =
+      /\bpdf\b/i.test(parsed.data.prompt) ||
+      /\bdocumento\b/i.test(parsed.data.prompt) ||
+      /não consigo criar um arquivo pdf/i.test(json.text);
+
+    if (wantsPdf && files.length === 0) {
+      const base64 = await makePdfBase64(json.text);
+      files = [{ filename: "documento.pdf", mimeType: "application/pdf", base64 }];
+    }
+
     return NextResponse.json({ text: json.text, files });
   }
 
   // Fallback: treat as plain text.
+  const wantsPdf = /\bpdf\b/i.test(parsed.data.prompt) || /\bdocumento\b/i.test(parsed.data.prompt) || /não consigo criar um arquivo pdf/i.test(rawText);
+  if (wantsPdf) {
+    const base64 = await makePdfBase64(rawText);
+    return NextResponse.json({ text: rawText, files: [{ filename: "documento.pdf", mimeType: "application/pdf", base64 }] });
+  }
+
   return NextResponse.json({ text: rawText });
 });
