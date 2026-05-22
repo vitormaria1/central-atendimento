@@ -340,14 +340,7 @@ export default function HomeShell() {
                         AI
                       </div>
                       <div className="text-left min-w-0">
-                        <div className="text-sm font-medium">Input da agente</div>
-                        <div className="text-xs text-[var(--muted)]">
-                          Gemini 2.5 Flash
-                          {me ? ` • Logado como ${me.agentName}` : ""}
-                        </div>
-                      </div>
-                      <div className="ml-auto text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">
-                        IA
+                        <div className="text-sm font-medium">Chat da J.U.S.S.A.R.A.</div>
                       </div>
                     </div>
 
