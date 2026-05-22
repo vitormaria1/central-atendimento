@@ -351,19 +351,11 @@ export default function HomeShell() {
                       </div>
                     </div>
 
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-xs text-[var(--muted)]">
-                        Dica: <span className="text-[var(--foreground)]">Ctrl/Cmd+K</span> foca no campo •{" "}
-                        <span className="text-[var(--foreground)]">Ctrl/Cmd+M</span> modelos •{" "}
-                        <span className="text-[var(--foreground)]">Enter</span> envia •{" "}
-                        <span className="text-[var(--foreground)]">Shift+Enter</span> quebra linha
+                    {aiSending ? (
+                      <div className="mt-3 text-xs rounded-full inline-flex bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-1">
+                        Aguardando resposta…
                       </div>
-                      {aiSending ? (
-                        <div className="text-xs rounded-full bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-1">
-                          Aguardando resposta…
-                        </div>
-                      ) : null}
-                    </div>
+                    ) : null}
 
                     <div className="mt-4 flex flex-col min-h-0">
                       {aiMsgs.length > 0 ? (
