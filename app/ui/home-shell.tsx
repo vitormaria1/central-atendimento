@@ -330,7 +330,7 @@ export default function HomeShell() {
                   J.U.S.S.A.R.A.
                 </div>
                 <div className="mt-2 text-sm text-[var(--muted)] max-w-xl">
-                  Seu “cérebro” de IA da operação. Converse com a agente para ajudar em tarefas, análises e automações.
+                  Seu “cérebro” de IA da operação.
                 </div>
 
                 <div className="mt-8 w-full">
@@ -396,11 +396,7 @@ export default function HomeShell() {
                           </div>
                           ))}
                         </div>
-                      ) : (
-                        <div className="text-sm text-[var(--muted)] mt-2">
-                          Escreva uma mensagem abaixo para começar.
-                        </div>
-                      )}
+                      ) : null}
 
                       {aiError ? (
                         <div
@@ -516,9 +512,7 @@ export default function HomeShell() {
                   </div>
                 </div>
 
-                <div className="mt-10 text-xs text-[var(--muted)]">
-                  Use o menu à esquerda para abrir o <span className="text-[var(--foreground)]">WhatsApp</span>.
-                </div>
+                {/* texto redundante removido */}
               </div>
             </div>
           </div>
