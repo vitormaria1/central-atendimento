@@ -1208,7 +1208,13 @@ export default function TasksShell() {
 
           {toast ? (
             <div className="border-t border-[var(--border)] p-4 bg-[var(--background)]/80 backdrop-blur">
-              <div className="text-sm rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3">{toast}</div>
+              <div
+                className="text-sm rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3"
+                role="alert"
+                aria-live="assertive"
+              >
+                {toast}
+              </div>
             </div>
           ) : null}
         </main>

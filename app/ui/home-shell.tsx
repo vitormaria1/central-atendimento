@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
 type AiMsg = { role: "user" | "model"; text: string };
@@ -25,9 +25,12 @@ export default function HomeShell() {
   const [aiMsgs, setAiMsgs] = useState<AiMsgWithFiles[]>([]);
   const [aiSending, setAiSending] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [aiAnnounce, setAiAnnounce] = useState<string>("");
   const [aiAttachments, setAiAttachments] = useState<AiAttachment[]>([]);
   const [templates, setTemplates] = useState<Array<{ slug: string; name: string }>>([]);
   const [selectedTemplateSlug, setSelectedTemplateSlug] = useState<string | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -42,6 +45,30 @@ export default function HomeShell() {
       setMe(data);
     })();
   }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTypingTarget =
+        target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.getAttribute("contenteditable") === "true";
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        composerRef.current?.focus();
+        setAiAnnounce("Foco no campo de mensagem.");
+        return;
+      }
+
+      if (e.key === "Escape" && !isTypingTarget) {
+        if (selectedTemplateSlug) setSelectedTemplateSlug(null);
+        if (aiAttachments.length) setAiAttachments([]);
+        if (aiError) setAiError(null);
+        if (selectedTemplateSlug || aiAttachments.length || aiError) setAiAnnounce("Limpo.");
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [aiAttachments.length, aiError, selectedTemplateSlug]);
 
   useEffect(() => {
     void (async () => {
@@ -106,6 +133,7 @@ export default function HomeShell() {
     setAiError(null);
     setAiSending(true);
     setAiInput("");
+    setAiAnnounce("Enviando para a J.U.S.S.A.R.A...");
     const nextHistory = [
       ...aiMsgs,
       {
@@ -132,16 +160,23 @@ export default function HomeShell() {
       const text = (data?.text ?? "").trim();
       if (!text) throw new Error("IA retornou vazio");
       setAiMsgs((prev) => [...prev, { role: "model", text, files: data?.files ?? [] }]);
+      setAiAnnounce("Resposta recebida.");
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : "Falha ao chamar IA");
+      const msg = err instanceof Error ? err.message : "Falha ao chamar IA";
+      setAiError(msg);
+      setAiAnnounce(msg);
     } finally {
       setAiSending(false);
       setAiAttachments([]);
+      queueMicrotask(() => composerRef.current?.focus());
     }
   }
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {aiAnnounce}
+      </div>
       <div className="flex h-screen">
         <aside className="w-[360px] shrink-0 border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_80%,black)]">
           <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--border)]">
@@ -294,7 +329,13 @@ export default function HomeShell() {
                     </div>
 
                     {aiMsgs.length > 0 ? (
-                      <div className="mt-4 max-h-[240px] overflow-y-auto space-y-2">
+                      <div
+                        className="mt-4 max-h-[240px] overflow-y-auto space-y-2"
+                        role="log"
+                        aria-live="polite"
+                        aria-relevant="additions text"
+                        aria-busy={aiSending}
+                      >
                         {aiMsgs.slice(-12).map((m, idx) => (
                           <div
                             key={`${m.role}:${idx}`}
@@ -343,15 +384,35 @@ export default function HomeShell() {
                       </div>
                     ) : null}
 
-                    {aiError ? <div className="mt-3 text-xs text-[color-mix(in_srgb,var(--warning)_80%,white)]">{aiError}</div> : null}
+                    {aiError ? (
+                      <div
+                        className="mt-3 text-xs text-[color-mix(in_srgb,var(--warning)_80%,white)]"
+                        role="alert"
+                        aria-live="assertive"
+                      >
+                        {aiError}
+                      </div>
+                    ) : null}
 
                     <div className="mt-4 flex items-end gap-3">
                       <div className="flex-1 rounded-3xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
                         <div className="flex items-center justify-between gap-3 pb-2">
-                          <label className="text-xs text-[var(--muted)] cursor-pointer hover:text-[var(--foreground)]">
-                            <input type="file" className="hidden" multiple onChange={onPickFiles} />
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            className="hidden"
+                            multiple
+                            onChange={onPickFiles}
+                            aria-label="Selecionar arquivos para anexar"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                            title="Anexar arquivos (Ctrl/Cmd+K foca no campo)"
+                          >
                             📎 Anexar
-                          </label>
+                          </button>
                           <div className="flex items-center gap-2">
                             {selectedTemplateSlug ? (
                               <button
@@ -371,6 +432,7 @@ export default function HomeShell() {
                               type="button"
                               onClick={() => setAiAttachments([])}
                               className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                              aria-label="Limpar anexos"
                             >
                               Limpar anexos
                             </button>
@@ -406,10 +468,12 @@ export default function HomeShell() {
                           </div>
                         ) : null}
                         <textarea
+                          ref={composerRef}
                           rows={2}
                           value={aiInput}
                           onChange={(e) => setAiInput(e.target.value)}
                           placeholder="Escreva aqui para conversar com a J.U.S.S.A.R.A..."
+                          aria-label="Mensagem para a J.U.S.S.A.R.A."
                           className="w-full resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && !e.shiftKey) {
@@ -423,6 +487,7 @@ export default function HomeShell() {
                         type="button"
                         onClick={() => void sendToAi()}
                         disabled={aiSending || !aiInput.trim()}
+                        aria-disabled={aiSending || !aiInput.trim()}
                         className="h-12 rounded-2xl bg-[var(--primary)] px-5 text-sm font-medium text-white disabled:opacity-60"
                       >
                         {aiSending ? "Enviando..." : "Enviar"}

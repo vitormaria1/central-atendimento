@@ -469,7 +469,14 @@ export default function TeamChatShell() {
           </header>
 
           <div className="flex-1 flex min-h-0">
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-3 min-w-0">
+            <div
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto p-6 space-y-3 min-w-0"
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions text"
+              aria-busy={sending || searching}
+            >
               {search.trim() ? (
                 <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
                   <div className="flex items-center justify-between">
@@ -650,6 +657,7 @@ export default function TeamChatShell() {
                   onChange={(e) => setComposer(e.target.value)}
                   rows={2}
                   placeholder="Escreva uma mensagem para o time..."
+                  aria-label="Mensagem para o chat interno"
                   className="w-full resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
@@ -665,6 +673,7 @@ export default function TeamChatShell() {
                       type="file"
                       multiple
                       className="hidden"
+                      aria-label="Selecionar arquivos para anexar no chat interno"
                       onChange={(e) => {
                         const files = Array.from(e.target.files ?? []);
                         setComposerFiles(files.slice(0, 5));
@@ -689,7 +698,13 @@ export default function TeamChatShell() {
             </div>
 
             {toast ? (
-              <div className="mt-3 text-sm rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3">{toast}</div>
+              <div
+                className="mt-3 text-sm rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3"
+                role="alert"
+                aria-live="assertive"
+              >
+                {toast}
+              </div>
             ) : null}
           </footer>
         </main>
