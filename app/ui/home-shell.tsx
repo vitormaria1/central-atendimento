@@ -335,22 +335,13 @@ export default function HomeShell() {
 
                 <div className="mt-8 w-full">
                   <div className="rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] p-4 md:p-5 text-left">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 flex items-center justify-center text-sm">
-                        AI
-                      </div>
-                      <div className="text-left min-w-0">
-                        <div className="text-sm font-medium">Chat da J.U.S.S.A.R.A.</div>
-                      </div>
-                    </div>
-
                     {aiSending ? (
-                      <div className="mt-3 text-xs rounded-full inline-flex bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-1">
+                      <div className="text-xs rounded-full inline-flex bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-1">
                         Aguardando resposta…
                       </div>
                     ) : null}
 
-                    <div className="mt-4 flex flex-col min-h-0">
+                    <div className="mt-3 flex flex-col min-h-0">
                       {aiMsgs.length > 0 ? (
                         <div
                           className="max-h-[320px] md:max-h-[420px] overflow-y-auto space-y-2 pr-1"
