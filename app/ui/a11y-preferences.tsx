@@ -65,7 +65,7 @@ export default function A11yPreferences() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-4 right-4 z-50 rounded-2xl bg-white/5 ring-1 ring-white/10 backdrop-blur px-4 py-3 text-sm hover:bg-white/8"
+        className="fixed bottom-4 left-4 z-50 rounded-2xl bg-white/5 ring-1 ring-white/10 backdrop-blur px-4 py-3 text-sm hover:bg-white/8"
         aria-label="Abrir preferências de acessibilidade"
         title="Acessibilidade (Alt+A)"
       >
@@ -160,4 +160,3 @@ export default function A11yPreferences() {
     </>
   );
 }
-

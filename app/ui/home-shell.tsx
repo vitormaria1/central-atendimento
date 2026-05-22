@@ -30,7 +30,7 @@ export default function HomeShell() {
   const [templates, setTemplates] = useState<Array<{ slug: string; name: string }>>([]);
   const [selectedTemplateSlug, setSelectedTemplateSlug] = useState<string | null>(null);
   const [templateQuery, setTemplateQuery] = useState("");
-  const [showAllTemplates, setShowAllTemplates] = useState(false);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -63,25 +63,22 @@ export default function HomeShell() {
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "m") {
         e.preventDefault();
-        if (!selectedTemplateSlug) {
-          setAiAnnounce("Busca de modelos disponível.");
-          // focus first search input if present
-          const el = document.querySelector<HTMLInputElement>('input[aria-label="Buscar modelo de documento"]');
-          el?.focus();
-        }
+        setTemplatePickerOpen(true);
+        setAiAnnounce("Seletor de modelos aberto.");
+        queueMicrotask(() => document.querySelector<HTMLInputElement>('[data-template-search="1"]')?.focus());
         return;
       }
 
       if (e.key === "Escape" && !isTypingTarget) {
-        if (selectedTemplateSlug) setSelectedTemplateSlug(null);
+        if (templatePickerOpen) setTemplatePickerOpen(false);
         if (aiAttachments.length) setAiAttachments([]);
         if (aiError) setAiError(null);
-        if (selectedTemplateSlug || aiAttachments.length || aiError) setAiAnnounce("Limpo.");
+        if (templatePickerOpen || aiAttachments.length || aiError) setAiAnnounce("Limpo.");
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [aiAttachments.length, aiError, selectedTemplateSlug]);
+  }, [aiAttachments.length, aiError, selectedTemplateSlug, templatePickerOpen]);
 
   useEffect(() => {
     void (async () => {
@@ -149,7 +146,7 @@ export default function HomeShell() {
   const filteredTemplates = (() => {
     const q = templateQuery.trim().toLowerCase();
     const list = q ? templates.filter((t) => t.name.toLowerCase().includes(q)) : templates;
-    return showAllTemplates ? list : list.slice(0, 8);
+    return list;
   })();
 
   async function sendToAi() {
@@ -314,8 +311,8 @@ export default function HomeShell() {
             <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] blur-3xl" />
           </div>
 
-          <div className="relative h-full flex items-center justify-center px-8">
-            <div className="w-full max-w-2xl">
+          <div className="relative h-full overflow-y-auto px-6 md:px-10 py-10">
+            <div className="w-full max-w-3xl mx-auto">
               <div className="flex flex-col items-center text-center">
                 <div className="relative">
                   <div className="absolute inset-0 rounded-[48px] bg-[color-mix(in_srgb,var(--primary)_16%,transparent)] blur-2xl" />
@@ -324,7 +321,7 @@ export default function HomeShell() {
                     <img
                       src="/logo-mark.png"
                       alt="J.U.S.S.A.R.A."
-                      className="h-44 w-44 md:h-56 md:w-56 object-contain"
+                      className="h-36 w-36 md:h-52 md:w-52 object-contain"
                     />
                   </div>
                 </div>
@@ -337,12 +334,12 @@ export default function HomeShell() {
                 </div>
 
                 <div className="mt-8 w-full">
-                  <div className="rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] p-4 md:p-5">
+                  <div className="rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] p-4 md:p-5 text-left">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 flex items-center justify-center text-sm">
                         AI
                       </div>
-                      <div className="text-left">
+                      <div className="text-left min-w-0">
                         <div className="text-sm font-medium">Input da agente</div>
                         <div className="text-xs text-[var(--muted)]">
                           Gemini 2.5 Flash
@@ -357,7 +354,7 @@ export default function HomeShell() {
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                       <div className="text-xs text-[var(--muted)]">
                         Dica: <span className="text-[var(--foreground)]">Ctrl/Cmd+K</span> foca no campo •{" "}
-                        <span className="text-[var(--foreground)]">Ctrl/Cmd+M</span> busca modelos •{" "}
+                        <span className="text-[var(--foreground)]">Ctrl/Cmd+M</span> modelos •{" "}
                         <span className="text-[var(--foreground)]">Enter</span> envia •{" "}
                         <span className="text-[var(--foreground)]">Shift+Enter</span> quebra linha
                       </div>
@@ -368,15 +365,16 @@ export default function HomeShell() {
                       ) : null}
                     </div>
 
-                    {aiMsgs.length > 0 ? (
-                      <div
-                        className="mt-4 max-h-[240px] overflow-y-auto space-y-2"
-                        role="log"
-                        aria-live="polite"
-                        aria-relevant="additions text"
-                        aria-busy={aiSending}
-                      >
-                        {aiMsgs.slice(-12).map((m, idx) => (
+                    <div className="mt-4 flex flex-col min-h-0">
+                      {aiMsgs.length > 0 ? (
+                        <div
+                          className="max-h-[320px] md:max-h-[420px] overflow-y-auto space-y-2 pr-1"
+                          role="log"
+                          aria-live="polite"
+                          aria-relevant="additions text"
+                          aria-busy={aiSending}
+                        >
+                          {aiMsgs.map((m, idx) => (
                           <div
                             key={`${m.role}:${idx}`}
                             className={[
@@ -420,23 +418,26 @@ export default function HomeShell() {
                               </div>
                             ) : null}
                           </div>
-                        ))}
-                      </div>
-                    ) : null}
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-[var(--muted)] mt-2">
+                          Escreva uma mensagem abaixo para começar.
+                        </div>
+                      )}
 
-                    {aiError ? (
-                      <div
-                        className="mt-3 text-xs text-[color-mix(in_srgb,var(--warning)_80%,white)]"
-                        role="alert"
-                        aria-live="assertive"
-                      >
-                        {aiError}
-                      </div>
-                    ) : null}
+                      {aiError ? (
+                        <div
+                          className="mt-3 text-xs text-[color-mix(in_srgb,var(--warning)_80%,white)]"
+                          role="alert"
+                          aria-live="assertive"
+                        >
+                          {aiError}
+                        </div>
+                      ) : null}
 
-                    <div className="mt-4 flex items-end gap-3">
-                      <div className="flex-1 rounded-3xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
-                        <div className="flex items-center justify-between gap-3 pb-2">
+                      <div className="mt-4 rounded-3xl bg-white/5 ring-1 ring-white/10 px-3 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
                           <input
                             ref={fileInputRef}
                             type="file"
@@ -445,15 +446,30 @@ export default function HomeShell() {
                             onChange={onPickFiles}
                             aria-label="Selecionar arquivos para anexar"
                           />
-                          <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
-                            title="Anexar arquivos (Ctrl/Cmd+K foca no campo)"
-                          >
-                            📎 Anexar
-                          </button>
                           <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
+                              title="Anexar arquivos"
+                            >
+                              📎 Anexar
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setTemplatePickerOpen(true)}
+                              className="text-xs rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-1 hover:bg-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
+                              aria-haspopup="dialog"
+                            >
+                              Modelos
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            {attachmentsSummary ? (
+                              <div className="text-xs text-[var(--muted)]">{attachmentsSummary}</div>
+                            ) : null}
                             {selectedTemplateSlug ? (
                               <button
                                 type="button"
@@ -463,58 +479,20 @@ export default function HomeShell() {
                               >
                                 Modelo: {templates.find((t) => t.slug === selectedTemplateSlug)?.name ?? selectedTemplateSlug} ✕
                               </button>
-                            ) : templates.length ? (
-                              <div className="text-xs text-[var(--muted)]">Modelos:</div>
                             ) : null}
-                          </div>
-                          {aiAttachments.length ? (
-                            <button
-                              type="button"
-                              onClick={() => setAiAttachments([])}
-                              className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
-                              aria-label="Limpar anexos"
-                            >
-                              Limpar anexos
-                            </button>
-                          ) : null}
-                        </div>
-                        {!selectedTemplateSlug && templates.length ? (
-                          <div className="pb-2">
-                            <div className="flex items-center gap-2">
-                              <input
-                                value={templateQuery}
-                                onChange={(e) => setTemplateQuery(e.target.value)}
-                                placeholder="Buscar modelo…"
-                                aria-label="Buscar modelo de documento"
-                                className="h-10 w-full rounded-2xl bg-[color-mix(in_srgb,var(--background)_55%,black)] ring-1 ring-white/10 px-3 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
-                              />
+                            {aiAttachments.length ? (
                               <button
                                 type="button"
-                                onClick={() => setShowAllTemplates((v) => !v)}
-                                className="h-10 shrink-0 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 text-sm hover:bg-white/8"
-                                aria-pressed={showAllTemplates}
-                                title="Mostrar mais modelos"
+                                onClick={() => setAiAttachments([])}
+                                className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                                aria-label="Limpar anexos"
                               >
-                                {showAllTemplates ? "Menos" : "Mais"}
+                                Limpar
                               </button>
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {filteredTemplates.map((t) => (
-                                <button
-                                  key={t.slug}
-                                  type="button"
-                                  onClick={() => setSelectedTemplateSlug(t.slug)}
-                                  className="min-h-[44px] text-[11px] md:text-xs rounded-2xl bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-2 hover:bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] active:scale-[0.99]"
-                                >
-                                  {t.name}
-                                </button>
-                              ))}
-                              {filteredTemplates.length === 0 ? (
-                                <div className="text-xs text-[var(--muted)]">Nenhum modelo encontrado.</div>
-                              ) : null}
-                            </div>
+                            ) : null}
                           </div>
-                        ) : null}
+                        </div>
+
                         {aiAttachments.length ? (
                           <div className="pb-2 flex flex-wrap gap-2">
                             {aiAttachments.map((a, j) => (
@@ -522,44 +500,42 @@ export default function HomeShell() {
                                 key={`${a.name}:${j}`}
                                 type="button"
                                 onClick={() => setAiAttachments((prev) => prev.filter((_, i) => i !== j))}
-                                className="min-h-[44px] text-[11px] md:text-xs rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
+                                className="min-h-[40px] text-[11px] md:text-xs rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
                                 title="Remover"
                               >
                                 📎 {a.name} ✕
                               </button>
                             ))}
-                            {attachmentsSummary ? (
-                              <div className="min-h-[44px] flex items-center text-xs text-[var(--muted)] px-2">
-                                {attachmentsSummary}
-                              </div>
-                            ) : null}
                           </div>
                         ) : null}
-                        <textarea
-                          ref={composerRef}
-                          rows={2}
-                          value={aiInput}
-                          onChange={(e) => setAiInput(e.target.value)}
-                          placeholder="Escreva aqui para conversar com a J.U.S.S.A.R.A..."
-                          aria-label="Mensagem para a J.U.S.S.A.R.A."
-                          className="w-full resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
-                              void sendToAi();
-                            }
-                          }}
-                        />
+
+                        <div className="flex items-end gap-3">
+                          <textarea
+                            ref={composerRef}
+                            rows={2}
+                            value={aiInput}
+                            onChange={(e) => setAiInput(e.target.value)}
+                            placeholder="Escreva aqui para conversar com a J.U.S.S.A.R.A..."
+                            aria-label="Mensagem para a J.U.S.S.A.R.A."
+                            className="flex-1 resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                void sendToAi();
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void sendToAi()}
+                            disabled={aiSending || !aiInput.trim()}
+                            aria-disabled={aiSending || !aiInput.trim()}
+                            className="h-12 min-w-[110px] rounded-2xl bg-[var(--primary)] px-5 text-sm font-medium text-white shadow-lg shadow-[color-mix(in_srgb,var(--primary)_35%,transparent)] disabled:opacity-60"
+                          >
+                            {aiSending ? "Enviando..." : "Enviar"}
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void sendToAi()}
-                        disabled={aiSending || !aiInput.trim()}
-                        aria-disabled={aiSending || !aiInput.trim()}
-                        className="h-12 min-w-[110px] rounded-2xl bg-[var(--primary)] px-5 text-sm font-medium text-white shadow-lg shadow-[color-mix(in_srgb,var(--primary)_35%,transparent)] disabled:opacity-60"
-                      >
-                        {aiSending ? "Enviando..." : "Enviar"}
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -572,6 +548,90 @@ export default function HomeShell() {
           </div>
         </main>
       </div>
+
+      {templatePickerOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60"
+            aria-label="Fechar"
+            onClick={() => setTemplatePickerOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Selecionar modelo"
+            className="relative w-full max-w-2xl rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] p-5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-base font-semibold">Modelos de documentos</div>
+                <div className="mt-1 text-sm text-[var(--muted)]">Escolha um modelo para a J.U.S.S.A.R.A preencher.</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTemplatePickerOpen(false)}
+                className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="mt-4 flex items-center gap-2">
+              <input
+                data-template-search="1"
+                value={templateQuery}
+                onChange={(e) => setTemplateQuery(e.target.value)}
+                placeholder="Buscar modelo…"
+                aria-label="Buscar modelo de documento"
+                className="h-11 w-full rounded-2xl bg-[color-mix(in_srgb,var(--background)_55%,black)] ring-1 ring-white/10 px-4 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
+              />
+              {selectedTemplateSlug ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedTemplateSlug(null)}
+                  className="h-11 shrink-0 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 text-sm hover:bg-white/8"
+                  title="Remover modelo selecionado"
+                >
+                  Remover
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-4 max-h-[55vh] overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {filteredTemplates.map((t) => {
+                  const selected = t.slug === selectedTemplateSlug;
+                  return (
+                    <button
+                      key={t.slug}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTemplateSlug(t.slug);
+                        setTemplatePickerOpen(false);
+                        setAiAnnounce(`Modelo selecionado: ${t.name}`);
+                        queueMicrotask(() => composerRef.current?.focus());
+                      }}
+                      className={[
+                        "min-h-[52px] text-left rounded-2xl px-4 py-3 ring-1 transition",
+                        selected
+                          ? "bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-[color-mix(in_srgb,var(--accent)_45%,transparent)]"
+                          : "bg-white/5 ring-white/10 hover:bg-white/8",
+                      ].join(" ")}
+                    >
+                      <div className="text-sm font-medium">{t.name}</div>
+                      <div className="text-xs text-[var(--muted)]">{t.slug}</div>
+                    </button>
+                  );
+                })}
+                {filteredTemplates.length === 0 ? (
+                  <div className="text-sm text-[var(--muted)]">Nenhum modelo encontrado.</div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
