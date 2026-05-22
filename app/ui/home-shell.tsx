@@ -26,6 +26,8 @@ export default function HomeShell() {
   const [aiSending, setAiSending] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiAttachments, setAiAttachments] = useState<AiAttachment[]>([]);
+  const [templates, setTemplates] = useState<Array<{ slug: string; name: string }>>([]);
+  const [selectedTemplateSlug, setSelectedTemplateSlug] = useState<string | null>(null);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -38,6 +40,15 @@ export default function HomeShell() {
       if (!res.ok) return;
       const data = (await res.json()) as Agent;
       setMe(data);
+    })();
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/docs/templates", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as { items: Array<{ slug: string; name: string }> };
+      setTemplates(data.items ?? []);
     })();
   }, []);
 
@@ -109,7 +120,12 @@ export default function HomeShell() {
       const res = await fetch("/api/ai/gemini", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ prompt, history: aiMsgs, attachments: aiAttachments.map(({ name, mimeType, dataBase64 }) => ({ name, mimeType, dataBase64 })) }),
+        body: JSON.stringify({
+          prompt,
+          history: aiMsgs,
+          templateSlug: selectedTemplateSlug ?? undefined,
+          attachments: aiAttachments.map(({ name, mimeType, dataBase64 }) => ({ name, mimeType, dataBase64 })),
+        }),
       });
       const data = (await res.json().catch(() => null)) as { text?: string; files?: AiFile[]; error?: string } | null;
       if (!res.ok) throw new Error(data?.error || "Falha ao chamar IA");
@@ -336,6 +352,20 @@ export default function HomeShell() {
                             <input type="file" className="hidden" multiple onChange={onPickFiles} />
                             📎 Anexar
                           </label>
+                          <div className="flex items-center gap-2">
+                            {selectedTemplateSlug ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedTemplateSlug(null)}
+                                className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                                title="Remover modelo"
+                              >
+                                Modelo: {templates.find((t) => t.slug === selectedTemplateSlug)?.name ?? selectedTemplateSlug} ✕
+                              </button>
+                            ) : templates.length ? (
+                              <div className="text-xs text-[var(--muted)]">Modelos:</div>
+                            ) : null}
+                          </div>
                           {aiAttachments.length ? (
                             <button
                               type="button"
@@ -346,6 +376,20 @@ export default function HomeShell() {
                             </button>
                           ) : null}
                         </div>
+                        {!selectedTemplateSlug && templates.length ? (
+                          <div className="pb-2 flex flex-wrap gap-2">
+                            {templates.slice(0, 12).map((t) => (
+                              <button
+                                key={t.slug}
+                                type="button"
+                                onClick={() => setSelectedTemplateSlug(t.slug)}
+                                className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-2 py-1 hover:bg-[color-mix(in_srgb,var(--accent)_22%,transparent)]"
+                              >
+                                {t.name}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
                         {aiAttachments.length ? (
                           <div className="pb-2 flex flex-wrap gap-2">
                             {aiAttachments.map((a, j) => (

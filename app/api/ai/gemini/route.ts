@@ -4,12 +4,16 @@ import { withApi } from "@/lib/api";
 import { getSession } from "@/lib/auth";
 import { getEnv } from "@/lib/env";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { readDocTemplateBySlug } from "@/lib/templates";
+import PizZip from "pizzip";
+import Docxtemplater from "docxtemplater";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const bodySchema = z.object({
   prompt: z.string().min(1).max(10_000),
+  templateSlug: z.string().min(1).optional(),
   attachments: z
     .array(
       z.object({
@@ -45,6 +49,29 @@ export const POST = withApi(async (req: Request) => {
 
   const history = parsed.data.history ?? [];
   const attachments = parsed.data.attachments ?? [];
+  const templateSlug = parsed.data.templateSlug ?? null;
+  const template = templateSlug ? await readDocTemplateBySlug(templateSlug) : null;
+
+  const templateKeys = (() => {
+    if (!template) return [];
+    try {
+      const zip = new PizZip(template.bytes.toString("binary"));
+      const keys = new Set<string>();
+      for (const name of Object.keys(zip.files)) {
+        if (!name.startsWith("word/") || !name.endsWith(".xml")) continue;
+        const txt = zip.file(name)?.asText() ?? "";
+        const re = /{{\s*([A-Z0-9_]+)\s*}}/g;
+        let m: RegExpExecArray | null = null;
+        while ((m = re.exec(txt))) {
+          const key = (m[1] ?? "").trim();
+          if (key) keys.add(key);
+        }
+      }
+      return Array.from(keys).sort();
+    } catch {
+      return [];
+    }
+  })();
 
   const attachmentParts = attachments.map((a) => ({
     inlineData: {
@@ -67,6 +94,12 @@ export const POST = withApi(async (req: Request) => {
       parts: [
         ...(attachmentLabelText ? [{ text: attachmentLabelText }] : []),
         ...attachmentParts,
+        ...(template
+          ? [
+              { text: `Modelo selecionado: ${template.template.name} (${template.template.slug})` },
+              ...(templateKeys.length ? [{ text: `Placeholders do modelo: ${templateKeys.join(", ")}` }] : []),
+            ]
+          : []),
         { text: parsed.data.prompt },
       ],
     },
@@ -79,7 +112,8 @@ export const POST = withApi(async (req: Request) => {
         text:
           "Você é a J.U.S.S.A.R.A. Responda SEMPRE em JSON válido no formato {\"text\": string, \"files\"?: [{\"filename\": string, \"mimeType\": string, \"base64\": string}]}. " +
           "Quando o usuário pedir para criar/gerar um arquivo (PDF, DOC, planilha, etc.), inclua o arquivo em \"files\" com base64 do conteúdo do arquivo e um nome em \"filename\". " +
-          "Se não for possível gerar um binário real, gere o arquivo como texto/markdown/csv/json (conforme solicitado) e coloque em files com mimeType apropriado (ex.: text/plain, text/markdown, text/csv, application/json).",
+          "Se não for possível gerar um binário real, gere o arquivo como texto/markdown/csv/json (conforme solicitado) e coloque em files com mimeType apropriado (ex.: text/plain, text/markdown, text/csv, application/json). " +
+          "Quando houver um 'Modelo selecionado', extraia os dados do usuário para preencher os placeholders e devolva também um objeto \"templateData\" com chaves exatas dos placeholders (strings).",
       },
     ],
   };
@@ -101,6 +135,8 @@ export const POST = withApi(async (req: Request) => {
           type: "object",
           properties: {
             text: { type: "string" },
+            templateData: { type: "object" },
+            outputFilename: { type: "string" },
             files: {
               type: "array",
               items: {
@@ -196,8 +232,44 @@ export const POST = withApi(async (req: Request) => {
       return !("files" in rec) || Array.isArray(rec.files);
     })()
   ) {
-    const json = parsedJson as { text: string; files?: Array<{ filename: string; mimeType: string; base64: string }> };
+    const json = parsedJson as {
+      text: string;
+      files?: Array<{ filename: string; mimeType: string; base64: string }>;
+      templateData?: Record<string, unknown>;
+      outputFilename?: string;
+    };
     let files = Array.isArray(json.files) ? json.files.slice(0, 3) : [];
+
+    // If a template is selected, auto-generate a DOCX from the templateData.
+    if (template && json.templateData && typeof json.templateData === "object") {
+      const data: Record<string, string> = {};
+      for (const k of templateKeys) {
+        const v = (json.templateData as Record<string, unknown>)[k];
+        if (typeof v === "string" && v.trim()) data[k] = v.trim();
+      }
+
+      if (Object.keys(data).length > 0) {
+        const zip = new PizZip(template.bytes.toString("binary"));
+        const doc = new Docxtemplater(zip, {
+          paragraphLoop: true,
+          linebreaks: true,
+          delimiters: { start: "{{", end: "}}" },
+        });
+        doc.render(data);
+        const buffer = doc.getZip().generate({ type: "nodebuffer" }) as Buffer;
+
+        const baseName = (json.outputFilename && json.outputFilename.trim()) || `${template.template.name} - GERADO`;
+        const filename = baseName.toLowerCase().endsWith(".docx") ? baseName : `${baseName}.docx`;
+        files = [
+          {
+            filename,
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            base64: buffer.toString("base64"),
+          },
+          ...files,
+        ].slice(0, 3);
+      }
+    }
 
     const wantsPdf =
       /\bpdf\b/i.test(parsed.data.prompt) ||
