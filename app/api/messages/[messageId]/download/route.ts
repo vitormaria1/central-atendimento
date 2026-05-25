@@ -4,6 +4,7 @@ import { withApi } from "@/lib/api";
 import { downloadMessage } from "@/lib/uazapi";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/messages/[messageId]/download">) => {
   const session = await getSession();
@@ -11,6 +12,11 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/message
 
   const { messageId } = await ctx.params;
   const id = decodeURIComponent(messageId);
-  const data = await downloadMessage({ id, return_link: true, return_base64: false });
-  return NextResponse.json(data);
+  try {
+    const data = await downloadMessage({ id, return_link: true, return_base64: false });
+    return NextResponse.json(data);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: "Failed to download media", details: message }, { status: 502 });
+  }
 });

@@ -35,6 +35,8 @@ type MessageItem = {
   fileURL?: string;
 };
 
+const MAX_DOWNLOAD_CACHE = 300;
+
 function formatTime(ts?: number) {
   if (!ts) return "";
   const date = new Date(ts);
@@ -62,6 +64,18 @@ function initialsFromName(name: string) {
   const last = parts.length > 1 ? parts[parts.length - 1] ?? "" : "";
   const letters = `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase();
   return letters || (first[0] ?? "•").toUpperCase();
+}
+
+function capDownloadCache(next: Record<string, { fileURL: string; mimetype?: string }>, maxSize: number) {
+  const keys = Object.keys(next);
+  if (keys.length <= maxSize) return next;
+  const toDrop = keys.length - maxSize;
+  const capped: Record<string, { fileURL: string; mimetype?: string }> = {};
+  for (let i = toDrop; i < keys.length; i += 1) {
+    const k = keys[i]!;
+    capped[k] = next[k]!;
+  }
+  return capped;
 }
 
 export default function AppShell() {
@@ -241,7 +255,9 @@ export default function AppShell() {
       }
       const data = (await res.json()) as { fileURL?: string; mimetype?: string };
       if (!data.fileURL) throw new Error("Arquivo indisponível (sem fileURL)");
-      setDownloadByMessageId((prev) => ({ ...prev, [messageId]: { fileURL: data.fileURL!, mimetype: data.mimetype } }));
+      setDownloadByMessageId((prev) =>
+        capDownloadCache({ ...prev, [messageId]: { fileURL: data.fileURL!, mimetype: data.mimetype } }, MAX_DOWNLOAD_CACHE),
+      );
       return { fileURL: data.fileURL, mimetype: data.mimetype };
     },
     [downloadByMessageId],
