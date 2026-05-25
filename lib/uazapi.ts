@@ -211,3 +211,29 @@ export async function sendText(params: {
   );
   return data;
 }
+
+export async function sendMedia(params: {
+  number: string;
+  type: "image" | "video" | "videoplay" | "document" | "audio" | "myaudio" | "ptt" | "ptv" | "sticker";
+  file: string;
+  text?: string;
+  docName?: string;
+  mimetype?: string;
+  readchat?: boolean;
+  delay?: number;
+}) {
+  const data = await uazapiFetch<{ ok?: boolean; id?: string; messageid?: string; [k: string]: unknown }>("/send/media", {
+    method: "POST",
+    body: JSON.stringify({
+      number: params.number,
+      type: params.type,
+      file: params.file,
+      text: params.text ?? "",
+      docName: params.docName ?? "",
+      mimetype: params.mimetype ?? "",
+      readchat: params.readchat ?? false,
+      delay: params.delay ?? 0,
+    }),
+  });
+  return data;
+}

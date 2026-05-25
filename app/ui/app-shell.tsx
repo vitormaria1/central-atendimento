@@ -111,6 +111,7 @@ export default function AppShell() {
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [composer, setComposer] = useState("");
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<"pendente" | "resolvido">("pendente");
   const [assignedAgentId, setAssignedAgentId] = useState<"vanderlei" | "gustavo" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -123,6 +124,7 @@ export default function AppShell() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const shouldScrollToBottomRef = useRef<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedChat = useMemo(
     () => chats.find((c) => c.chatId === selectedChatId) ?? null,
@@ -271,6 +273,59 @@ export default function AppShell() {
       setToast(err instanceof Error ? err.message : "Falha ao enviar");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function fileToBase64(file: File) {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Falha ao ler arquivo"));
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.readAsDataURL(file);
+    });
+    const parts = dataUrl.split(",");
+    return parts.length > 1 ? parts[1]! : dataUrl;
+  }
+
+  function inferMediaType(file: File): "image" | "video" | "audio" | "document" {
+    const mt = (file.type ?? "").toLowerCase();
+    if (mt.startsWith("image/")) return "image";
+    if (mt.startsWith("video/")) return "video";
+    if (mt.startsWith("audio/")) return "audio";
+    return "document";
+  }
+
+  async function sendFile(file: File) {
+    if (!selectedChatId) return;
+    setUploading(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const type = inferMediaType(file);
+      const caption = composer.trim();
+
+      const res = await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}/send-media`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type,
+          base64,
+          fileName: file.name,
+          mimetype: file.type || undefined,
+          caption: caption.length > 0 ? caption : undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string; details?: string } | null;
+        throw new Error(data?.details ? `${data.error ?? "Erro"}: ${data.details}` : data?.error ?? "Falha ao enviar arquivo");
+      }
+
+      setComposer("");
+      await refreshAll("sent-media");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Falha ao enviar arquivo");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
 
@@ -727,12 +782,32 @@ export default function AppShell() {
                 </div>
               </div>
 
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  void sendFile(file);
+                }}
+              />
               <button
-                disabled={!selectedChatId || sending || composer.trim().length === 0}
+                type="button"
+                disabled={!selectedChatId || uploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="h-12 w-12 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60 flex items-center justify-center text-lg"
+                title="Enviar arquivo/áudio"
+              >
+                📎
+              </button>
+
+              <button
+                disabled={!selectedChatId || sending || uploading || composer.trim().length === 0}
                 onClick={() => void sendMessage()}
                 className="h-12 rounded-2xl bg-[var(--primary)] px-5 text-sm font-medium text-white shadow-lg shadow-[color-mix(in_srgb,var(--primary)_35%,transparent)] disabled:opacity-60"
               >
-                {sending ? "Enviando..." : "Enviar"}
+                {uploading ? "Enviando..." : sending ? "Enviando..." : "Enviar"}
               </button>
             </div>
           </footer>
