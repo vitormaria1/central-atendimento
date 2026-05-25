@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
 
@@ -68,7 +68,6 @@ export default function AppShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
   const [search, setSearch] = useState("");
-  const deferredSearch = useDeferredValue(search);
   const [chats, setChats] = useState<ChatListItem[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageItem[]>([]);
@@ -93,14 +92,14 @@ export default function AppShell() {
   );
 
   const filteredChats = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
+    const q = search.trim().toLowerCase();
     if (!q) return chats;
     return chats.filter((c) => {
       const name = (c.name ?? "").toLowerCase();
       const last = (c.lastMessageText ?? "").toLowerCase();
       return name.includes(q) || last.includes(q) || c.chatId.toLowerCase().includes(q);
     });
-  }, [chats, deferredSearch]);
+  }, [chats, search]);
 
   useEffect(() => {
     selectedChatIdRef.current = selectedChatId;
@@ -187,6 +186,17 @@ export default function AppShell() {
     if (reason === "manual") setToast("Atualizado");
   }, [loadChatState, loadChats, loadMessages]);
 
+  const refreshChatsOnly = useCallback(
+    async (reason: string) => {
+      const now = Date.now();
+      if (now - lastRefreshAtRef.current < 500) return;
+      lastRefreshAtRef.current = now;
+      await loadChats();
+      console.debug("refreshed(chatsOnly)", reason);
+    },
+    [loadChats],
+  );
+
   async function saveState(chatId: string, patch: { status?: "pendente" | "resolvido"; assignedAgentId?: "vanderlei" | "gustavo" | null }) {
     await fetch(`/api/chat-state/${encodeURIComponent(chatId)}`, {
       method: "PATCH",
@@ -221,29 +231,38 @@ export default function AppShell() {
     }
   }
 
-  async function ensureDownload(messageId: string) {
-    if (downloadByMessageId[messageId]?.fileURL) return downloadByMessageId[messageId]!;
-    const res = await fetch(`/api/messages/${encodeURIComponent(messageId)}/download`, { cache: "no-store" });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      throw new Error(data?.error ?? "Falha ao baixar mídia");
-    }
-    const data = (await res.json()) as { fileURL?: string; mimetype?: string };
-    if (!data.fileURL) throw new Error("Arquivo indisponível (sem fileURL)");
-    setDownloadByMessageId((prev) => ({ ...prev, [messageId]: { fileURL: data.fileURL!, mimetype: data.mimetype } }));
-    return { fileURL: data.fileURL, mimetype: data.mimetype };
-  }
+  const ensureDownload = useCallback(
+    async (messageId: string) => {
+      if (downloadByMessageId[messageId]?.fileURL) return downloadByMessageId[messageId]!;
+      const res = await fetch(`/api/messages/${encodeURIComponent(messageId)}/download`, { cache: "no-store" });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? "Falha ao baixar mídia");
+      }
+      const data = (await res.json()) as { fileURL?: string; mimetype?: string };
+      if (!data.fileURL) throw new Error("Arquivo indisponível (sem fileURL)");
+      setDownloadByMessageId((prev) => ({ ...prev, [messageId]: { fileURL: data.fileURL!, mimetype: data.mimetype } }));
+      return { fileURL: data.fileURL, mimetype: data.mimetype };
+    },
+    [downloadByMessageId],
+  );
 
   // Scroll para o final quando o chat abre/atualiza pela primeira vez após a troca.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!shouldScrollToBottomRef.current) return;
     if (messages.length === 0) return;
-    // Espera o paint do React pra garantir altura correta.
-    const raf = window.requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior, block: "end" });
-      shouldScrollToBottomRef.current = false;
+    // Espera 2 frames para garantir layout estável (bolhas/mídias).
+    let raf2: number | null = null;
+    const raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+        shouldScrollToBottomRef.current = false;
+      });
     });
-    return () => window.cancelAnimationFrame(raf);
+    return () => {
+      window.cancelAnimationFrame(raf1);
+      if (raf2) window.cancelAnimationFrame(raf2);
+    };
   }, [messages]);
 
   // Áudios: pré-carrega automaticamente para já ficar pronto para dar play.
@@ -279,7 +298,7 @@ export default function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, [downloadByMessageId, messages, selectedChatId]);
+  }, [downloadByMessageId, ensureDownload, messages, selectedChatId]);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -320,10 +339,21 @@ export default function AppShell() {
       const es = new EventSource("/api/stream");
       eventSourceRef.current = es;
       es.onmessage = (ev) => {
-        const data = JSON.parse(ev.data) as { type: string; chatId?: string };
-        if (data.type === "ping" || data.type === "hello") return;
-        if (data.type === "chat_updated") void refreshAll("sse:chat_updated");
-        if (data.type === "message_received") void refreshAll("sse:message_received");
+        let data: { type?: string; chatId?: string } | null = null;
+        try {
+          data = JSON.parse(ev.data) as { type?: string; chatId?: string };
+        } catch {
+          return;
+        }
+        if (!data?.type || data.type === "ping" || data.type === "hello") return;
+        const selected = selectedChatIdRef.current;
+        const sameChat = Boolean(data.chatId && selected && data.chatId === selected);
+        if (sameChat) {
+          if (data.type === "chat_updated") void refreshAll("sse:chat_updated:selected");
+          if (data.type === "message_received") void refreshAll("sse:message_received:selected");
+        } else {
+          if (data.type === "chat_updated" || data.type === "message_received") void refreshChatsOnly("sse:chatsOnly");
+        }
       };
       es.onerror = () => {
         startPolling();
@@ -340,7 +370,7 @@ export default function AppShell() {
       eventSourceRef.current?.close();
       eventSourceRef.current = null;
     };
-  }, [refreshAll]);
+  }, [refreshAll, refreshChatsOnly]);
 
   useEffect(() => {
     if (!toast) return;
@@ -539,7 +569,7 @@ export default function AppShell() {
                             <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4">
                               <audio
                                 controls
-                                preload="none"
+                                preload="metadata"
                                 src={mediaUrl}
                                 className="w-[520px] max-w-full h-16 scale-110 origin-left"
                               />
