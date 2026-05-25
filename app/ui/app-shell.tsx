@@ -101,6 +101,13 @@ function capDownloadCache(next: Record<string, { fileURL: string; mimetype?: str
   return capped;
 }
 
+type PendingAttachment = {
+  file: File;
+  objectUrl: string;
+  kind: "image" | "video" | "audio" | "document";
+  recorded?: boolean;
+};
+
 export default function AppShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
@@ -112,6 +119,8 @@ export default function AppShell() {
   const [composer, setComposer] = useState("");
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
+  const [recording, setRecording] = useState(false);
   const [status, setStatus] = useState<"pendente" | "resolvido">("pendente");
   const [assignedAgentId, setAssignedAgentId] = useState<"vanderlei" | "gustavo" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -125,6 +134,8 @@ export default function AppShell() {
   const shouldScrollToBottomRef = useRef<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<BlobPart[]>([]);
 
   const selectedChat = useMemo(
     () => chats.find((c) => c.chatId === selectedChatId) ?? null,
@@ -295,12 +306,19 @@ export default function AppShell() {
     return "document";
   }
 
-  async function sendFile(file: File) {
-    if (!selectedChatId) return;
+  function setAttachment(file: File, recorded?: boolean) {
+    const kind = inferMediaType(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPendingAttachment({ file, objectUrl, kind, recorded: Boolean(recorded) });
+  }
+
+  async function sendPendingAttachment() {
+    if (!selectedChatId || !pendingAttachment) return;
     setUploading(true);
     try {
+      const { file, kind, recorded } = pendingAttachment;
       const base64 = await fileToBase64(file);
-      const type = inferMediaType(file);
+      const type = recorded ? "ptt" : kind;
       const caption = composer.trim();
 
       const res = await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}/send-media`, {
@@ -320,6 +338,8 @@ export default function AppShell() {
       }
 
       setComposer("");
+      URL.revokeObjectURL(pendingAttachment.objectUrl);
+      setPendingAttachment(null);
       await refreshAll("sent-media");
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Falha ao enviar arquivo");
@@ -328,6 +348,77 @@ export default function AppShell() {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
+
+  function cancelPendingAttachment() {
+    if (pendingAttachment) URL.revokeObjectURL(pendingAttachment.objectUrl);
+    setPendingAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function chooseBestAudioMimeType() {
+    const candidates = ["audio/ogg;codecs=opus", "audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+    for (const c of candidates) {
+      if (MediaRecorder.isTypeSupported(c)) return c;
+    }
+    return "";
+  }
+
+  async function startRecording() {
+    if (recording) return;
+    if (!selectedChatId) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = chooseBestAudioMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recordedChunksRef.current = [];
+      recorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) recordedChunksRef.current.push(ev.data);
+      };
+      recorder.onstop = () => {
+        try {
+          stream.getTracks().forEach((t) => t.stop());
+          const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+          const ext = blob.type.includes("ogg") ? "ogg" : blob.type.includes("mp4") ? "m4a" : "webm";
+          const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: blob.type });
+          setAttachment(file, true);
+        } catch {
+          // ignore
+        } finally {
+          mediaRecorderRef.current = null;
+          recordedChunksRef.current = [];
+          setRecording(false);
+        }
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start(250);
+      setRecording(true);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Falha ao iniciar gravação");
+      setRecording(false);
+    }
+  }
+
+  function stopRecording() {
+    const r = mediaRecorderRef.current;
+    if (!r) return;
+    try {
+      r.stop();
+    } catch {
+      // ignore
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (pendingAttachment) URL.revokeObjectURL(pendingAttachment.objectUrl);
+      try {
+        mediaRecorderRef.current?.stop();
+      } catch {
+        // ignore
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const ensureDownload = useCallback(
     async (messageId: string) => {
@@ -764,6 +855,58 @@ export default function AppShell() {
           <footer className="border-t border-[var(--border)] p-4 bg-[var(--background)]/80 backdrop-blur">
             <div className="flex items-end gap-3">
               <div className="flex-1 rounded-3xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
+                {pendingAttachment ? (
+                  <div className="mb-2 rounded-3xl bg-white/3 ring-1 ring-white/10 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold truncate">
+                          {pendingAttachment.recorded ? "Áudio gravado" : "Anexo"}
+                        </div>
+                        <div className="mt-0.5 text-[10px] text-[var(--muted)] truncate">{pendingAttachment.file.name}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={cancelPendingAttachment}
+                        className="shrink-0 rounded-2xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                      >
+                        Remover
+                      </button>
+                    </div>
+
+                    <div className="mt-3">
+                      {pendingAttachment.kind === "image" ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={pendingAttachment.objectUrl}
+                          alt="Prévia"
+                          className="max-h-56 w-auto rounded-2xl ring-1 ring-white/10"
+                        />
+                      ) : pendingAttachment.kind === "video" ? (
+                        <video
+                          controls
+                          src={pendingAttachment.objectUrl}
+                          className="max-h-56 w-full rounded-2xl ring-1 ring-white/10"
+                        />
+                      ) : pendingAttachment.kind === "audio" ? (
+                        <audio controls src={pendingAttachment.objectUrl} className="w-full h-12" />
+                      ) : (
+                        <div className="text-xs text-[var(--muted)]">Documento pronto para envio.</div>
+                      )}
+                    </div>
+
+                    <div className="mt-3 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        disabled={!selectedChatId || uploading}
+                        onClick={() => void sendPendingAttachment()}
+                        className="rounded-2xl px-4 py-2 text-xs bg-[color-mix(in_srgb,var(--primary)_22%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--primary)_45%,transparent)] hover:bg-[color-mix(in_srgb,var(--primary)_28%,transparent)] disabled:opacity-60"
+                      >
+                        {uploading ? "Enviando..." : "Enviar anexo"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
                 <textarea
                   value={composer}
                   onChange={(e) => setComposer(e.target.value)}
@@ -789,7 +932,7 @@ export default function AppShell() {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  void sendFile(file);
+                  setAttachment(file, false);
                 }}
               />
               <button
@@ -800,6 +943,21 @@ export default function AppShell() {
                 title="Enviar arquivo/áudio"
               >
                 📎
+              </button>
+
+              <button
+                type="button"
+                disabled={!selectedChatId || uploading}
+                onClick={() => (recording ? stopRecording() : void startRecording())}
+                className={[
+                  "h-12 w-12 rounded-2xl ring-1 disabled:opacity-60 flex items-center justify-center text-lg transition",
+                  recording
+                    ? "bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] ring-[color-mix(in_srgb,var(--warning)_40%,transparent)] hover:bg-[color-mix(in_srgb,var(--warning)_24%,transparent)]"
+                    : "bg-white/5 ring-white/10 hover:bg-white/8",
+                ].join(" ")}
+                title={recording ? "Parar gravação" : "Gravar áudio"}
+              >
+                {recording ? "■" : "🎙️"}
               </button>
 
               <button
