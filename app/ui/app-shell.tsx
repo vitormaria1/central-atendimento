@@ -84,6 +84,8 @@ export default function AppShell() {
   const lastRefreshAtRef = useRef<number>(0);
   const selectedChatIdRef = useRef<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const shouldScrollToBottomRef = useRef<boolean>(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const selectedChat = useMemo(
     () => chats.find((c) => c.chatId === selectedChatId) ?? null,
@@ -102,6 +104,12 @@ export default function AppShell() {
 
   useEffect(() => {
     selectedChatIdRef.current = selectedChatId;
+  }, [selectedChatId]);
+
+  // Ao trocar de chat, queremos abrir já no final (estilo WhatsApp).
+  useEffect(() => {
+    if (!selectedChatId) return;
+    shouldScrollToBottomRef.current = true;
   }, [selectedChatId]);
 
   const loadMe = useCallback(async () => {
@@ -225,6 +233,53 @@ export default function AppShell() {
     setDownloadByMessageId((prev) => ({ ...prev, [messageId]: { fileURL: data.fileURL!, mimetype: data.mimetype } }));
     return { fileURL: data.fileURL, mimetype: data.mimetype };
   }
+
+  // Scroll para o final quando o chat abre/atualiza pela primeira vez após a troca.
+  useEffect(() => {
+    if (!shouldScrollToBottomRef.current) return;
+    if (messages.length === 0) return;
+    // Espera o paint do React pra garantir altura correta.
+    const raf = window.requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior, block: "end" });
+      shouldScrollToBottomRef.current = false;
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [messages]);
+
+  // Áudios: pré-carrega automaticamente para já ficar pronto para dar play.
+  useEffect(() => {
+    if (!selectedChatId) return;
+    if (messages.length === 0) return;
+
+    const audioToPrefetch: string[] = [];
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i]!;
+      const id = m.messageid ?? m.id ?? "";
+      if (!id) continue;
+      if (downloadByMessageId[id]?.fileURL) continue;
+      if (!isAudioLike(m, downloadByMessageId[id]?.mimetype)) continue;
+      // Só faz prefetch dos mais recentes para evitar flood.
+      audioToPrefetch.push(id);
+      if (audioToPrefetch.length >= 3) break;
+    }
+
+    if (audioToPrefetch.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      for (const id of audioToPrefetch) {
+        if (cancelled) return;
+        try {
+          await ensureDownload(id);
+        } catch {
+          // Silencioso: se falhar, o botão de "Carregar áudio" continua aparecendo.
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [downloadByMessageId, messages, selectedChatId]);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -558,6 +613,7 @@ export default function AppShell() {
                 </div>
               );
             })}
+            <div ref={messagesEndRef} />
           </div>
 
           <footer className="border-t border-[var(--border)] p-4 bg-[var(--background)]/80 backdrop-blur">
