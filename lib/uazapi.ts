@@ -5,6 +5,7 @@ export type UazapiChat = {
   name?: string;
   image?: string;
   imagePreview?: string;
+  wa_contactName?: string;
   wa_chatid?: string;
   wa_fastid?: string;
   wa_name?: string;

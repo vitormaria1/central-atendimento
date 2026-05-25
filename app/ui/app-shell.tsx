@@ -54,6 +54,29 @@ function isAudioLike(m: MessageItem, mimetype?: string) {
   return mt.includes("audio") || t === "audio" || t === "ptt" || mt.includes("ptt") || mt.includes("voice");
 }
 
+function playNotifySound() {
+  try {
+    const AudioContextCtor =
+      window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) return;
+    const ctx = new AudioContextCtor();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.13);
+    osc.onended = () => void ctx.close().catch(() => null);
+  } catch {
+    // Autoplay/permissions podem bloquear em alguns browsers.
+  }
+}
+
 function initialsFromName(name: string) {
   const parts = name
     .trim()
@@ -367,9 +390,16 @@ export default function AppShell() {
         const sameChat = Boolean(data.chatId && selected && data.chatId === selected);
         if (sameChat) {
           if (data.type === "chat_updated") void refreshAll("sse:chat_updated:selected");
-          if (data.type === "message_received") void refreshAll("sse:message_received:selected");
+          if (data.type === "message_received") {
+            playNotifySound();
+            void refreshAll("sse:message_received:selected");
+          }
         } else {
-          if (data.type === "chat_updated" || data.type === "message_received") void refreshChatsOnly("sse:chatsOnly");
+          if (data.type === "chat_updated") void refreshChatsOnly("sse:chat_updated:chatsOnly");
+          if (data.type === "message_received") {
+            playNotifySound();
+            void refreshChatsOnly("sse:message_received:chatsOnly");
+          }
         }
       };
       es.onerror = () => {
