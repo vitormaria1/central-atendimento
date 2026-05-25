@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
 
 type ChatListItem = {
   chatId: string;
   name: string;
+  avatarUrl?: string;
   isGroup: boolean;
   unreadCount: number;
   lastMsgTimestamp: number | null;
@@ -51,10 +52,23 @@ function isAudioLike(m: MessageItem, mimetype?: string) {
   return mt.includes("audio") || t === "audio" || t === "ptt" || mt.includes("ptt") || mt.includes("voice");
 }
 
+function initialsFromName(name: string) {
+  const parts = name
+    .trim()
+    .split(/\s+/g)
+    .filter(Boolean);
+  if (parts.length === 0) return "•";
+  const first = parts[0] ?? "";
+  const last = parts.length > 1 ? parts[parts.length - 1] ?? "" : "";
+  const letters = `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase();
+  return letters || (first[0] ?? "•").toUpperCase();
+}
+
 export default function AppShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [chats, setChats] = useState<ChatListItem[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageItem[]>([]);
@@ -69,7 +83,6 @@ export default function AppShell() {
 
   const lastRefreshAtRef = useRef<number>(0);
   const selectedChatIdRef = useRef<string | null>(null);
-  const searchRef = useRef<string>("");
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const selectedChat = useMemo(
@@ -77,13 +90,19 @@ export default function AppShell() {
     [chats, selectedChatId],
   );
 
+  const filteredChats = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    if (!q) return chats;
+    return chats.filter((c) => {
+      const name = (c.name ?? "").toLowerCase();
+      const last = (c.lastMessageText ?? "").toLowerCase();
+      return name.includes(q) || last.includes(q) || c.chatId.toLowerCase().includes(q);
+    });
+  }, [chats, deferredSearch]);
+
   useEffect(() => {
     selectedChatIdRef.current = selectedChatId;
   }, [selectedChatId]);
-
-  useEffect(() => {
-    searchRef.current = search;
-  }, [search]);
 
   const loadMe = useCallback(async () => {
     const res = await fetch("/api/me", { cache: "no-store" });
@@ -94,8 +113,6 @@ export default function AppShell() {
 
   const loadChats = useCallback(async () => {
     const url = new URL("/api/chats", window.location.origin);
-    const q = searchRef.current.trim();
-    if (q) url.searchParams.set("search", q);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string; details?: string } | null;
@@ -104,7 +121,18 @@ export default function AppShell() {
     }
     const data = (await res.json()) as { items: ChatListItem[] };
     setChats(data.items);
-    if (!selectedChatIdRef.current && data.items.length > 0) setSelectedChatId(data.items[0]!.chatId);
+    const current = selectedChatIdRef.current;
+    if (data.items.length === 0) {
+      setSelectedChatId(null);
+      return data.items;
+    }
+    if (!current) {
+      setSelectedChatId(data.items[0]!.chatId);
+      return data.items;
+    }
+    if (!data.items.some((c) => c.chatId === current)) {
+      setSelectedChatId(data.items[0]!.chatId);
+    }
     return data.items;
   }, []);
 
@@ -317,7 +345,7 @@ export default function AppShell() {
           </div>
 
           <div className="overflow-y-auto h-[calc(100vh-64px-88px)]">
-            {chats.map((chat) => {
+            {filteredChats.map((chat) => {
               const active = chat.chatId === selectedChatId;
               return (
                 <button
@@ -331,9 +359,19 @@ export default function AppShell() {
                   ].join(" ")}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{chat.name}</div>
-                      <div className="text-xs text-[var(--muted)] truncate">{chat.lastMessageText}</div>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-11 w-11 rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 shrink-0 flex items-center justify-center">
+                        {chat.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={chat.avatarUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-xs font-semibold text-[var(--muted)]">{initialsFromName(chat.name)}</span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{chat.name}</div>
+                        <div className="text-xs text-[var(--muted)] truncate">{chat.lastMessageText}</div>
+                      </div>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <div className="text-[10px] text-[var(--muted)]">{formatTime(chat.lastMsgTimestamp ?? undefined)}</div>
@@ -359,9 +397,21 @@ export default function AppShell() {
 
         <main className="flex-1 flex flex-col">
           <header className="h-16 border-b border-[var(--border)] bg-[var(--background)]/80 backdrop-blur px-5 flex items-center justify-between">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold truncate">{selectedChat?.name ?? "Selecione um chat"}</div>
-              <div className="text-xs text-[var(--muted)] truncate">{selectedChatId ?? ""}</div>
+            <div className="min-w-0 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 shrink-0 flex items-center justify-center">
+                {selectedChat?.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={selectedChat.avatarUrl} alt="" className="h-full w-full object-cover" />
+                ) : selectedChat?.name ? (
+                  <span className="text-xs font-semibold text-[var(--muted)]">{initialsFromName(selectedChat.name)}</span>
+                ) : (
+                  <span className="text-xs font-semibold text-[var(--muted)]">•</span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold truncate">{selectedChat?.name ?? "Selecione um chat"}</div>
+                <div className="text-xs text-[var(--muted)] truncate">{selectedChatId ?? ""}</div>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <button

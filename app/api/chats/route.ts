@@ -60,6 +60,7 @@ export const GET = withApi(async (req: Request) => {
       return {
         chatId,
         name: chat.wa_name ?? chat.name ?? "Sem nome",
+        avatarUrl: chat.imagePreview ?? chat.image ?? "",
         isGroup: Boolean(chat.wa_isGroup),
         unreadCount: chat.wa_unreadCount ?? 0,
         lastMsgTimestamp: chat.wa_lastMsgTimestamp ?? null,

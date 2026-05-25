@@ -3,6 +3,8 @@ import { getEnv } from "./env";
 export type UazapiChat = {
   id?: string;
   name?: string;
+  image?: string;
+  imagePreview?: string;
   wa_chatid?: string;
   wa_fastid?: string;
   wa_name?: string;
