@@ -82,6 +82,7 @@ export default function AppShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
   const [search, setSearch] = useState("");
+  const [assignedFilter, setAssignedFilter] = useState<"all" | "vanderlei" | "gustavo">("all");
   const [chats, setChats] = useState<ChatListItem[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageItem[]>([]);
@@ -114,6 +115,11 @@ export default function AppShell() {
       return name.includes(q) || last.includes(q) || c.chatId.toLowerCase().includes(q);
     });
   }, [chats, search]);
+
+  const visibleChats = useMemo(() => {
+    if (assignedFilter === "all") return filteredChats;
+    return filteredChats.filter((c) => c.state?.assignedAgentId === assignedFilter);
+  }, [assignedFilter, filteredChats]);
 
   useEffect(() => {
     selectedChatIdRef.current = selectedChatId;
@@ -316,11 +322,6 @@ export default function AppShell() {
     };
   }, [downloadByMessageId, ensureDownload, messages, selectedChatId]);
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
-  }
-
   function goBack() {
     if (window.history.length > 1) router.back();
     else router.push("/");
@@ -397,7 +398,7 @@ export default function AppShell() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div className="flex h-screen">
-        <aside className="w-[360px] shrink-0 border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_80%,black)]">
+        <aside className="w-[440px] shrink-0 border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_80%,black)]">
           <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--border)]">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-2xl bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] flex items-center justify-center">
@@ -413,25 +414,38 @@ export default function AppShell() {
             </div>
 
             <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-2xl bg-white/5 ring-1 ring-white/10 p-1">
+                <button
+                  type="button"
+                  onClick={() => setAssignedFilter((prev) => (prev === "vanderlei" ? "all" : "vanderlei"))}
+                  className={[
+                    "rounded-xl px-3 py-2 text-xs transition",
+                    assignedFilter === "vanderlei"
+                      ? "bg-[color-mix(in_srgb,var(--primary)_20%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
+                      : "hover:bg-white/5",
+                  ].join(" ")}
+                >
+                  Vanderlei
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAssignedFilter((prev) => (prev === "gustavo" ? "all" : "gustavo"))}
+                  className={[
+                    "rounded-xl px-3 py-2 text-xs transition",
+                    assignedFilter === "gustavo"
+                      ? "bg-[color-mix(in_srgb,var(--primary)_20%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
+                      : "hover:bg-white/5",
+                  ].join(" ")}
+                >
+                  Gustavo
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={goBack}
                 className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,var(--border))] hover:bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
               >
                 ← Voltar
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push("/team-chat")}
-                className="rounded-xl px-3 py-2 text-xs bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]"
-              >
-                Chat
-              </button>
-              <button
-                onClick={logout}
-                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-              >
-                Sair
               </button>
             </div>
           </div>
@@ -446,7 +460,7 @@ export default function AppShell() {
           </div>
 
           <div className="overflow-y-auto h-[calc(100vh-64px-88px)]">
-            {filteredChats.map((chat) => {
+            {visibleChats.map((chat) => {
               const active = chat.chatId === selectedChatId;
               return (
                 <button
