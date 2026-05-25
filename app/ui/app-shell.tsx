@@ -108,6 +108,37 @@ type PendingAttachment = {
   recorded?: boolean;
 };
 
+function VoiceWave({ active }: { active: boolean }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={[
+        "flex items-center gap-1 px-3 py-2 rounded-2xl ring-1 ring-white/10 bg-white/5",
+        active ? "" : "hidden",
+      ].join(" ")}
+    >
+      <div className="w-1.5 h-3 bg-[var(--primary)]/70 rounded-full animate-[voice_700ms_ease-in-out_infinite]" />
+      <div className="w-1.5 h-5 bg-[var(--primary)] rounded-full animate-[voice_900ms_ease-in-out_infinite]" />
+      <div className="w-1.5 h-4 bg-[var(--primary)]/80 rounded-full animate-[voice_800ms_ease-in-out_infinite]" />
+      <div className="w-1.5 h-6 bg-[var(--primary)] rounded-full animate-[voice_1000ms_ease-in-out_infinite]" />
+      <div className="w-1.5 h-3 bg-[var(--primary)]/70 rounded-full animate-[voice_750ms_ease-in-out_infinite]" />
+      <style jsx>{`
+        @keyframes voice {
+          0%,
+          100% {
+            transform: scaleY(0.45);
+            opacity: 0.65;
+          }
+          50% {
+            transform: scaleY(1);
+            opacity: 1;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export default function AppShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
@@ -312,6 +343,40 @@ export default function AppShell() {
     setPendingAttachment({ file, objectUrl, kind, recorded: Boolean(recorded) });
   }
 
+  async function sendMediaFile(file: File, opts?: { recorded?: boolean }) {
+    if (!selectedChatId) return;
+    setUploading(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const kind = inferMediaType(file);
+      const type = opts?.recorded ? "ptt" : kind;
+      const caption = composer.trim();
+
+      const res = await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}/send-media`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type,
+          base64,
+          fileName: file.name,
+          mimetype: file.type || undefined,
+          caption: caption.length > 0 ? caption : undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string; details?: string } | null;
+        throw new Error(
+          data?.details ? `${data.error ?? "Erro"}: ${data.details}` : data?.error ?? "Falha ao enviar arquivo",
+        );
+      }
+      setComposer("");
+      await refreshAll("sent-media");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   async function sendPendingAttachment() {
     if (!selectedChatId || !pendingAttachment) return;
     setUploading(true);
@@ -380,7 +445,10 @@ export default function AppShell() {
           const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || "audio/webm" });
           const ext = blob.type.includes("ogg") ? "ogg" : blob.type.includes("mp4") ? "m4a" : "webm";
           const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: blob.type });
-          setAttachment(file, true);
+          // Voz no estilo WhatsApp: envia automaticamente ao parar.
+          void sendMediaFile(file, { recorded: true }).catch((err) => {
+            setToast(err instanceof Error ? err.message : "Falha ao enviar áudio");
+          });
         } catch {
           // ignore
         } finally {
@@ -745,7 +813,7 @@ export default function AppShell() {
               const cached = id ? downloadByMessageId[id] : undefined;
               const mediaUrl = (id && cached?.fileURL) || m.fileURL || null;
               const mimetype = cached?.mimetype;
-              const showMedia = Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation" && text.trim().length === 0);
+              const showMedia = Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation");
               const showAudioPlayer = showMedia && isAudioLike(m, mimetype);
               const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
               return (
@@ -855,12 +923,12 @@ export default function AppShell() {
           <footer className="border-t border-[var(--border)] p-4 bg-[var(--background)]/80 backdrop-blur">
             <div className="flex items-end gap-3">
               <div className="flex-1 rounded-3xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
-                {pendingAttachment ? (
+                {pendingAttachment && pendingAttachment.kind === "document" ? (
                   <div className="mb-2 rounded-3xl bg-white/3 ring-1 ring-white/10 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-xs font-semibold truncate">
-                          {pendingAttachment.recorded ? "Áudio gravado" : "Anexo"}
+                          Anexo
                         </div>
                         <div className="mt-0.5 text-[10px] text-[var(--muted)] truncate">{pendingAttachment.file.name}</div>
                       </div>
@@ -874,24 +942,7 @@ export default function AppShell() {
                     </div>
 
                     <div className="mt-3">
-                      {pendingAttachment.kind === "image" ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={pendingAttachment.objectUrl}
-                          alt="Prévia"
-                          className="max-h-56 w-auto rounded-2xl ring-1 ring-white/10"
-                        />
-                      ) : pendingAttachment.kind === "video" ? (
-                        <video
-                          controls
-                          src={pendingAttachment.objectUrl}
-                          className="max-h-56 w-full rounded-2xl ring-1 ring-white/10"
-                        />
-                      ) : pendingAttachment.kind === "audio" ? (
-                        <audio controls src={pendingAttachment.objectUrl} className="w-full h-12" />
-                      ) : (
-                        <div className="text-xs text-[var(--muted)]">Documento pronto para envio.</div>
-                      )}
+                      <div className="text-xs text-[var(--muted)]">Documento pronto para envio.</div>
                     </div>
 
                     <div className="mt-3 flex justify-end gap-2">
@@ -932,7 +983,12 @@ export default function AppShell() {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  setAttachment(file, false);
+                  const kind = inferMediaType(file);
+                  if (kind === "document") {
+                    setAttachment(file, false);
+                  } else {
+                    void sendMediaFile(file).catch((err) => setToast(err instanceof Error ? err.message : "Falha ao enviar arquivo"));
+                  }
                 }}
               />
               <button
@@ -945,6 +1001,7 @@ export default function AppShell() {
                 📎
               </button>
 
+              <VoiceWave active={recording} />
               <button
                 type="button"
                 disabled={!selectedChatId || uploading}
