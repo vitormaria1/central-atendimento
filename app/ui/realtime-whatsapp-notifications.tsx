@@ -34,8 +34,9 @@ export default function RealtimeWhatsappNotifications() {
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: number | null = null;
 
-    void (async () => {
+    async function connect() {
       const me = await fetch("/api/me", { cache: "no-store" }).catch(() => null);
       if (cancelled) return;
       if (!me || !me.ok) return;
@@ -43,6 +44,23 @@ export default function RealtimeWhatsappNotifications() {
       try {
         const es = new EventSource("/api/stream");
         eventSourceRef.current = es;
+
+        es.onopen = () => {
+          // ok
+        };
+
+        es.onerror = () => {
+          // EventSource faz retry automaticamente, mas em alguns cenários (proxy/edge) ele pode morrer silenciosamente.
+          try {
+            es.close();
+          } catch {
+            // ignore
+          }
+          eventSourceRef.current = null;
+          if (retryTimer) window.clearTimeout(retryTimer);
+          retryTimer = window.setTimeout(() => void connect(), 1500);
+        };
+
         es.onmessage = (ev) => {
           let data: { type?: string; chatId?: string } | null = null;
           try {
@@ -67,18 +85,21 @@ export default function RealtimeWhatsappNotifications() {
       } catch {
         // ignore
       }
-    })();
+    }
+
+    void connect();
 
     return () => {
       cancelled = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
       eventSourceRef.current?.close();
       eventSourceRef.current = null;
     };
   }, []);
 
-  // UI: popups no topo
+  // UI: popup no canto (estilo notificação)
   return (
-    <div className="pointer-events-none fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[min(560px,calc(100vw-24px))] space-y-2">
+    <div className="pointer-events-none fixed bottom-5 right-5 z-50 w-[min(420px,calc(100vw-24px))] space-y-2">
       {toasts.map((t) => (
         <button
           key={t.id}
@@ -88,7 +109,7 @@ export default function RealtimeWhatsappNotifications() {
             clearWhatsappBadge();
             router.push("/whatsapp");
           }}
-          className="pointer-events-auto w-full text-left rounded-2xl bg-[var(--card)] ring-1 ring-[var(--border)] px-4 py-3 shadow-2xl hover:bg-[color-mix(in_srgb,var(--card)_92%,white)]"
+          className="pointer-events-auto w-full text-left rounded-2xl bg-[var(--card)] ring-1 ring-[var(--border)] px-4 py-3 shadow-2xl hover:bg-[color-mix(in_srgb,var(--card)_92%,white)] animate-[toastIn_160ms_ease-out]"
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -105,9 +126,20 @@ export default function RealtimeWhatsappNotifications() {
               ×
             </span>
           </div>
+          <style jsx>{`
+            @keyframes toastIn {
+              from {
+                transform: translateY(8px);
+                opacity: 0;
+              }
+              to {
+                transform: translateY(0);
+                opacity: 1;
+              }
+            }
+          `}</style>
         </button>
       ))}
     </div>
   );
 }
-

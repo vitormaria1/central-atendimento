@@ -17,6 +17,7 @@ const payloadSchema = z.object({
       chatid: z.string().optional(),
       id: z.string().optional(),
       messageid: z.string().optional(),
+      fromMe: z.boolean().optional(),
     })
     .optional(),
   chat: z
@@ -59,11 +60,15 @@ export const POST = withApi(async (req: Request) => {
     });
 
     if (accepted) {
-      publish({
-        type: "message_received",
-        chatId,
-        messageId: parsed.data.message?.messageid ?? parsed.data.message?.id,
-      });
+      // Notificar apenas mensagens recebidas (não as enviadas por nós).
+      const fromMe = parsed.data.message?.fromMe === true;
+      if (!fromMe) {
+        publish({
+          type: "message_received",
+          chatId,
+          messageId: parsed.data.message?.messageid ?? parsed.data.message?.id,
+        });
+      }
       publish({ type: "chat_updated", chatId });
     }
   }
