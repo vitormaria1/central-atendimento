@@ -39,10 +39,16 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
   const caption = parsed.data.caption?.trim() ?? "";
   const text = caption ? `${agentLabel(session.agentName)}\n${caption}` : agentLabel(session.agentName);
 
+  const mime = parsed.data.mimetype?.trim() || "";
+  const base64 = parsed.data.base64.trim();
+  // A API aceita "base64 puro" e também "data URI". Para maximizar compatibilidade, enviamos como data URI
+  // quando tivermos o mimeType.
+  const filePayload = mime ? `data:${mime};base64,${base64}` : base64;
+
   const result = await sendMedia({
     number: id,
     type: parsed.data.type,
-    file: parsed.data.base64,
+    file: filePayload,
     text,
     docName: parsed.data.type === "document" ? (parsed.data.fileName ?? "") : "",
     mimetype: parsed.data.mimetype,
@@ -51,4 +57,3 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
 
   return NextResponse.json(result);
 });
-
