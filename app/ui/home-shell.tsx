@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { clearWhatsappBadge, useWhatsappNotifyStore } from "./whatsapp-notify-store";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
 type AiMsg = { role: "user" | "model"; text: string };
@@ -21,6 +22,7 @@ function itemClass(disabled: boolean) {
 export default function HomeShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
+  const { whatsappBadge } = useWhatsappNotifyStore();
   const [aiInput, setAiInput] = useState("");
   const [aiMsgs, setAiMsgs] = useState<AiMsgWithFiles[]>([]);
   const [aiSending, setAiSending] = useState(false);
@@ -234,14 +236,20 @@ export default function HomeShell() {
                 <button
                   className={itemClass(false)}
                   onClick={() => {
+                    clearWhatsappBadge();
                     router.push("/whatsapp");
                   }}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">WhatsApp</div>
-                    <div className="text-[10px] rounded-full bg-[var(--primary)] text-white px-2 py-1">
-                      Ativo
+                    <div className="text-sm font-medium flex items-center gap-2">
+                      WhatsApp
+                      {whatsappBadge > 0 ? (
+                        <span className="text-[10px] rounded-full bg-[var(--warning)] text-black px-2 py-1">
+                          {whatsappBadge}
+                        </span>
+                      ) : null}
                     </div>
+                    <div className="text-[10px] rounded-full bg-[var(--primary)] text-white px-2 py-1">Ativo</div>
                   </div>
                   <div className="mt-1 text-xs text-[var(--muted)]">Atender conversas e enviar documentos</div>
                 </button>

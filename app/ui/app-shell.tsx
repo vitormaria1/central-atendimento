@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { clearWhatsappBadge } from "./whatsapp-notify-store";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
 
@@ -568,6 +569,10 @@ export default function AppShell() {
     void loadMe();
     void loadChats();
   }, [loadChats, loadMe]);
+
+  useEffect(() => {
+    clearWhatsappBadge();
+  }, []);
 
   useEffect(() => {
     if (!selectedChatId) return;
