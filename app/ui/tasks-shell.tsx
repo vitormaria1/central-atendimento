@@ -45,8 +45,30 @@ type ReportsData = {
   workloadByAssignee: Array<{ assigneeAgentId: string | null; assigneeName: string; count: number }>;
   tasksByClient: Array<{ clientId: string | null; clientName: string; count: number }>;
   tasksByType: Array<{ taskTypeId: string | null; taskTypeName: string; count: number }>;
+  completedByAssignee: Array<{ assigneeAgentId: string | null; assigneeName: string; count: number }>;
+  completedByAssigneeAndType: Array<{
+    assigneeAgentId: string | null;
+    assigneeName: string;
+    taskTypeId: string | null;
+    taskTypeName: string;
+    count: number;
+  }>;
   sla: { overdueOpenTasks: number; avgLeadTimeHoursDone: number | null };
 };
+
+function isoDate(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+function utcStartFromIsoDate(dateStr: string) {
+  return `${dateStr}T00:00:00.000Z`;
+}
+
+function utcNextDayStartFromIsoDate(dateStr: string) {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString();
+}
 
 function deptLabel(d: Department) {
   switch (d) {
@@ -146,6 +168,12 @@ export default function TasksShell() {
   const [reports, setReports] = useState<ReportsData | null>(null);
   const [dashboardDepartment, setDashboardDepartment] = useState<"all" | Department>("all");
   const [reactionsByCommentId, setReactionsByCommentId] = useState<Record<string, ReactionSummary[]>>({});
+  const [reportsFrom, setReportsFrom] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return isoDate(d);
+  });
+  const [reportsTo, setReportsTo] = useState<string>(() => isoDate(new Date()));
 
   const [toast, setToast] = useState<string | null>(null);
 
@@ -382,6 +410,8 @@ export default function TasksShell() {
   async function loadReports() {
     const url = new URL("/api/reports/tasks", window.location.origin);
     if (dashboardDepartment !== "all") url.searchParams.set("department", dashboardDepartment);
+    if (reportsFrom) url.searchParams.set("dateFrom", utcStartFromIsoDate(reportsFrom));
+    if (reportsTo) url.searchParams.set("dateTo", utcNextDayStartFromIsoDate(reportsTo));
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return;
     const data = (await res.json()) as ReportsData;
@@ -456,7 +486,14 @@ export default function TasksShell() {
   useEffect(() => {
     void loadMe();
     void loadTaskTypes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!me) return;
+    if (newAssignee === "none") setNewAssignee(me.agentId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me]);
 
   useEffect(() => {
     void loadTasks();
@@ -470,7 +507,7 @@ export default function TasksShell() {
   useEffect(() => {
     void loadReports();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dashboardDepartment]);
+  }, [dashboardDepartment, reportsFrom, reportsTo]);
 
   useEffect(() => {
     if (!selectedTaskId) {
@@ -1009,6 +1046,7 @@ export default function TasksShell() {
 
                   <select
                     value={details.assignee?.agentId ?? "none"}
+                    disabled={me?.agentId !== "vanderlei"}
                     onChange={(e) => {
                       const v = e.target.value;
                       void (async () => {
@@ -1020,7 +1058,8 @@ export default function TasksShell() {
                         }
                       })();
                     }}
-                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none disabled:opacity-60"
+                    title={me?.agentId === "vanderlei" ? "Responsável" : "Somente Vanderlei pode alterar"}
                   >
                     <option value="none">Sem responsável</option>
                     <option value="vanderlei">Vanderlei</option>
@@ -1253,18 +1292,36 @@ export default function TasksShell() {
                   <div className="text-sm font-semibold">
                     Dashboard • {dashboardDepartment === "all" ? "Geral" : deptLabel(dashboardDepartment)}
                   </div>
-                  <select
-                    value={dashboardDepartment}
-                    onChange={(e) => setDashboardDepartment(e.target.value as typeof dashboardDepartment)}
-                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                  >
-                    <option value="all">Geral</option>
-                    <option value="fiscal">Fiscal</option>
-                    <option value="contabil">Contábil</option>
-                    <option value="pessoal">Pessoal</option>
-                    <option value="societario_paralegal">Societário/Paralegal</option>
-                    <option value="administrativo">Administrativo</option>
-                  </select>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs">
+                      <span className="text-[var(--muted)]">Período:</span>
+                      <input
+                        type="date"
+                        value={reportsFrom}
+                        onChange={(e) => setReportsFrom(e.target.value)}
+                        className="bg-transparent outline-none"
+                      />
+                      <span className="text-[var(--muted)]">até</span>
+                      <input
+                        type="date"
+                        value={reportsTo}
+                        onChange={(e) => setReportsTo(e.target.value)}
+                        className="bg-transparent outline-none"
+                      />
+                    </div>
+                    <select
+                      value={dashboardDepartment}
+                      onChange={(e) => setDashboardDepartment(e.target.value as typeof dashboardDepartment)}
+                      className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                    >
+                      <option value="all">Geral</option>
+                      <option value="fiscal">Fiscal</option>
+                      <option value="contabil">Contábil</option>
+                      <option value="pessoal">Pessoal</option>
+                      <option value="societario_paralegal">Societário/Paralegal</option>
+                      <option value="administrativo">Administrativo</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="rounded-3xl bg-[color-mix(in_srgb,var(--warning)_10%,var(--card))] ring-1 ring-[color-mix(in_srgb,var(--warning)_30%,var(--border))] p-4">
@@ -1311,6 +1368,49 @@ export default function TasksShell() {
                           <div>{x.count}</div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                    <div className="text-sm font-semibold">Concluídas no período • por responsável</div>
+                    <div className="mt-3 space-y-2">
+                      {reports.completedByAssignee.slice(0, 8).map((x) => (
+                        <div key={x.assigneeName} className="flex items-center justify-between text-sm">
+                          <div className="text-[var(--muted)]">{x.assigneeName}</div>
+                          <div>{x.count}</div>
+                        </div>
+                      ))}
+                      {reports.completedByAssignee.length === 0 ? (
+                        <div className="text-xs text-[var(--muted)]">Sem tarefas concluídas no período.</div>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                    <div className="text-sm font-semibold">Concluídas no período • por tipo</div>
+                    <div className="mt-3 space-y-2">
+                      {(() => {
+                        const byType = new Map<string, { name: string; count: number }>();
+                        for (const r of reports.completedByAssigneeAndType) {
+                          const key = r.taskTypeId ?? "none";
+                          const prev = byType.get(key);
+                          byType.set(key, { name: r.taskTypeName, count: (prev?.count ?? 0) + r.count });
+                        }
+                        return Array.from(byType.entries())
+                          .map(([, v]) => v)
+                          .sort((a, b) => b.count - a.count)
+                          .slice(0, 8)
+                          .map((x) => (
+                            <div key={x.name} className="flex items-center justify-between text-sm">
+                              <div className="text-[var(--muted)] truncate">{x.name}</div>
+                              <div>{x.count}</div>
+                            </div>
+                          ));
+                      })()}
+                      {reports.completedByAssigneeAndType.length === 0 ? (
+                        <div className="text-xs text-[var(--muted)]">Sem dados.</div>
+                      ) : null}
                     </div>
                   </div>
                 </div>

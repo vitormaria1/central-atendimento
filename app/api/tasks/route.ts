@@ -164,7 +164,7 @@ export const POST = withApi(async (req: Request) => {
   const department = parsed.data.department;
   const status = parsed.data.status ?? "to_do";
   const priority = parsed.data.priority ?? "normal";
-  const assigneeAgentId = parsed.data.assigneeAgentId ?? null;
+  const assigneeAgentId = parsed.data.assigneeAgentId ?? session.agentId;
   const taskTypeId = parsed.data.taskTypeId ?? null;
   const clientId = parsed.data.clientId ? Number.parseInt(parsed.data.clientId, 10) : null;
   const dueAt = parsed.data.dueAt ? new Date(parsed.data.dueAt).toISOString() : null;
