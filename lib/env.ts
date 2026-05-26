@@ -15,6 +15,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   GEMINI_API_KEY: z.string().min(1).optional(),
   GEMINI_MODEL: z.string().min(1).optional(),
+  GEMINI_FALLBACK_MODEL: z.string().min(1).optional(),
 });
 
 export function getEnv() {

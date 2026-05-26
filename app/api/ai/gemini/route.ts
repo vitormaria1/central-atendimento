@@ -44,8 +44,10 @@ export const POST = withApi(async (req: Request) => {
 
   const env = getEnv();
   const apiKey = env.GEMINI_API_KEY;
-  const model = env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  const primaryModel = env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  const fallbackModel = env.GEMINI_FALLBACK_MODEL ?? "gemini-2.5-pro";
   if (!apiKey) return NextResponse.json({ error: "GEMINI_API_KEY não configurada" }, { status: 500 });
+  const apiKeyHeader = apiKey as string;
 
   const history = parsed.data.history ?? [];
   const attachments = parsed.data.attachments ?? [];
@@ -118,51 +120,66 @@ export const POST = withApi(async (req: Request) => {
     ],
   };
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
-    body: JSON.stringify({
-      systemInstruction,
-      contents,
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 800,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "object",
-          properties: {
-            text: { type: "string" },
-            templateData: { type: "object" },
-            outputFilename: { type: "string" },
-            files: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  filename: { type: "string" },
-                  mimeType: { type: "string" },
-                  base64: { type: "string" },
-                },
-                required: ["filename", "mimeType", "base64"],
+  const requestBody = {
+    systemInstruction,
+    contents,
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 800,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "object",
+        properties: {
+          text: { type: "string" },
+          templateData: { type: "object" },
+          outputFilename: { type: "string" },
+          files: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                filename: { type: "string" },
+                mimeType: { type: "string" },
+                base64: { type: "string" },
               },
+              required: ["filename", "mimeType", "base64"],
             },
           },
-          required: ["text"],
         },
+        required: ["text"],
       },
-    }),
-  });
+    },
+  };
 
-  const data = (await res.json().catch(() => null)) as unknown;
-  if (!res.ok) {
+  async function callGemini(model: string) {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": apiKeyHeader,
+        },
+        body: JSON.stringify(requestBody),
+      },
+    );
+    const data = (await res.json().catch(() => null)) as unknown;
+    return { res, data, model };
+  }
+
+  let attempt = await callGemini(primaryModel);
+  const shouldFallback = !attempt.res.ok && fallbackModel && fallbackModel !== primaryModel;
+  if (shouldFallback) {
+    attempt = await callGemini(fallbackModel);
+  }
+
+  const data = attempt.data;
+  if (!attempt.res.ok) {
     const message =
       typeof (data as { error?: { message?: unknown } } | null)?.error?.message === "string"
         ? ((data as { error?: { message?: string } }).error!.message as string)
         : "Falha ao chamar Gemini";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json({ error: message, model: attempt.model }, { status: 502 });
   }
 
   const parts = (data as { candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }> } | null)?.candidates?.[0]
