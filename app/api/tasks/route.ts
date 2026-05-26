@@ -16,6 +16,7 @@ const querySchema = z.object({
   department: departmentEnum.optional(),
   status: statusEnum.optional(),
   assigneeAgentId: z.enum(["vanderlei", "gustavo"]).optional(),
+  taskTypeId: z.string().optional(),
   clientId: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
 });
@@ -28,6 +29,7 @@ const createSchema = z.object({
   status: statusEnum.optional(),
   clientId: z.string().optional(),
   assigneeAgentId: z.enum(["vanderlei", "gustavo"]).nullable().optional(),
+  taskTypeId: z.string().nullable().optional(),
   dueAt: z.string().nullable().optional(), // ISO
   tags: z.array(z.string().min(1).max(40)).optional(),
 });
@@ -45,6 +47,7 @@ export const GET = withApi(async (req: Request) => {
   const status = parsed.data.status ?? null;
   const assigneeAgentId = parsed.data.assigneeAgentId ?? null;
   const effectiveAssigneeAgentId = session.agentId === "gustavo" ? "gustavo" : assigneeAgentId;
+  const taskTypeId = parsed.data.taskTypeId ?? null;
   const clientId = parsed.data.clientId ? Number.parseInt(parsed.data.clientId, 10) : null;
   const limit = parsed.data.limit ?? 80;
 
@@ -73,17 +76,24 @@ export const GET = withApi(async (req: Request) => {
     params.push(clientId);
     where.push(`t.client_id = $${params.length}`);
   }
+  if (taskTypeId) {
+    params.push(taskTypeId);
+    where.push(`t.task_type_id = $${params.length}`);
+  }
 
   params.push(limit);
   const sql = `
     select
       t.id::text,
+      t.task_number::text as task_number,
       t.title,
       t.department::text,
       t.status::text,
       t.priority::text,
       t.client_id::text,
       c.name as client_name,
+      t.task_type_id,
+      tt.name as task_type_name,
       t.assignee_agent_id,
       a.name as assignee_name,
       t.due_at::text,
@@ -92,6 +102,7 @@ export const GET = withApi(async (req: Request) => {
       t.updated_at::text
     from tasks t
     left join clients c on c.id = t.client_id
+    left join task_types tt on tt.id = t.task_type_id
     left join agents a on a.id = t.assignee_agent_id
     ${where.length ? `where ${where.join(" and ")}` : ""}
     order by t.id desc
@@ -100,12 +111,15 @@ export const GET = withApi(async (req: Request) => {
 
   const { rows } = await dbQuery<{
     id: string;
+    task_number: string;
     title: string;
     department: string;
     status: string;
     priority: string;
     client_id: string | null;
     client_name: string | null;
+    task_type_id: string | null;
+    task_type_name: string | null;
     assignee_agent_id: string | null;
     assignee_name: string | null;
     due_at: string | null;
@@ -117,11 +131,13 @@ export const GET = withApi(async (req: Request) => {
   return NextResponse.json({
     items: rows.map((r) => ({
       id: r.id,
+      taskNumber: r.task_number,
       title: r.title,
       department: r.department,
       status: r.status,
       priority: r.priority,
       client: r.client_id ? { id: r.client_id, name: r.client_name ?? "—" } : null,
+      taskType: r.task_type_id ? { id: r.task_type_id, name: r.task_type_name ?? r.task_type_id } : null,
       assignee: r.assignee_agent_id ? { agentId: r.assignee_agent_id, name: r.assignee_name ?? r.assignee_agent_id } : null,
       dueAt: r.due_at,
       tags: r.tags ?? [],
@@ -139,12 +155,17 @@ export const POST = withApi(async (req: Request) => {
   const parsed = createSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
+  if (session.agentId === "gustavo") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const title = parsed.data.title.trim();
   const description = parsed.data.description?.trim() || null;
   const department = parsed.data.department;
   const status = parsed.data.status ?? "to_do";
   const priority = parsed.data.priority ?? "normal";
   const assigneeAgentId = parsed.data.assigneeAgentId ?? null;
+  const taskTypeId = parsed.data.taskTypeId ?? null;
   const clientId = parsed.data.clientId ? Number.parseInt(parsed.data.clientId, 10) : null;
   const dueAt = parsed.data.dueAt ? new Date(parsed.data.dueAt).toISOString() : null;
   const tags = parsed.data.tags ?? [];
@@ -153,11 +174,11 @@ export const POST = withApi(async (req: Request) => {
 
   const { rows } = await dbQuery<{ id: string }>(
     `
-      insert into tasks (title, description, department, status, priority, client_id, assignee_agent_id, created_by_agent_id, due_at, tags)
-      values ($1, $2, $3::task_department, $4::task_status, $5::task_priority, $6, $7, $8, $9, $10)
+      insert into tasks (title, description, department, status, priority, client_id, assignee_agent_id, task_type_id, created_by_agent_id, due_at, tags)
+      values ($1, $2, $3::task_department, $4::task_status, $5::task_priority, $6, $7, $8, $9, $10, $11)
       returning id::text
     `,
-    [title, description, department, status, priority, clientId, assigneeAgentId, session.agentId, dueAt, tags],
+    [title, description, department, status, priority, clientId, assigneeAgentId, taskTypeId, session.agentId, dueAt, tags],
   );
 
   const row = rows[0];

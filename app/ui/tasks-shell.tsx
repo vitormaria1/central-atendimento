@@ -10,17 +10,20 @@ type TaskStatus = "to_do" | "in_progress" | "blocked" | "done";
 type TaskPriority = "low" | "normal" | "high" | "urgent";
 
 type Client = { id: string; name: string };
+type TaskType = { id: string; name: string };
 
 type ViewType = "list" | "board" | "calendar";
 type SavedView = { id: string; name: string; viewType: ViewType; department: Department | null; config: Record<string, unknown> };
 
 type TaskListItem = {
   id: string;
+  taskNumber: string;
   title: string;
   department: Department;
   status: TaskStatus;
   priority: TaskPriority;
   client: Client | null;
+  taskType: TaskType | null;
   assignee: { agentId: string; name: string } | null;
   dueAt: string | null;
   tags: string[];
@@ -41,6 +44,7 @@ type ReportsData = {
   wipByStatus: Array<{ status: string; count: number }>;
   workloadByAssignee: Array<{ assigneeAgentId: string | null; assigneeName: string; count: number }>;
   tasksByClient: Array<{ clientId: string | null; clientName: string; count: number }>;
+  tasksByType: Array<{ taskTypeId: string | null; taskTypeName: string; count: number }>;
   sla: { overdueOpenTasks: number; avgLeadTimeHoursDone: number | null };
 };
 
@@ -161,6 +165,10 @@ export default function TasksShell() {
   const [newPriority, setNewPriority] = useState<TaskPriority>("normal");
   const [newAssignee, setNewAssignee] = useState<"none" | "vanderlei" | "gustavo">("none");
   const [newDueAt, setNewDueAt] = useState("");
+  const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
+  const [newTaskTypeId, setNewTaskTypeId] = useState<string>("outros");
+  const [newTaskTypeName, setNewTaskTypeName] = useState("");
+  const [creatingTaskType, setCreatingTaskType] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const commentFileRef = useRef<HTMLInputElement | null>(null);
@@ -203,6 +211,37 @@ export default function TasksShell() {
     if (!res.ok) return;
     const data = (await res.json()) as Agent;
     setMe(data);
+  }
+
+  async function loadTaskTypes() {
+    const res = await fetch("/api/task-types", { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as { items: Array<{ id: string; name: string }> };
+    const items = (data.items ?? []).map((t) => ({ id: t.id, name: t.name }));
+    setTaskTypes(items);
+    if (items.length && !items.some((t) => t.id === newTaskTypeId)) setNewTaskTypeId(items[0]!.id);
+  }
+
+  async function createTaskType() {
+    const name = newTaskTypeName.trim();
+    if (!name || creatingTaskType) return;
+    setCreatingTaskType(true);
+    try {
+      const res = await fetch("/api/task-types", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = (await res.json().catch(() => null)) as { id?: string; name?: string; error?: string } | null;
+      if (!res.ok || !data?.id) throw new Error(data?.error ?? "Falha ao criar tipo");
+      setNewTaskTypeName("");
+      await loadTaskTypes();
+      setNewTaskTypeId(data.id);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Falha ao criar tipo");
+    } finally {
+      setCreatingTaskType(false);
+    }
   }
 
   async function loadSavedViews() {
@@ -295,6 +334,7 @@ export default function TasksShell() {
           department: newDepartment,
           priority: newPriority,
           assigneeAgentId: newAssignee === "none" ? null : newAssignee,
+          taskTypeId: newTaskTypeId || null,
           clientId,
           dueAt: newDueAt ? new Date(newDueAt).toISOString() : null,
         }),
@@ -310,6 +350,7 @@ export default function TasksShell() {
       setNewPriority("normal");
       setNewAssignee("none");
       setNewDueAt("");
+      setNewTaskTypeId("outros");
       await loadTasks();
       setSelectedTaskId(data.id);
     } catch (err) {
@@ -414,6 +455,7 @@ export default function TasksShell() {
 
   useEffect(() => {
     void loadMe();
+    void loadTaskTypes();
   }, []);
 
   useEffect(() => {
@@ -761,10 +803,14 @@ export default function TasksShell() {
                       className="w-full text-left rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-medium truncate">{t.title}</div>
+                        <div className="text-sm font-medium truncate">
+                          <span className="text-[var(--muted)] mr-2">#{t.taskNumber}</span>
+                          {t.title}
+                        </div>
                         <div className="text-xs text-[var(--muted)] shrink-0">{priorityLabel(t.priority)}</div>
                       </div>
                       <div className="mt-1 text-xs text-[var(--muted)] truncate">
+                        {t.taskType ? `${t.taskType.name} • ` : ""}
                         {deptLabel(t.department)} • {statusLabel(t.status)}
                         {t.assignee ? ` • ${t.assignee.name}` : " • Sem responsável"}
                         {t.client ? ` • ${t.client.name}` : ""}
@@ -801,6 +847,40 @@ export default function TasksShell() {
                   <option value="societario_paralegal">Societário</option>
                   <option value="administrativo">Administrativo</option>
                 </select>
+                <div className="grid grid-cols-3 gap-2">
+                  <select
+                    value={newTaskTypeId}
+                    onChange={(e) => setNewTaskTypeId(e.target.value)}
+                    className="col-span-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                    title="Tipo de tarefa"
+                  >
+                    {taskTypes.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                    {taskTypes.length === 0 ? <option value="outros">Outros</option> : null}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const v = (newTaskTypeName || "").trim();
+                      if (!v) return;
+                      void createTaskType();
+                    }}
+                    disabled={creatingTaskType || newTaskTypeName.trim().length < 2}
+                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8 disabled:opacity-60"
+                    title="Criar novo tipo"
+                  >
+                    {creatingTaskType ? "..." : "Novo"}
+                  </button>
+                </div>
+                <input
+                  value={newTaskTypeName}
+                  onChange={(e) => setNewTaskTypeName(e.target.value)}
+                  placeholder="Novo tipo (ex.: Regularização)"
+                  className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                />
                 <input
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
@@ -864,16 +944,48 @@ export default function TasksShell() {
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="text-lg font-semibold truncate">{details.title}</div>
+                    <div className="text-lg font-semibold truncate">
+                      <span className="text-[var(--muted)] mr-2">#{details.taskNumber}</span>
+                      {details.title}
+                    </div>
                     <div className="mt-1 text-xs text-[var(--muted)]">
                       Criado em {formatTime(details.createdAt)}{details.createdBy ? ` • por ${details.createdBy.name}` : ""}
                     </div>
+                    {details.taskType ? (
+                      <div className="mt-2 inline-flex items-center gap-2 text-xs rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-1">
+                        Tipo: <span className="text-[var(--foreground)] font-medium">{details.taskType.name}</span>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
                 {details.description ? <div className="text-sm whitespace-pre-wrap">{details.description}</div> : null}
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <select
+                    value={details.taskType?.id ?? ""}
+                    disabled={me?.agentId !== "vanderlei"}
+                    onChange={(e) => {
+                      const v = e.target.value || null;
+                      void (async () => {
+                        try {
+                          await patchTask(details.id, { taskTypeId: v });
+                          await refreshTask(details.id);
+                        } catch (err) {
+                          setToast(err instanceof Error ? err.message : "Falha ao atualizar");
+                        }
+                      })();
+                    }}
+                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none disabled:opacity-60"
+                    title={me?.agentId === "vanderlei" ? "Tipo de tarefa" : "Somente Vanderlei pode alterar"}
+                  >
+                    <option value="">Sem tipo</option>
+                    {taskTypes.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
                   <select
                     value={details.status}
                     onChange={(e) => {
@@ -1200,6 +1312,21 @@ export default function TasksShell() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                  <div className="text-sm font-semibold">Tarefas por tipo</div>
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {reports.tasksByType.slice(0, 12).map((x) => (
+                      <div key={`${x.taskTypeId ?? "none"}:${x.taskTypeName}`} className="flex items-center justify-between text-sm">
+                        <div className="text-[var(--muted)] truncate">{x.taskTypeName}</div>
+                        <div>{x.count}</div>
+                      </div>
+                    ))}
+                    {reports.tasksByType.length === 0 ? (
+                      <div className="text-xs text-[var(--muted)]">Sem dados.</div>
+                    ) : null}
                   </div>
                 </div>
               </div>

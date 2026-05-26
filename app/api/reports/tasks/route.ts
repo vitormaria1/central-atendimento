@@ -67,6 +67,19 @@ export const GET = withApi(async (req: Request) => {
     params,
   );
 
+  const tasksByType = await dbQuery<{ task_type_id: string | null; task_type_name: string | null; count: string }>(
+    `
+      select t.task_type_id, tt.name as task_type_name, count(*)::text as count
+      from tasks t
+      left join task_types tt on tt.id = t.task_type_id
+      ${deptWhere ? deptWhere.replace("department", "t.department") : ""}
+      group by t.task_type_id, tt.name
+      order by count(*) desc
+      limit 30
+    `,
+    params,
+  );
+
   const overdue = await dbQuery<{ count: string }>(
     `
       select count(*)::text as count
@@ -97,6 +110,11 @@ export const GET = withApi(async (req: Request) => {
     tasksByClient: tasksByClient.rows.map((r) => ({
       clientId: r.client_id,
       clientName: r.client_name ?? (r.client_id ? "Cliente" : "Sem cliente"),
+      count: Number.parseInt(r.count, 10),
+    })),
+    tasksByType: tasksByType.rows.map((r) => ({
+      taskTypeId: r.task_type_id,
+      taskTypeName: r.task_type_name ?? (r.task_type_id ? r.task_type_id : "Sem tipo"),
       count: Number.parseInt(r.count, 10),
     })),
     sla: {

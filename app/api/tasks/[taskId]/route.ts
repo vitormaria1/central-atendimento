@@ -20,6 +20,7 @@ const patchSchema = z.object({
   priority: priorityEnum.optional(),
   clientId: z.string().nullable().optional(),
   assigneeAgentId: z.enum(["vanderlei", "gustavo"]).nullable().optional(),
+  taskTypeId: z.string().nullable().optional(),
   dueAt: z.string().nullable().optional(),
   tags: z.array(z.string().min(1).max(40)).optional(),
 });
@@ -36,6 +37,7 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[
 
   const { rows } = await dbQuery<{
     id: string;
+    task_number: string;
     title: string;
     description: string | null;
     department: string;
@@ -43,6 +45,8 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[
     priority: string;
     client_id: string | null;
     client_name: string | null;
+    task_type_id: string | null;
+    task_type_name: string | null;
     assignee_agent_id: string | null;
     assignee_name: string | null;
     created_by_agent_id: string | null;
@@ -55,6 +59,7 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[
     `
       select
         t.id::text,
+        t.task_number::text as task_number,
         t.title,
         t.description,
         t.department::text,
@@ -62,6 +67,8 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[
         t.priority::text,
         t.client_id::text,
         c.name as client_name,
+        t.task_type_id,
+        tt.name as task_type_name,
         t.assignee_agent_id,
         a.name as assignee_name,
         t.created_by_agent_id,
@@ -72,6 +79,7 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[
         t.updated_at::text
       from tasks t
       left join clients c on c.id = t.client_id
+      left join task_types tt on tt.id = t.task_type_id
       left join agents a on a.id = t.assignee_agent_id
       left join agents ca on ca.id = t.created_by_agent_id
       where t.id = $1
@@ -86,12 +94,14 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[
   return NextResponse.json({
     item: {
       id: row.id,
+      taskNumber: row.task_number,
       title: row.title,
       description: row.description,
       department: row.department,
       status: row.status,
       priority: row.priority,
       client: row.client_id ? { id: row.client_id, name: row.client_name ?? "—" } : null,
+      taskType: row.task_type_id ? { id: row.task_type_id, name: row.task_type_name ?? row.task_type_id } : null,
       assignee: row.assignee_agent_id ? { agentId: row.assignee_agent_id, name: row.assignee_name ?? row.assignee_agent_id } : null,
       createdBy: row.created_by_agent_id ? { agentId: row.created_by_agent_id, name: row.created_by_name ?? row.created_by_agent_id } : null,
       dueAt: row.due_at,
@@ -120,6 +130,9 @@ export const PATCH = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/
   if (session.agentId === "gustavo" && patch.assigneeAgentId !== undefined && patch.assigneeAgentId !== "gustavo") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  if (session.agentId === "gustavo" && patch.taskTypeId !== undefined) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const fields: string[] = [];
   const values: unknown[] = [];
 
@@ -143,6 +156,7 @@ export const PATCH = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/
   if (patch.status) setField("status", patch.status);
   if (patch.priority) setField("priority", patch.priority);
   if (patch.assigneeAgentId !== undefined) setField("assignee_agent_id", patch.assigneeAgentId);
+  if (patch.taskTypeId !== undefined) setField("task_type_id", patch.taskTypeId);
   if (patch.clientId !== undefined) {
     const clientId = patch.clientId ? Number.parseInt(patch.clientId, 10) : null;
     if (clientId !== null && !Number.isFinite(clientId)) return NextResponse.json({ error: "Invalid clientId" }, { status: 400 });
