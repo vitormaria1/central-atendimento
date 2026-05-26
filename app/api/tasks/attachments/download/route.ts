@@ -26,10 +26,23 @@ export const GET = withApi(async (req: Request) => {
     filename: string;
     mimetype: string | null;
     content: Buffer;
-  }>("select filename, mimetype, content from task_attachments where id = $1", [id]);
+    assignee_agent_id: string | null;
+  }>(
+    `
+      select ta.filename, ta.mimetype, ta.content, t.assignee_agent_id
+      from task_attachments ta
+      join tasks t on t.id = ta.task_id
+      where ta.id = $1
+      limit 1
+    `,
+    [id],
+  );
 
   const row = rows[0];
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (session.agentId === "gustavo" && row.assignee_agent_id !== "gustavo") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const filename = row.filename || "arquivo";
   const mimetype = row.mimetype || "application/octet-stream";

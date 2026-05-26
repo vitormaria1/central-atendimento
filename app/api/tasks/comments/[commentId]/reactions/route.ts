@@ -11,6 +11,21 @@ const emojiSchema = z.object({
   emoji: z.string().min(1).max(32),
 });
 
+async function canAccessComment(session: { agentId: "vanderlei" | "gustavo" }, commentId: number) {
+  if (session.agentId === "vanderlei") return true;
+  const { rows } = await dbQuery<{ ok: boolean }>(
+    `
+      select true as ok
+      from task_comments c
+      join tasks t on t.id = c.task_id
+      where c.id = $1 and t.assignee_agent_id = $2
+      limit 1
+    `,
+    [commentId, session.agentId],
+  );
+  return Boolean(rows[0]?.ok);
+}
+
 export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/comments/[commentId]/reactions">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,6 +33,7 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/c
   const { commentId } = await ctx.params;
   const id = Number.parseInt(commentId, 10);
   if (!Number.isFinite(id)) return NextResponse.json({ error: "Invalid commentId" }, { status: 400 });
+  if (!(await canAccessComment(session, id))) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const { rows } = await dbQuery<{
     emoji: string;
@@ -49,6 +65,7 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/c
   const { commentId } = await ctx.params;
   const id = Number.parseInt(commentId, 10);
   if (!Number.isFinite(id)) return NextResponse.json({ error: "Invalid commentId" }, { status: 400 });
+  if (!(await canAccessComment(session, id))) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const json = (await req.json().catch(() => null)) as unknown;
   const parsed = emojiSchema.safeParse(json);
@@ -76,6 +93,7 @@ export const DELETE = withApi(async (req: Request, ctx: RouteContext<"/api/tasks
   const { commentId } = await ctx.params;
   const id = Number.parseInt(commentId, 10);
   if (!Number.isFinite(id)) return NextResponse.json({ error: "Invalid commentId" }, { status: 400 });
+  if (!(await canAccessComment(session, id))) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const json = (await req.json().catch(() => null)) as unknown;
   const parsed = emojiSchema.safeParse(json);

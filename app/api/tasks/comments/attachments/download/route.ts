@@ -22,12 +22,22 @@ export const GET = withApi(async (req: Request) => {
   const id = Number.parseInt(parsed.data.id, 10);
   if (!Number.isFinite(id)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
-  const { rows } = await dbQuery<{ filename: string; mimetype: string | null; content: Buffer }>(
-    "select filename, mimetype, content from task_comment_attachments where id = $1",
+  const { rows } = await dbQuery<{ filename: string; mimetype: string | null; content: Buffer; assignee_agent_id: string | null }>(
+    `
+      select a.filename, a.mimetype, a.content, t.assignee_agent_id
+      from task_comment_attachments a
+      join task_comments c on c.id = a.comment_id
+      join tasks t on t.id = c.task_id
+      where a.id = $1
+      limit 1
+    `,
     [id],
   );
   const row = rows[0];
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (session.agentId === "gustavo" && row.assignee_agent_id !== "gustavo") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const filename = row.filename || "arquivo";
   const mimetype = row.mimetype || "application/octet-stream";

@@ -22,6 +22,21 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/c
   const id = Number.parseInt(commentId, 10);
   if (!Number.isFinite(id)) return NextResponse.json({ error: "Invalid commentId" }, { status: 400 });
 
+  const access = await dbQuery<{ assignee_agent_id: string | null }>(
+    `
+      select t.assignee_agent_id
+      from task_comments c
+      join tasks t on t.id = c.task_id
+      where c.id = $1
+      limit 1
+    `,
+    [id],
+  );
+  if (!access.rows[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (session.agentId === "gustavo" && access.rows[0].assignee_agent_id !== "gustavo") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const { rows } = await dbQuery<{
     id: string;
     filename: string;
@@ -56,6 +71,21 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/c
   const { commentId } = await ctx.params;
   const id = Number.parseInt(commentId, 10);
   if (!Number.isFinite(id)) return NextResponse.json({ error: "Invalid commentId" }, { status: 400 });
+
+  const access = await dbQuery<{ assignee_agent_id: string | null }>(
+    `
+      select t.assignee_agent_id
+      from task_comments c
+      join tasks t on t.id = c.task_id
+      where c.id = $1
+      limit 1
+    `,
+    [id],
+  );
+  if (!access.rows[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (session.agentId === "gustavo" && access.rows[0].assignee_agent_id !== "gustavo") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const form = await req.formData().catch(() => null);
   if (!form) return NextResponse.json({ error: "Invalid form-data" }, { status: 400 });

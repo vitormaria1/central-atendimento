@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
+import { requireTaskAccess } from "@/lib/task-access";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -13,6 +14,7 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[
   const { taskId } = await ctx.params;
   const id = Number.parseInt(taskId, 10);
   if (!Number.isFinite(id)) return NextResponse.json({ error: "Invalid taskId" }, { status: 400 });
+  if (!(await requireTaskAccess(session, id))) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const { rows } = await dbQuery<{
     id: string;

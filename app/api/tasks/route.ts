@@ -44,6 +44,7 @@ export const GET = withApi(async (req: Request) => {
   const department = parsed.data.department ?? null;
   const status = parsed.data.status ?? null;
   const assigneeAgentId = parsed.data.assigneeAgentId ?? null;
+  const effectiveAssigneeAgentId = session.agentId === "gustavo" ? "gustavo" : assigneeAgentId;
   const clientId = parsed.data.clientId ? Number.parseInt(parsed.data.clientId, 10) : null;
   const limit = parsed.data.limit ?? 80;
 
@@ -64,8 +65,8 @@ export const GET = withApi(async (req: Request) => {
     params.push(status);
     where.push(`t.status = $${params.length}::task_status`);
   }
-  if (assigneeAgentId) {
-    params.push(assigneeAgentId);
+  if (effectiveAssigneeAgentId) {
+    params.push(effectiveAssigneeAgentId);
     where.push(`t.assignee_agent_id = $${params.length}`);
   }
   if (clientId !== null) {
