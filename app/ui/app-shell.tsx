@@ -55,6 +55,41 @@ function isAudioLike(m: MessageItem, mimetype?: string) {
   return mt.includes("audio") || t === "audio" || t === "ptt" || mt.includes("ptt") || mt.includes("voice");
 }
 
+function extFromUrl(url: string) {
+  try {
+    const clean = url.split("?")[0] ?? url;
+    const idx = clean.lastIndexOf(".");
+    if (idx === -1) return "";
+    return (clean.slice(idx + 1) || "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function isImageLike(m: MessageItem, mimetype?: string, mediaUrl?: string | null) {
+  if (mimetype?.startsWith("image/")) return true;
+  const mt = (m.messageType ?? "").toLowerCase();
+  const t = (m.type ?? "").toLowerCase();
+  if (mt.includes("image") || t === "image" || t === "sticker") return true;
+  const ext = mediaUrl ? extFromUrl(mediaUrl) : "";
+  return ext === "png" || ext === "jpg" || ext === "jpeg" || ext === "gif" || ext === "webp";
+}
+
+function isVideoLike(m: MessageItem, mimetype?: string, mediaUrl?: string | null) {
+  if (mimetype?.startsWith("video/")) return true;
+  const mt = (m.messageType ?? "").toLowerCase();
+  const t = (m.type ?? "").toLowerCase();
+  if (mt.includes("video") || t === "video") return true;
+  const ext = mediaUrl ? extFromUrl(mediaUrl) : "";
+  return ext === "mp4" || ext === "webm" || ext === "mov" || ext === "m4v";
+}
+
+function isPdfLike(mimetype?: string, mediaUrl?: string | null) {
+  if (mimetype === "application/pdf") return true;
+  const ext = mediaUrl ? extFromUrl(mediaUrl) : "";
+  return ext === "pdf";
+}
+
 function playNotifySound() {
   try {
     const AudioContextCtor =
@@ -820,6 +855,9 @@ export default function AppShell() {
               const mimetype = cached?.mimetype;
               const showMedia = Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation");
               const showAudioPlayer = showMedia && isAudioLike(m, mimetype);
+              const showImage = showMedia && !showAudioPlayer && isImageLike(m, mimetype, mediaUrl);
+              const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
+              const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
               const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
               return (
                 <div key={stableKey} className={mine ? "flex justify-end" : "flex justify-start"}>
@@ -883,15 +921,78 @@ export default function AppShell() {
                           ) : (
                             <div className="text-xs text-[var(--muted)]">Áudio sem ID</div>
                           )
-                        ) : mediaUrl ? (
-                          <a
-                            href={mediaUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
-                          >
-                            Abrir documento/arquivo
+                        ) : mediaUrl && showImage ? (
+                          <a href={mediaUrl} target="_blank" rel="noreferrer" className="block">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={mediaUrl}
+                              alt="Imagem enviada"
+                              className="max-w-full rounded-2xl ring-1 ring-white/10"
+                              style={{ maxHeight: 420 }}
+                              loading="lazy"
+                            />
                           </a>
+                        ) : mediaUrl && showVideo ? (
+                          <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
+                            <video controls preload="metadata" src={mediaUrl} className="w-[520px] max-w-full rounded-2xl" />
+                            <div className="mt-2 flex items-center justify-end gap-2">
+                              <a
+                                href={mediaUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sm rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 hover:bg-white/8"
+                              >
+                                Abrir
+                              </a>
+                            </div>
+                          </div>
+                        ) : mediaUrl && showPdf ? (
+                          <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
+                            <iframe
+                              title="PDF"
+                              src={mediaUrl}
+                              className="w-[520px] max-w-full h-[520px] rounded-2xl bg-black/20"
+                            />
+                            <div className="mt-2 flex items-center justify-end gap-2">
+                              <a
+                                href={mediaUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sm rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 hover:bg-white/8"
+                              >
+                                Abrir
+                              </a>
+                              <a
+                                href={mediaUrl}
+                                download
+                                className="text-sm rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 hover:bg-white/8"
+                              >
+                                Baixar
+                              </a>
+                            </div>
+                          </div>
+                        ) : mediaUrl ? (
+                          <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3">
+                            <div className="text-sm font-semibold">Documento</div>
+                            <div className="mt-2 flex items-center gap-2">
+                              <a
+                                href={mediaUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sm rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 hover:bg-white/8"
+                              >
+                                Abrir
+                              </a>
+                              <a
+                                href={mediaUrl}
+                                download
+                                className="text-sm rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 hover:bg-white/8"
+                              >
+                                Baixar
+                              </a>
+                            </div>
+                            <div className="mt-2 text-xs text-[var(--muted)]">Pré-visualização indisponível para este tipo.</div>
+                          </div>
                         ) : id ? (
                           <button
                             type="button"
