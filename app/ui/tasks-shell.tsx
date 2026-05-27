@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
 
 type Department = "fiscal" | "contabil" | "pessoal" | "societario_paralegal" | "administrativo";
+type DepartmentFilter = Department | "all";
 type TaskStatus = "to_do" | "in_progress" | "blocked" | "done";
 type TaskPriority = "low" | "normal" | "high" | "urgent";
 
@@ -116,6 +117,32 @@ function formatTime(iso: string) {
   return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+function formatDateOnly(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function startOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+}
+
+function addMonths(d: Date, delta: number) {
+  const copy = new Date(d.getTime());
+  copy.setMonth(copy.getMonth() + delta);
+  return copy;
+}
+
+function sameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function dayKeyLocal(d: Date) {
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function renderWithMentions(text: string) {
   const parts: Array<{ t: string; mention?: boolean }> = [];
   const re = /@([a-z0-9_]+)/gi;
@@ -154,7 +181,7 @@ export default function TasksShell() {
   const [me, setMe] = useState<Agent | null>(null);
 
   const [q, setQ] = useState("");
-  const [department, setDepartment] = useState<Department>("fiscal");
+  const [department, setDepartment] = useState<DepartmentFilter>("fiscal");
   const [status, setStatus] = useState<TaskStatus | "all">("all");
   const [assignee, setAssignee] = useState<"all" | "vanderlei" | "gustavo">("all");
   const [tasks, setTasks] = useState<TaskListItem[]>([]);
@@ -183,6 +210,15 @@ export default function TasksShell() {
   const [creatingView, setCreatingView] = useState(false);
   const [newViewName, setNewViewName] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [boardDraggingTaskId, setBoardDraggingTaskId] = useState<string | null>(null);
+  const [calendarAnchor, setCalendarAnchor] = useState<Date>(() => new Date());
+  const [openDepartments, setOpenDepartments] = useState<Record<Department, boolean>>({
+    fiscal: true,
+    contabil: true,
+    pessoal: true,
+    societario_paralegal: true,
+    administrativo: true,
+  });
 
   // create task
   const [creating, setCreating] = useState(false);
@@ -274,7 +310,7 @@ export default function TasksShell() {
 
   async function loadSavedViews() {
     const url = new URL("/api/task-views", window.location.origin);
-    url.searchParams.set("department", department);
+    if (department !== "all") url.searchParams.set("department", department);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return;
     const data = (await res.json()) as { items: SavedView[] };
@@ -283,7 +319,7 @@ export default function TasksShell() {
 
   async function loadTasks() {
     const url = new URL("/api/tasks", window.location.origin);
-    url.searchParams.set("department", department);
+    if (department !== "all") url.searchParams.set("department", department);
     if (q.trim()) url.searchParams.set("q", q.trim());
     if (status !== "all") url.searchParams.set("status", status);
     if (assignee !== "all") url.searchParams.set("assigneeAgentId", assignee);
@@ -497,7 +533,7 @@ export default function TasksShell() {
 
   useEffect(() => {
     void loadTasks();
-    setNewDepartment(department);
+    if (department !== "all") setNewDepartment(department);
     void loadSavedViews();
     setDashboardDepartment("all");
     void loadReports();
@@ -657,9 +693,10 @@ export default function TasksShell() {
             <div className="grid grid-cols-2 gap-2">
               <select
                 value={department}
-                onChange={(e) => setDepartment(e.target.value as Department)}
+                onChange={(e) => setDepartment(e.target.value as DepartmentFilter)}
                 className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
               >
+                <option value="all">Geral</option>
                 <option value="fiscal">Fiscal</option>
                 <option value="contabil">Contábil</option>
                 <option value="pessoal">Pessoal</option>
@@ -768,94 +805,288 @@ export default function TasksShell() {
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {viewType === "board" ? (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                {(["to_do", "in_progress", "blocked", "done"] as TaskStatus[]).map((s) => (
-                  <div key={s} className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
-                    <div className="text-sm font-semibold">{statusLabel(s)}</div>
-                    <div className="mt-3 space-y-2">
-                      {tasks
-                        .filter((t) => t.status === s)
-                        .slice(0, 50)
-                        .map((t) => (
-                          <button
+                {(["to_do", "in_progress", "blocked", "done"] as TaskStatus[]).map((s) => {
+                  const columnTasks = tasks.filter((t) => t.status === s).slice(0, 200);
+                  return (
+                    <div
+                      key={s}
+                      className={[
+                        "rounded-3xl ring-1 p-4 min-h-[220px] transition",
+                        boardDraggingTaskId ? "bg-[color-mix(in_srgb,var(--primary)_6%,transparent)] ring-[color-mix(in_srgb,var(--primary)_20%,var(--border))]" : "bg-white/5 ring-white/10",
+                      ].join(" ")}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const id = e.dataTransfer.getData("text/taskId") || boardDraggingTaskId;
+                        if (!id) return;
+                        const task = tasks.find((t) => t.id === id);
+                        if (!task || task.status === s) return;
+                        setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: s } : t)));
+                        void (async () => {
+                          try {
+                            await patchTask(id, { status: s });
+                            await refreshTask(id);
+                          } catch (err) {
+                            setToast(err instanceof Error ? err.message : "Falha ao mover tarefa");
+                            await loadTasks();
+                          }
+                        })();
+                        setBoardDraggingTaskId(null);
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold">{statusLabel(s)}</div>
+                        <div className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">{columnTasks.length}</div>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {columnTasks.map((t) => (
+                          <div
                             key={t.id}
-                            type="button"
-                            onClick={() => setSelectedTaskId(t.id)}
-                            className="w-full text-left rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData("text/taskId", t.id);
+                              setBoardDraggingTaskId(t.id);
+                            }}
+                            onDragEnd={() => setBoardDraggingTaskId(null)}
+                            className={[
+                              "w-full text-left rounded-2xl bg-[color-mix(in_srgb,var(--background)_70%,black)] ring-1 ring-white/10 px-3 py-2 hover:bg-white/8 cursor-grab active:cursor-grabbing",
+                              t.id === selectedTaskId ? "ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]" : "",
+                            ].join(" ")}
                           >
-                            <div className="text-sm font-medium truncate">{t.title}</div>
-                            <div className="mt-1 text-xs text-[var(--muted)] truncate">
-                              {t.client ? t.client.name : "Sem cliente"} • {priorityLabel(t.priority)}
-                            </div>
-                          </button>
+                            <button type="button" onClick={() => setSelectedTaskId(t.id)} className="w-full text-left">
+                              <div className="text-sm font-medium truncate">
+                                <span className="text-[var(--muted)] mr-2">#{t.taskNumber}</span>
+                                {t.title}
+                              </div>
+                              <div className="mt-1 text-xs text-[var(--muted)] truncate">
+                                {t.taskType ? `${t.taskType.name} • ` : ""}
+                                {t.client ? t.client.name : "Sem cliente"} • {priorityLabel(t.priority)}
+                                {t.assignee ? ` • ${t.assignee.name}` : ""}
+                                {t.dueAt ? ` • ${formatDateOnly(t.dueAt)}` : ""}
+                              </div>
+                            </button>
+                          </div>
                         ))}
-                      {tasks.filter((t) => t.status === s).length === 0 ? (
-                        <div className="text-xs text-[var(--muted)]">Sem tarefas.</div>
-                      ) : null}
+                        {columnTasks.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem tarefas.</div> : null}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : null}
 
             {viewType === "calendar" ? (
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-                <div className="text-sm font-semibold">Calendário (por prazo)</div>
-                <div className="mt-3 space-y-2">
-                  {tasks
-                    .filter((t) => t.dueAt)
-                    .slice()
-                    .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime())
-                    .map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => setSelectedTaskId(t.id)}
-                        className="w-full text-left rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm font-medium truncate">{t.title}</div>
-                          <div className="text-xs text-[var(--muted)] shrink-0">{formatTime(t.dueAt!)}</div>
-                        </div>
-                        <div className="mt-1 text-xs text-[var(--muted)] truncate">
-                          {statusLabel(t.status)} • {t.client ? t.client.name : "Sem cliente"} • {priorityLabel(t.priority)}
-                        </div>
-                      </button>
-                    ))}
-                  {tasks.filter((t) => t.dueAt).length === 0 ? (
-                    <div className="text-xs text-[var(--muted)]">Nenhuma tarefa com prazo.</div>
-                  ) : null}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">Calendário</div>
+                    <div className="text-xs text-[var(--muted)]">Arraste no quadro para mudar status; aqui você se organiza por prazo.</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCalendarAnchor(new Date())}
+                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                    >
+                      Hoje
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarAnchor((d) => addMonths(d, -1))}
+                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                    >
+                      ←
+                    </button>
+                    <div className="text-sm font-semibold min-w-[140px] text-center">
+                      {startOfMonth(calendarAnchor).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarAnchor((d) => addMonths(d, 1))}
+                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                    >
+                      →
+                    </button>
+                  </div>
                 </div>
+
+                {(() => {
+                  const monthStart = startOfMonth(calendarAnchor);
+                  const gridStart = new Date(monthStart.getTime());
+                  gridStart.setDate(gridStart.getDate() - gridStart.getDay()); // Sunday
+                  const days: Date[] = [];
+                  for (let i = 0; i < 42; i += 1) {
+                    const d = new Date(gridStart.getTime());
+                    d.setDate(gridStart.getDate() + i);
+                    days.push(d);
+                  }
+                  const byDay = new Map<string, TaskListItem[]>();
+                  for (const t of tasks) {
+                    if (!t.dueAt) continue;
+                    const d = new Date(t.dueAt);
+                    const key = dayKeyLocal(d);
+                    const prev = byDay.get(key) ?? [];
+                    prev.push(t);
+                    byDay.set(key, prev);
+                  }
+                  for (const [, list] of byDay) list.sort((a, b) => (a.priority > b.priority ? -1 : 1));
+                  const today = new Date();
+                  const dayNames = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+                  const noDue = tasks.filter((t) => !t.dueAt).slice(0, 30);
+                  return (
+                    <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr,320px] gap-4">
+                      <div>
+                        <div className="grid grid-cols-7 gap-2 text-xs text-[var(--muted)] px-1">
+                          {dayNames.map((n) => (
+                            <div key={n} className="text-center uppercase tracking-wide">
+                              {n}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-2 grid grid-cols-7 gap-2">
+                          {days.map((d) => {
+                            const inMonth = d.getMonth() === monthStart.getMonth();
+                            const key = dayKeyLocal(d);
+                            const list = byDay.get(key) ?? [];
+                            const isToday = sameDay(d, today);
+                            return (
+                              <div
+                                key={key}
+                                className={[
+                                  "rounded-3xl ring-1 p-2 min-h-[108px] overflow-hidden",
+                                  inMonth ? "bg-white/5 ring-white/10" : "bg-white/3 ring-white/5 opacity-70",
+                                  isToday ? "ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]" : "",
+                                ].join(" ")}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className={["text-xs font-semibold", isToday ? "text-white" : "text-[var(--muted)]"].join(" ")}>
+                                    {d.getDate()}
+                                  </div>
+                                  <div className="text-[10px] text-[var(--muted)]">{list.length ? list.length : ""}</div>
+                                </div>
+                                <div className="mt-2 space-y-1">
+                                  {list.slice(0, 4).map((t) => (
+                                    <button
+                                      key={t.id}
+                                      type="button"
+                                      onClick={() => setSelectedTaskId(t.id)}
+                                      className={[
+                                        "w-full text-left rounded-2xl px-2 py-1 text-xs ring-1 hover:bg-white/8",
+                                        t.id === selectedTaskId
+                                          ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
+                                          : "bg-white/5 ring-white/10",
+                                      ].join(" ")}
+                                    >
+                                      <div className="truncate">
+                                        <span className="text-[var(--muted)] mr-1">#{t.taskNumber}</span>
+                                        {t.title}
+                                      </div>
+                                    </button>
+                                  ))}
+                                  {list.length > 4 ? <div className="text-[10px] text-[var(--muted)] px-1">+{list.length - 4}…</div> : null}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                        <div className="text-sm font-semibold">Sem prazo</div>
+                        <div className="mt-3 space-y-2">
+                          {noDue.map((t) => (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => setSelectedTaskId(t.id)}
+                              className="w-full text-left rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
+                            >
+                              <div className="text-sm font-medium truncate">
+                                <span className="text-[var(--muted)] mr-2">#{t.taskNumber}</span>
+                                {t.title}
+                              </div>
+                              <div className="mt-1 text-xs text-[var(--muted)] truncate">
+                                {statusLabel(t.status)}
+                                {t.assignee ? ` • ${t.assignee.name}` : ""}
+                                {t.client ? ` • ${t.client.name}` : ""}
+                              </div>
+                            </button>
+                          ))}
+                          {noDue.length === 0 ? <div className="text-xs text-[var(--muted)]">Tudo agendado.</div> : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             ) : null}
 
             {viewType === "list" ? (
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-                <div className="text-sm font-semibold">Lista</div>
-                <div className="mt-3 space-y-2">
-                  {tasks.slice(0, 200).map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setSelectedTaskId(t.id)}
-                      className="w-full text-left rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-medium truncate">
-                          <span className="text-[var(--muted)] mr-2">#{t.taskNumber}</span>
-                          {t.title}
-                        </div>
-                        <div className="text-xs text-[var(--muted)] shrink-0">{priorityLabel(t.priority)}</div>
+                <div className="text-sm font-semibold">Lista • por departamento</div>
+                <div className="mt-4 space-y-4">
+                  {(["fiscal", "contabil", "pessoal", "societario_paralegal", "administrativo"] as Department[]).map((dept) => {
+                    const deptTasks = tasks.filter((t) => t.department === dept);
+                    const open = openDepartments[dept] ?? true;
+                    return (
+                      <div key={dept} className="rounded-3xl bg-white/3 ring-1 ring-white/10 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setOpenDepartments((p) => ({ ...p, [dept]: !open }))}
+                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/3"
+                        >
+                          <div className="text-sm font-semibold">
+                            {deptLabel(dept)}{" "}
+                            <span className="text-[10px] text-[var(--muted)] font-normal">({deptTasks.length})</span>
+                          </div>
+                          <div className="text-xs text-[var(--muted)]">{open ? "—" : "+"}</div>
+                        </button>
+                        {open ? (
+                          <div className="px-4 pb-4 overflow-x-auto">
+                            <div className="min-w-[980px]">
+                              <div className="grid grid-cols-[140px,1fr,150px,160px,140px,120px,220px,220px] gap-2 text-[10px] uppercase tracking-wide text-[var(--muted)] px-2 py-2">
+                                <div>Protocolo</div>
+                                <div>Tarefa</div>
+                                <div>Status</div>
+                                <div>Responsável</div>
+                                <div>Vencimento</div>
+                                <div>Prioridade</div>
+                                <div>Cliente</div>
+                                <div>Tipo</div>
+                              </div>
+                              <div className="space-y-1">
+                                {deptTasks.slice(0, 400).map((t) => (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => setSelectedTaskId(t.id)}
+                                    className={[
+                                      "w-full grid grid-cols-[140px,1fr,150px,160px,140px,120px,220px,220px] gap-2 text-left rounded-2xl px-2 py-2 ring-1 hover:bg-white/8",
+                                      t.id === selectedTaskId
+                                        ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
+                                        : "bg-white/5 ring-white/10",
+                                    ].join(" ")}
+                                  >
+                                    <div className="text-xs text-[var(--muted)]">#{t.taskNumber}</div>
+                                    <div className="text-sm font-medium truncate">{t.title}</div>
+                                    <div className="text-xs text-[var(--muted)]">{statusLabel(t.status)}</div>
+                                    <div className="text-xs text-[var(--muted)]">{t.assignee ? t.assignee.name : "—"}</div>
+                                    <div className="text-xs text-[var(--muted)]">{t.dueAt ? formatDateOnly(t.dueAt) : "—"}</div>
+                                    <div className="text-xs text-[var(--muted)]">{priorityLabel(t.priority)}</div>
+                                    <div className="text-xs text-[var(--muted)] truncate">{t.client ? t.client.name : "—"}</div>
+                                    <div className="text-xs text-[var(--muted)] truncate">{t.taskType ? t.taskType.name : "—"}</div>
+                                  </button>
+                                ))}
+                                {deptTasks.length === 0 ? <div className="text-xs text-[var(--muted)] px-2 py-3">Sem tarefas.</div> : null}
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
-                      <div className="mt-1 text-xs text-[var(--muted)] truncate">
-                        {t.taskType ? `${t.taskType.name} • ` : ""}
-                        {deptLabel(t.department)} • {statusLabel(t.status)}
-                        {t.assignee ? ` • ${t.assignee.name}` : " • Sem responsável"}
-                        {t.client ? ` • ${t.client.name}` : ""}
-                        {t.dueAt ? ` • ${formatTime(t.dueAt)}` : ""}
-                      </div>
-                    </button>
-                  ))}
-                  {tasks.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem tarefas.</div> : null}
+                    );
+                  })}
                 </div>
               </div>
             ) : null}
