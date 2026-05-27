@@ -202,6 +202,207 @@ export default function TasksShell() {
   const [commentSending, setCommentSending] = useState(false);
   const [commentFiles, setCommentFiles] = useState<File[]>([]);
 
+  function renderInlineDetails() {
+    if (!details) return <div className="text-sm text-[var(--muted)]">Selecione uma tarefa na lista.</div>;
+    return (
+      <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-lg font-semibold truncate">
+              <span className="text-[var(--muted)] mr-2">#{details.taskNumber}</span>
+              {details.title}
+            </div>
+            <div className="mt-1 text-xs text-[var(--muted)]">
+              Criado em {formatTime(details.createdAt)}
+              {details.createdBy ? ` • por ${details.createdBy.name}` : ""}
+            </div>
+            {details.taskType ? (
+              <div className="mt-2 inline-flex items-center gap-2 text-xs rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-1">
+                Tipo: <span className="text-[var(--foreground)] font-medium">{details.taskType.name}</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {details.description ? <div className="text-sm whitespace-pre-wrap">{details.description}</div> : null}
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <select
+            value={details.taskType?.id ?? ""}
+            disabled={me?.agentId !== "vanderlei"}
+            onChange={(e) => {
+              const v = e.target.value || null;
+              void (async () => {
+                try {
+                  await patchTask(details.id, { taskTypeId: v });
+                  await refreshTask(details.id);
+                } catch (err) {
+                  setToast(err instanceof Error ? err.message : "Falha ao atualizar");
+                }
+              })();
+            }}
+            className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none disabled:opacity-60"
+            title={me?.agentId === "vanderlei" ? "Tipo de tarefa" : "Somente Vanderlei pode alterar"}
+          >
+            <option value="">Sem tipo</option>
+            {taskTypes.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={details.status}
+            onChange={(e) => {
+              const v = e.target.value as TaskStatus;
+              void (async () => {
+                try {
+                  await patchTask(details.id, { status: v });
+                  await refreshTask(details.id);
+                } catch (err) {
+                  setToast(err instanceof Error ? err.message : "Falha ao atualizar");
+                }
+              })();
+            }}
+            className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+          >
+            <option value="to_do">A Fazer</option>
+            <option value="in_progress">Em Andamento</option>
+            <option value="blocked">Bloqueado</option>
+            <option value="done">Concluído</option>
+          </select>
+
+          <select
+            value={details.assignee?.agentId ?? "none"}
+            disabled={me?.agentId !== "vanderlei"}
+            onChange={(e) => {
+              const v = e.target.value;
+              void (async () => {
+                try {
+                  await patchTask(details.id, { assigneeAgentId: v === "none" ? null : v });
+                  await refreshTask(details.id);
+                } catch (err) {
+                  setToast(err instanceof Error ? err.message : "Falha ao atualizar");
+                }
+              })();
+            }}
+            className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none disabled:opacity-60"
+            title={me?.agentId === "vanderlei" ? "Responsável" : "Somente Vanderlei pode alterar"}
+          >
+            <option value="none">Sem responsável</option>
+            <option value="vanderlei">Vanderlei</option>
+            <option value="gustavo">Gustavo</option>
+          </select>
+
+          <select
+            value={details.priority}
+            onChange={(e) => {
+              const v = e.target.value as TaskPriority;
+              void (async () => {
+                try {
+                  await patchTask(details.id, { priority: v });
+                  await refreshTask(details.id);
+                } catch (err) {
+                  setToast(err instanceof Error ? err.message : "Falha ao atualizar");
+                }
+              })();
+            }}
+            className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+          >
+            <option value="low">Baixa</option>
+            <option value="normal">Normal</option>
+            <option value="high">Alta</option>
+            <option value="urgent">Urgente</option>
+          </select>
+
+          <select
+            value={details.department}
+            onChange={(e) => {
+              const v = e.target.value as Department;
+              void (async () => {
+                try {
+                  await patchTask(details.id, { department: v });
+                  await refreshTask(details.id);
+                } catch (err) {
+                  setToast(err instanceof Error ? err.message : "Falha ao atualizar");
+                }
+              })();
+            }}
+            className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+          >
+            <option value="fiscal">Fiscal</option>
+            <option value="contabil">Contábil</option>
+            <option value="pessoal">Pessoal</option>
+            <option value="societario_paralegal">Societário</option>
+            <option value="administrativo">Administrativo</option>
+          </select>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+            <div className="text-sm font-semibold">Comentários</div>
+            <div className="mt-3 space-y-3">
+              {comments.map((c) => (
+                <div key={c.id} className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs font-semibold">{c.authorName}</div>
+                    <div className="text-[10px] text-[var(--muted)]">{formatTime(c.createdAt)}</div>
+                  </div>
+                  <div className="mt-1 text-sm whitespace-pre-wrap">{renderWithMentions(c.body)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold">Arquivos</div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length === 0) return;
+                  void (async () => {
+                    try {
+                      await uploadAttachments(details.id, files.slice(0, 5));
+                      await refreshTask(details.id);
+                    } catch (err) {
+                      setToast(err instanceof Error ? err.message : "Falha ao enviar arquivo");
+                    } finally {
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }
+                  })();
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+              >
+                Enviar
+              </button>
+            </div>
+            <div className="mt-3 space-y-2">
+              {attachments.map((a) => (
+                <a
+                  key={a.id}
+                  href={`/api/tasks/attachments/download?id=${encodeURIComponent(a.id)}`}
+                  className="block text-sm rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
+                >
+                  {a.filename}
+                </a>
+              ))}
+              {attachments.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem anexos.</div> : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
@@ -944,7 +1145,7 @@ export default function TasksShell() {
             ) : null}
 
             {viewType === "list" ? (
-              <div className="grid grid-cols-1 xl:grid-cols-[420px,1fr] gap-4 items-start">
+              <div className="grid grid-cols-1 gap-4 items-start">
                 <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
                   <div className="text-sm font-semibold">Lista • por departamento</div>
                 <div className="mt-4 space-y-4">
@@ -967,40 +1168,50 @@ export default function TasksShell() {
                         {open ? (
                           <div className="px-4 pb-4">
                             <div className="space-y-2">
-                              {deptTasks.slice(0, 250).map((t) => (
-                                <button
-                                  key={t.id}
-                                  type="button"
-                                  onClick={() => setSelectedTaskId(t.id)}
-                                  className={[
-                                    "w-full text-left rounded-2xl px-4 py-3 ring-1 hover:bg-white/8",
-                                    t.id === selectedTaskId
-                                      ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
-                                      : "bg-white/5 ring-white/10",
-                                  ].join(" ")}
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                      <div className="text-sm font-semibold truncate">
-                                        <span className="text-[var(--muted)] mr-2">#{t.taskNumber}</span>
-                                        {t.title}
+                              {deptTasks.slice(0, 250).map((t) => {
+                                const selected = t.id === selectedTaskId;
+                                return (
+                                  <div key={t.id} className="space-y-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedTaskId(selected ? null : t.id)}
+                                      className={[
+                                        "w-full text-left rounded-2xl px-4 py-3 ring-1 hover:bg-white/8",
+                                        selected
+                                          ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
+                                          : "bg-white/5 ring-white/10",
+                                      ].join(" ")}
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <div className="text-sm font-semibold truncate">
+                                            <span className="text-[var(--muted)] mr-2">#{t.taskNumber}</span>
+                                            {t.title}
+                                          </div>
+                                          <div className="mt-1 text-xs text-[var(--muted)] truncate">
+                                            {statusLabel(t.status)}
+                                            {t.assignee ? ` • ${t.assignee.name}` : " • Sem responsável"}
+                                            {t.client ? ` • ${t.client.name}` : ""}
+                                          </div>
+                                          <div className="mt-1 text-xs text-[var(--muted)] truncate">
+                                            {t.taskType ? `${t.taskType.name} • ` : ""}
+                                            {t.dueAt ? `Vence ${formatDateOnly(t.dueAt)}` : "Sem prazo"}
+                                          </div>
+                                        </div>
+                                        <div className="shrink-0 text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">
+                                          {priorityLabel(t.priority)}
+                                        </div>
                                       </div>
-                                      <div className="mt-1 text-xs text-[var(--muted)] truncate">
-                                        {statusLabel(t.status)}
-                                        {t.assignee ? ` • ${t.assignee.name}` : " • Sem responsável"}
-                                        {t.client ? ` • ${t.client.name}` : ""}
+                                    </button>
+
+                                    {selected && details?.id === t.id ? (
+                                      <div className="pl-3 pr-0">
+                                        {renderInlineDetails()}
                                       </div>
-                                      <div className="mt-1 text-xs text-[var(--muted)] truncate">
-                                        {t.taskType ? `${t.taskType.name} • ` : ""}
-                                        {t.dueAt ? `Vence ${formatDateOnly(t.dueAt)}` : "Sem prazo"}
-                                      </div>
-                                    </div>
-                                    <div className="shrink-0 text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">
-                                      {priorityLabel(t.priority)}
-                                    </div>
+                                    ) : null}
                                   </div>
-                                </button>
-                              ))}
+                                );
+                              })}
                               {deptTasks.length === 0 ? <div className="text-xs text-[var(--muted)] px-2 py-3">Sem tarefas.</div> : null}
                             </div>
                           </div>
@@ -1010,7 +1221,7 @@ export default function TasksShell() {
                   })}
                 </div>
                 </div>
-                <div className="space-y-6">
+                <div className="hidden">
                 {showCreateForm ? (
                   <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
                     <div className="flex items-center justify-between gap-3">
