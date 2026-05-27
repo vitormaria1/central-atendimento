@@ -349,8 +349,109 @@ export default function TasksShell() {
                     <div className="text-[10px] text-[var(--muted)]">{formatTime(c.createdAt)}</div>
                   </div>
                   <div className="mt-1 text-sm whitespace-pre-wrap">{renderWithMentions(c.body)}</div>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {(reactionsByCommentId[c.id] ?? []).map((r) => (
+                      <button
+                        key={r.emoji}
+                        type="button"
+                        onClick={() => void toggleReaction(c.id, r.emoji, r.mine)}
+                        className={[
+                          "text-xs rounded-full px-3 py-1 ring-1 transition",
+                          r.mine
+                            ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
+                            : "bg-white/5 ring-white/10 hover:bg-white/8",
+                        ].join(" ")}
+                      >
+                        {r.emoji} {r.count}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void loadReactions(c.id);
+                      }}
+                      className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
+                    >
+                      Atualizar reações
+                    </button>
+                    {["👍", "✅", "🔥"].map((e) => (
+                      <button
+                        key={e}
+                        type="button"
+                        onClick={() =>
+                          void toggleReaction(
+                            c.id,
+                            e,
+                            Boolean((reactionsByCommentId[c.id] ?? []).find((x) => x.emoji === e)?.mine),
+                          )
+                        }
+                        className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ))}
+
+              <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
+                <textarea
+                  value={commentBody}
+                  onChange={(e) => setCommentBody(e.target.value)}
+                  rows={3}
+                  placeholder="Escreva um comentário... (use @vanderlei / @gustavo)"
+                  className="w-full resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
+                />
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <label className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8 cursor-pointer">
+                    Anexar
+                    <input
+                      ref={commentFileRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? []);
+                        setCommentFiles(files.slice(0, 5));
+                      }}
+                    />
+                  </label>
+                  <div className="text-xs text-[var(--muted)] truncate">
+                    {commentFiles.length > 0 ? commentFiles.map((f) => f.name).join(", ") : "Até 5 arquivos"}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={commentSending || commentBody.trim().length === 0}
+                    onClick={() => {
+                      void (async () => {
+                        setCommentSending(true);
+                        try {
+                          await addComment(details.id, commentBody.trim());
+                          setCommentBody("");
+                          await refreshTask(details.id);
+                          // upload after comment exists: fetch latest to get last id
+                          if (commentFiles.length > 0) {
+                            const latest = await fetch(`/api/tasks/${encodeURIComponent(details.id)}/comments`, { cache: "no-store" });
+                            const latestData = (await latest.json()) as { items: CommentItem[] };
+                            const last = latestData.items[latestData.items.length - 1];
+                            if (last?.id) await uploadCommentAttachments(last.id, commentFiles);
+                            setCommentFiles([]);
+                          }
+                          await refreshTask(details.id);
+                        } catch (err) {
+                          setToast(err instanceof Error ? err.message : "Falha ao comentar");
+                        } finally {
+                          setCommentSending(false);
+                        }
+                      })();
+                    }}
+                    className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  >
+                    {commentSending ? "Enviando..." : "Comentar"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
