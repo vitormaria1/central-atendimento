@@ -379,7 +379,7 @@ export default function AppShell() {
   }, []);
 
   const openConversationForNumber = useCallback(
-    async (phoneRaw: string) => {
+    async (phoneRaw: string, displayName?: string) => {
       const phone = (phoneRaw ?? "").trim();
       if (!phone) {
         setToast("Contato sem número.");
@@ -398,17 +398,32 @@ export default function AppShell() {
         }
         const data = (await res.json()) as { items: ChatListItem[] };
         const found = (data.items ?? []).find((c) => !c.isGroup) ?? (data.items ?? [])[0];
-        if (!found?.chatId) {
-          setToast("Não encontrei um chat para esse número.");
+
+        if (found?.chatId) {
+          setChats((prev) => {
+            const map = new Map<string, ChatListItem>();
+            for (const c of prev) map.set(c.chatId, c);
+            for (const c of data.items ?? []) map.set(c.chatId, c);
+            return Array.from(map.values());
+          });
+          setSelectedChatId(found.chatId);
+          setToast(null);
           return;
         }
-        setChats((prev) => {
-          const map = new Map<string, ChatListItem>();
-          for (const c of prev) map.set(c.chatId, c);
-          for (const c of data.items ?? []) map.set(c.chatId, c);
-          return Array.from(map.values());
-        });
-        setSelectedChatId(found.chatId);
+
+        // Ainda não existe conversa: cria uma “conversa nova” local.
+        const provisional: ChatListItem = {
+          chatId: q,
+          name: (displayName ?? "").trim() || q,
+          avatarUrl: "",
+          isGroup: false,
+          unreadCount: 0,
+          lastMsgTimestamp: null,
+          lastMessageText: "",
+          state: null,
+        };
+        setChats((prev) => [provisional, ...prev.filter((c) => c.chatId !== provisional.chatId)]);
+        setSelectedChatId(provisional.chatId);
         setToast(null);
       } catch (err) {
         setToast(err instanceof Error ? err.message : "Falha ao iniciar conversa");
@@ -1071,7 +1086,7 @@ export default function AppShell() {
                                 type="button"
                                 className="px-4 py-3 text-sm text-[color-mix(in_srgb,var(--accent)_75%,white)] hover:bg-white/5 border-l border-white/10"
                                 onClick={() => {
-                                  void openConversationForNumber(contact.phones[0] ?? "");
+                                  void openConversationForNumber(contact.phones[0] ?? "", contact.name);
                                 }}
                               >
                                 Conversar
