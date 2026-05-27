@@ -90,6 +90,118 @@ function isPdfLike(mimetype?: string, mediaUrl?: string | null) {
   return ext === "pdf";
 }
 
+type ParsedContact = {
+  caption?: string;
+  name: string;
+  subtitle?: string;
+  phones: string[];
+  vcard: string;
+};
+
+function normalizePhone(input: string) {
+  const s = input.trim();
+  if (!s) return "";
+  const cleaned = s.replace(/[^\d+]/g, (m) => (m === "+" ? "+" : ""));
+  return cleaned && cleaned !== "+" ? cleaned : s;
+}
+
+function parseVcard(vcard: string) {
+  const lines = vcard
+    .split(/\r?\n/g)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  let name = "";
+  let org = "";
+  const phones: string[] = [];
+
+  for (const raw of lines) {
+    const line = raw.replace(/^item\d+\./i, "");
+    const up = line.toUpperCase();
+    if (up.startsWith("FN:")) name = line.slice(3).trim();
+    if (up.startsWith("ORG:")) org = line.slice(4).trim();
+    if (up.startsWith("N:") && !name) {
+      const parts = line.slice(2).split(";");
+      const n = [parts[1], parts[0]].filter(Boolean).join(" ").trim();
+      if (n) name = n;
+    }
+    if (up.startsWith("TEL") || up.startsWith("PHONE:")) {
+      const idx = line.indexOf(":");
+      const val = idx >= 0 ? line.slice(idx + 1).trim() : "";
+      const phone = normalizePhone(val);
+      if (phone) phones.push(phone);
+    }
+  }
+
+  return { name: name || org || "Contato", org: org || undefined, phones };
+}
+
+function buildVcard(name: string, phones: string[]) {
+  const telLines = phones
+    .filter(Boolean)
+    .slice(0, 4)
+    .map((p) => `TEL;TYPE=CELL:${p}`)
+    .join("\n");
+  return `BEGIN:VCARD\nVERSION:3.0\nFN:${name}\n${telLines}\nEND:VCARD\n`;
+}
+
+function parseContactFromText(text: string): ParsedContact | null {
+  const t = (text ?? "").trim();
+  if (!t) return null;
+
+  const beginIdx = t.toUpperCase().indexOf("BEGIN:VCARD");
+  const endIdx = t.toUpperCase().indexOf("END:VCARD");
+
+  let caption = "";
+  let vcard = "";
+  let name = "";
+  let subtitle: string | undefined;
+  let phones: string[] = [];
+
+  if (beginIdx >= 0 && endIdx >= 0 && endIdx > beginIdx) {
+    caption = t.slice(0, beginIdx).trim();
+    vcard = t.slice(beginIdx, endIdx + "END:VCARD".length).trim();
+    const parsed = parseVcard(vcard);
+    name = parsed.name;
+    phones = parsed.phones;
+    subtitle = parsed.org;
+  } else {
+    const lines = t
+      .split(/\r?\n/g)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    const useful = lines.filter((l) => !/^x-wa-/i.test(l));
+    const phoneLines = useful.filter((l) => /^(phone|tel)\s*:/i.test(l) || /\+?\d[\d\s().-]{6,}\d/.test(l));
+    phones = phoneLines
+      .map((l) => {
+        const m = l.match(/(\+?\d[\d\s().-]{6,}\d)/);
+        return m ? normalizePhone(m[1]) : "";
+      })
+      .filter(Boolean);
+
+    const candidates = useful.filter((l) => !/^(phone|tel)\s*:/i.test(l));
+    caption = candidates.find((l) => l.endsWith(":")) ?? "";
+    name =
+      candidates.find((l) => !l.endsWith(":") && !/^\w+:\s*\+?\d/.test(l)) ??
+      candidates.find((l) => !l.endsWith(":")) ??
+      "Contato";
+
+    subtitle = lines.some((l) => /^x-wa-biz-name:/i.test(l)) ? "Conta comercial" : undefined;
+    vcard = buildVcard(name, phones);
+  }
+
+  const cleanCaption = caption.replace(/\s+/g, " ").trim();
+  const cleanName = name.replace(/\s+/g, " ").trim();
+  return {
+    caption: cleanCaption || undefined,
+    name: cleanName || "Contato",
+    subtitle,
+    phones: Array.from(new Set(phones)).slice(0, 4),
+    vcard,
+  };
+}
+
 function playNotifySound() {
   try {
     const AudioContextCtor =
@@ -849,11 +961,14 @@ export default function AppShell() {
             {messages.map((m, idx) => {
               const mine = Boolean(m.fromMe);
               const text = getMessageText(m);
+              const mtLower = (m.messageType ?? "").toLowerCase();
+              const maybeContact = mtLower.includes("contact") || mtLower.includes("vcard") || /BEGIN:VCARD/i.test(text) || /X-WA-BIZ-/i.test(text);
+              const contact = maybeContact ? parseContactFromText(text) : null;
               const id = m.messageid ?? m.id ?? "";
               const cached = id ? downloadByMessageId[id] : undefined;
               const mediaUrl = (id && cached?.fileURL) || m.fileURL || null;
               const mimetype = cached?.mimetype;
-              const showMedia = Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation");
+              const showMedia = !contact && (Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation"));
               const showAudioPlayer = showMedia && isAudioLike(m, mimetype);
               const showImage = showMedia && !showAudioPlayer && isImageLike(m, mimetype, mediaUrl);
               const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
@@ -875,7 +990,70 @@ export default function AppShell() {
                       {":"}
                     </div>
 
-                    {text.trim().length > 0 ? (
+                    {contact ? (
+                      <div className="mt-2">
+                        {contact.caption ? (
+                          <div className="text-sm whitespace-pre-wrap break-words">{contact.caption}</div>
+                        ) : null}
+
+                        <div className="mt-2 rounded-2xl bg-[color-mix(in_srgb,var(--background)_55%,black)] ring-1 ring-white/10 overflow-hidden">
+                          <div className="p-4 flex items-center gap-3">
+                            <div className="h-11 w-11 rounded-2xl bg-white/5 ring-1 ring-white/10 flex items-center justify-center text-sm shrink-0">
+                              {initialsFromName(contact.name)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold truncate text-[color-mix(in_srgb,var(--accent)_75%,white)]">
+                                {contact.name}
+                              </div>
+                              {contact.subtitle ? (
+                                <div className="text-xs text-[var(--muted)] truncate">{contact.subtitle}</div>
+                              ) : null}
+                              {contact.phones.length ? (
+                                <div className="mt-1 text-xs text-[var(--muted)] truncate">{contact.phones[0]}</div>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="border-t border-white/10">
+                            <div className="grid grid-cols-2">
+                              <button
+                                type="button"
+                                className="px-4 py-3 text-sm text-[color-mix(in_srgb,var(--accent)_75%,white)] hover:bg-white/5"
+                                onClick={() => {
+                                  const phone = contact.phones[0] ?? "";
+                                  if (!phone) return;
+                                  void navigator.clipboard.writeText(phone).catch(() => null);
+                                  setToast("Número copiado.");
+                                }}
+                              >
+                                Copiar número
+                              </button>
+                              <button
+                                type="button"
+                                className="px-4 py-3 text-sm text-[color-mix(in_srgb,var(--accent)_75%,white)] hover:bg-white/5 border-l border-white/10"
+                                onClick={() => {
+                                  try {
+                                    const blob = new Blob([contact.vcard], { type: "text/vcard;charset=utf-8" });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement("a");
+                                    a.href = url;
+                                    a.download = `${contact.name || "contato"}.vcf`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    a.remove();
+                                    URL.revokeObjectURL(url);
+                                  } catch {
+                                    setToast("Falha ao baixar contato.");
+                                  }
+                                }}
+                              >
+                                Baixar contato
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : text.trim().length > 0 ? (
                       <div className="mt-1 text-sm whitespace-pre-wrap break-words">{text}</div>
                     ) : null}
 
