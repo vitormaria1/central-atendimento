@@ -1044,43 +1044,43 @@ export default function TasksShell() {
                           <div className="text-xs text-[var(--muted)]">{open ? "—" : "+"}</div>
                         </button>
                         {open ? (
-                          <div className="px-4 pb-4 overflow-x-auto">
-                            <div className="min-w-[980px]">
-                              <div className="grid grid-cols-[140px,1fr,150px,160px,140px,120px,220px,220px] gap-2 text-[10px] uppercase tracking-wide text-[var(--muted)] px-2 py-2">
-                                <div>Protocolo</div>
-                                <div>Tarefa</div>
-                                <div>Status</div>
-                                <div>Responsável</div>
-                                <div>Vencimento</div>
-                                <div>Prioridade</div>
-                                <div>Cliente</div>
-                                <div>Tipo</div>
-                              </div>
-                              <div className="space-y-1">
-                                {deptTasks.slice(0, 400).map((t) => (
-                                  <button
-                                    key={t.id}
-                                    type="button"
-                                    onClick={() => setSelectedTaskId(t.id)}
-                                    className={[
-                                      "w-full grid grid-cols-[140px,1fr,150px,160px,140px,120px,220px,220px] gap-2 text-left rounded-2xl px-2 py-2 ring-1 hover:bg-white/8",
-                                      t.id === selectedTaskId
-                                        ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
-                                        : "bg-white/5 ring-white/10",
-                                    ].join(" ")}
-                                  >
-                                    <div className="text-xs text-[var(--muted)]">#{t.taskNumber}</div>
-                                    <div className="text-sm font-medium truncate">{t.title}</div>
-                                    <div className="text-xs text-[var(--muted)]">{statusLabel(t.status)}</div>
-                                    <div className="text-xs text-[var(--muted)]">{t.assignee ? t.assignee.name : "—"}</div>
-                                    <div className="text-xs text-[var(--muted)]">{t.dueAt ? formatDateOnly(t.dueAt) : "—"}</div>
-                                    <div className="text-xs text-[var(--muted)]">{priorityLabel(t.priority)}</div>
-                                    <div className="text-xs text-[var(--muted)] truncate">{t.client ? t.client.name : "—"}</div>
-                                    <div className="text-xs text-[var(--muted)] truncate">{t.taskType ? t.taskType.name : "—"}</div>
-                                  </button>
-                                ))}
-                                {deptTasks.length === 0 ? <div className="text-xs text-[var(--muted)] px-2 py-3">Sem tarefas.</div> : null}
-                              </div>
+                          <div className="px-4 pb-4">
+                            <div className="space-y-2">
+                              {deptTasks.slice(0, 250).map((t) => (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  onClick={() => setSelectedTaskId(t.id)}
+                                  className={[
+                                    "w-full text-left rounded-2xl px-4 py-3 ring-1 hover:bg-white/8",
+                                    t.id === selectedTaskId
+                                      ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
+                                      : "bg-white/5 ring-white/10",
+                                  ].join(" ")}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-semibold truncate">
+                                        <span className="text-[var(--muted)] mr-2">#{t.taskNumber}</span>
+                                        {t.title}
+                                      </div>
+                                      <div className="mt-1 text-xs text-[var(--muted)] truncate">
+                                        {statusLabel(t.status)}
+                                        {t.assignee ? ` • ${t.assignee.name}` : " • Sem responsável"}
+                                        {t.client ? ` • ${t.client.name}` : ""}
+                                      </div>
+                                      <div className="mt-1 text-xs text-[var(--muted)] truncate">
+                                        {t.taskType ? `${t.taskType.name} • ` : ""}
+                                        {t.dueAt ? `Vence ${formatDateOnly(t.dueAt)}` : "Sem prazo"}
+                                      </div>
+                                    </div>
+                                    <div className="shrink-0 text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">
+                                      {priorityLabel(t.priority)}
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                              {deptTasks.length === 0 ? <div className="text-xs text-[var(--muted)] px-2 py-3">Sem tarefas.</div> : null}
                             </div>
                           </div>
                         ) : null}
@@ -1208,7 +1208,7 @@ export default function TasksShell() {
               </div>
             ) : null}
 
-            {details ? (
+            {viewType === "list" && details ? (
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
@@ -1513,155 +1513,11 @@ export default function TasksShell() {
                   </div>
                 </div>
               </div>
-            ) : (
+            ) : viewType === "list" ? (
               <div className="text-sm text-[var(--muted)]">Selecione uma tarefa na lista.</div>
-            )}
-
-            {reports ? (
-              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold">
-                    Dashboard • {dashboardDepartment === "all" ? "Geral" : deptLabel(dashboardDepartment)}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs">
-                      <span className="text-[var(--muted)]">Período:</span>
-                      <input
-                        type="date"
-                        value={reportsFrom}
-                        onChange={(e) => setReportsFrom(e.target.value)}
-                        className="bg-transparent outline-none"
-                      />
-                      <span className="text-[var(--muted)]">até</span>
-                      <input
-                        type="date"
-                        value={reportsTo}
-                        onChange={(e) => setReportsTo(e.target.value)}
-                        className="bg-transparent outline-none"
-                      />
-                    </div>
-                    <select
-                      value={dashboardDepartment}
-                      onChange={(e) => setDashboardDepartment(e.target.value as typeof dashboardDepartment)}
-                      className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                    >
-                      <option value="all">Geral</option>
-                      <option value="fiscal">Fiscal</option>
-                      <option value="contabil">Contábil</option>
-                      <option value="pessoal">Pessoal</option>
-                      <option value="societario_paralegal">Societário/Paralegal</option>
-                      <option value="administrativo">Administrativo</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="rounded-3xl bg-[color-mix(in_srgb,var(--warning)_10%,var(--card))] ring-1 ring-[color-mix(in_srgb,var(--warning)_30%,var(--border))] p-4">
-                    <div className="text-xs text-[var(--muted)]">Atrasadas (SLA)</div>
-                    <div className="mt-1 text-2xl font-semibold">{reports.sla.overdueOpenTasks}</div>
-                  </div>
-                  <div className="rounded-3xl bg-[color-mix(in_srgb,var(--accent)_10%,var(--card))] ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,var(--border))] p-4">
-                    <div className="text-xs text-[var(--muted)]">Lead time médio (concluídas)</div>
-                    <div className="mt-1 text-2xl font-semibold">
-                      {reports.sla.avgLeadTimeHoursDone === null ? "—" : `${Math.round(reports.sla.avgLeadTimeHoursDone)}h`}
-                    </div>
-                  </div>
-                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
-                    <div className="text-xs text-[var(--muted)]">WIP por status</div>
-                    <div className="mt-2 space-y-1">
-                      {reports.wipByStatus.map((s) => (
-                        <div key={s.status} className="flex items-center justify-between text-sm">
-                          <div className="text-[var(--muted)]">{s.status}</div>
-                          <div>{s.count}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
-                    <div className="text-sm font-semibold">Carga por responsável</div>
-                    <div className="mt-3 space-y-2">
-                      {reports.workloadByAssignee.slice(0, 8).map((x) => (
-                        <div key={x.assigneeName} className="flex items-center justify-between text-sm">
-                          <div className="text-[var(--muted)]">{x.assigneeName}</div>
-                          <div>{x.count}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
-                    <div className="text-sm font-semibold">Tarefas por cliente</div>
-                    <div className="mt-3 space-y-2">
-                      {reports.tasksByClient.slice(0, 8).map((x) => (
-                        <div key={x.clientName} className="flex items-center justify-between text-sm">
-                          <div className="text-[var(--muted)] truncate">{x.clientName}</div>
-                          <div>{x.count}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
-                    <div className="text-sm font-semibold">Concluídas no período • por responsável</div>
-                    <div className="mt-3 space-y-2">
-                      {reports.completedByAssignee.slice(0, 8).map((x) => (
-                        <div key={x.assigneeName} className="flex items-center justify-between text-sm">
-                          <div className="text-[var(--muted)]">{x.assigneeName}</div>
-                          <div>{x.count}</div>
-                        </div>
-                      ))}
-                      {reports.completedByAssignee.length === 0 ? (
-                        <div className="text-xs text-[var(--muted)]">Sem tarefas concluídas no período.</div>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
-                    <div className="text-sm font-semibold">Concluídas no período • por tipo</div>
-                    <div className="mt-3 space-y-2">
-                      {(() => {
-                        const byType = new Map<string, { name: string; count: number }>();
-                        for (const r of reports.completedByAssigneeAndType) {
-                          const key = r.taskTypeId ?? "none";
-                          const prev = byType.get(key);
-                          byType.set(key, { name: r.taskTypeName, count: (prev?.count ?? 0) + r.count });
-                        }
-                        return Array.from(byType.entries())
-                          .map(([, v]) => v)
-                          .sort((a, b) => b.count - a.count)
-                          .slice(0, 8)
-                          .map((x) => (
-                            <div key={x.name} className="flex items-center justify-between text-sm">
-                              <div className="text-[var(--muted)] truncate">{x.name}</div>
-                              <div>{x.count}</div>
-                            </div>
-                          ));
-                      })()}
-                      {reports.completedByAssigneeAndType.length === 0 ? (
-                        <div className="text-xs text-[var(--muted)]">Sem dados.</div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
-                  <div className="text-sm font-semibold">Tarefas por tipo</div>
-                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {reports.tasksByType.slice(0, 12).map((x) => (
-                      <div key={`${x.taskTypeId ?? "none"}:${x.taskTypeName}`} className="flex items-center justify-between text-sm">
-                        <div className="text-[var(--muted)] truncate">{x.taskTypeName}</div>
-                        <div>{x.count}</div>
-                      </div>
-                    ))}
-                    {reports.tasksByType.length === 0 ? (
-                      <div className="text-xs text-[var(--muted)]">Sem dados.</div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
             ) : null}
+
+            {null}
           </div>
 
           {toast ? (
