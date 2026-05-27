@@ -85,7 +85,7 @@ export const GET = withApi(async (req: Request) => {
   const sql = `
     select
       t.id::text,
-      t.task_number::text as task_number,
+      lpad(t.task_number::text, 4, '0') || '/' || extract(year from t.created_at)::int::text as task_number,
       t.title,
       t.department::text,
       t.status::text,
