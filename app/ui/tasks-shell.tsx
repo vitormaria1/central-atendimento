@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
@@ -41,35 +41,6 @@ type CommentItem = { id: string; authorName: string; body: string; createdAt: st
 type AttachmentItem = { id: string; filename: string; mimetype: string | null; sizeBytes: number; createdAt: string };
 type ReactionSummary = { emoji: string; count: number; mine: boolean };
 type AuditItem = { id: string; actorName: string; eventType: string; data: unknown; createdAt: string };
-type ReportsData = {
-  wipByStatus: Array<{ status: string; count: number }>;
-  workloadByAssignee: Array<{ assigneeAgentId: string | null; assigneeName: string; count: number }>;
-  tasksByClient: Array<{ clientId: string | null; clientName: string; count: number }>;
-  tasksByType: Array<{ taskTypeId: string | null; taskTypeName: string; count: number }>;
-  completedByAssignee: Array<{ assigneeAgentId: string | null; assigneeName: string; count: number }>;
-  completedByAssigneeAndType: Array<{
-    assigneeAgentId: string | null;
-    assigneeName: string;
-    taskTypeId: string | null;
-    taskTypeName: string;
-    count: number;
-  }>;
-  sla: { overdueOpenTasks: number; avgLeadTimeHoursDone: number | null };
-};
-
-function isoDate(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
-
-function utcStartFromIsoDate(dateStr: string) {
-  return `${dateStr}T00:00:00.000Z`;
-}
-
-function utcNextDayStartFromIsoDate(dateStr: string) {
-  const d = new Date(`${dateStr}T00:00:00.000Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString();
-}
 
 function deptLabel(d: Department) {
   switch (d) {
@@ -186,21 +157,12 @@ export default function TasksShell() {
   const [assignee, setAssignee] = useState<"all" | "vanderlei" | "gustavo">("all");
   const [tasks, setTasks] = useState<TaskListItem[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const selectedTask = useMemo(() => tasks.find((t) => t.id === selectedTaskId) ?? null, [tasks, selectedTaskId]);
 
   const [details, setDetails] = useState<TaskDetails | null>(null);
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [audit, setAudit] = useState<AuditItem[]>([]);
-  const [reports, setReports] = useState<ReportsData | null>(null);
-  const [dashboardDepartment, setDashboardDepartment] = useState<"all" | Department>("all");
   const [reactionsByCommentId, setReactionsByCommentId] = useState<Record<string, ReactionSummary[]>>({});
-  const [reportsFrom, setReportsFrom] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return isoDate(d);
-  });
-  const [reportsTo, setReportsTo] = useState<string>(() => isoDate(new Date()));
 
   const [toast, setToast] = useState<string | null>(null);
 
@@ -443,17 +405,6 @@ export default function TasksShell() {
     setAudit(data.items);
   }
 
-  async function loadReports() {
-    const url = new URL("/api/reports/tasks", window.location.origin);
-    if (dashboardDepartment !== "all") url.searchParams.set("department", dashboardDepartment);
-    if (reportsFrom) url.searchParams.set("dateFrom", utcStartFromIsoDate(reportsFrom));
-    if (reportsTo) url.searchParams.set("dateTo", utcNextDayStartFromIsoDate(reportsTo));
-    const res = await fetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return;
-    const data = (await res.json()) as ReportsData;
-    setReports(data);
-  }
-
   async function loadReactions(commentId: string) {
     const res = await fetch(`/api/tasks/comments/${encodeURIComponent(commentId)}/reactions`, { cache: "no-store" });
     if (!res.ok) return;
@@ -535,15 +486,8 @@ export default function TasksShell() {
     void loadTasks();
     if (department !== "all") setNewDepartment(department);
     void loadSavedViews();
-    setDashboardDepartment("all");
-    void loadReports();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [department]);
-
-  useEffect(() => {
-    void loadReports();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dashboardDepartment, reportsFrom, reportsTo]);
 
   useEffect(() => {
     if (!selectedTaskId) {
@@ -744,43 +688,19 @@ export default function TasksShell() {
             </button>
           </div>
 
-          <div className="overflow-y-auto h-[calc(100vh-64px-176px)]">
-            {tasks.map((t) => {
-              const active = t.id === selectedTaskId;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setSelectedTaskId(t.id)}
-                  className={[
-                    "w-full text-left px-4 py-3 border-b border-[var(--border)] transition",
-                    active ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)]" : "hover:bg-white/3",
-                  ].join(" ")}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{t.title}</div>
-                      <div className="text-xs text-[var(--muted)] truncate">
-                        {deptLabel(t.department)} • {statusLabel(t.status)}
-                        {t.client ? ` • ${t.client.name}` : ""}
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">
-                      {priorityLabel(t.priority)}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          <div className="flex-1" />
         </aside>
 
         <main className="flex-1 flex flex-col min-w-0">
           <header className="h-16 border-b border-[var(--border)] px-6 flex items-center justify-between bg-[var(--background)]/80 backdrop-blur">
             <div className="min-w-0">
-              <div className="text-sm font-semibold truncate">{selectedTask ? selectedTask.title : "Selecione uma tarefa"}</div>
+              <div className="text-sm font-semibold truncate">
+                {viewType === "list" ? "Lista" : viewType === "board" ? "Quadro" : "Calendário"}
+              </div>
               <div className="text-xs text-[var(--muted)] truncate">
-                {selectedTask ? `${deptLabel(selectedTask.department)} • ${statusLabel(selectedTask.status)}` : "—"}
+                {department === "all" ? "Geral" : deptLabel(department)}
+                {assignee !== "all" ? ` • ${assignee === "vanderlei" ? "Vanderlei" : "Gustavo"}` : ""}
+                {status !== "all" ? ` • ${statusLabel(status)}` : ""}
               </div>
             </div>
 
@@ -1024,8 +944,9 @@ export default function TasksShell() {
             ) : null}
 
             {viewType === "list" ? (
-              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-                <div className="text-sm font-semibold">Lista • por departamento</div>
+              <div className="grid grid-cols-1 xl:grid-cols-[420px,1fr] gap-4 items-start">
+                <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
+                  <div className="text-sm font-semibold">Lista • por departamento</div>
                 <div className="mt-4 space-y-4">
                   {(["fiscal", "contabil", "pessoal", "societario_paralegal", "administrativo"] as Department[]).map((dept) => {
                     const deptTasks = tasks.filter((t) => t.department === dept);
@@ -1088,128 +1009,127 @@ export default function TasksShell() {
                     );
                   })}
                 </div>
-              </div>
-            ) : null}
-
-            {showCreateForm ? (
-              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold">Criar tarefa</div>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateForm(false)}
-                    className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-                  >
-                    Fechar
-                  </button>
                 </div>
-                <div className="mt-4 grid gap-3">
-                <select
-                  value={newDepartment}
-                  onChange={(e) => setNewDepartment(e.target.value as Department)}
-                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                >
-                  <option value="fiscal">Fiscal</option>
-                  <option value="contabil">Contábil</option>
-                  <option value="pessoal">Pessoal</option>
-                  <option value="societario_paralegal">Societário</option>
-                  <option value="administrativo">Administrativo</option>
-                </select>
-                <div className="grid grid-cols-3 gap-2">
-                  <select
-                    value={newTaskTypeId}
-                    onChange={(e) => setNewTaskTypeId(e.target.value)}
-                    className="col-span-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                    title="Tipo de tarefa"
-                  >
-                    {taskTypes.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                    {taskTypes.length === 0 ? <option value="outros">Outros</option> : null}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const v = (newTaskTypeName || "").trim();
-                      if (!v) return;
-                      void createTaskType();
-                    }}
-                    disabled={creatingTaskType || newTaskTypeName.trim().length < 2}
-                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8 disabled:opacity-60"
-                    title="Criar novo tipo"
-                  >
-                    {creatingTaskType ? "..." : "Novo"}
-                  </button>
-                </div>
-                <input
-                  value={newTaskTypeName}
-                  onChange={(e) => setNewTaskTypeName(e.target.value)}
-                  placeholder="Novo tipo (ex.: Regularização)"
-                  className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                />
-                <input
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Título"
-                  className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                />
-                <textarea
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  rows={3}
-                  placeholder="Descrição (opcional)"
-                  className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none resize-none"
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    value={newClientName}
-                    onChange={(e) => setNewClientName(e.target.value)}
-                    placeholder="Cliente (nome)"
-                    className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                  />
-                  <select
-                    value={newAssignee}
-                    onChange={(e) => setNewAssignee(e.target.value as typeof newAssignee)}
-                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                  >
-                    <option value="none">Sem responsável</option>
-                    <option value="vanderlei">Vanderlei</option>
-                    <option value="gustavo">Gustavo</option>
-                  </select>
-                  <select
-                    value={newPriority}
-                    onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
-                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                  >
-                    <option value="low">Baixa</option>
-                    <option value="normal">Normal</option>
-                    <option value="high">Alta</option>
-                    <option value="urgent">Urgente</option>
-                  </select>
-                  <input
-                    type="datetime-local"
-                    value={newDueAt}
-                    onChange={(e) => setNewDueAt(e.target.value)}
-                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                  />
-                </div>
+                <div className="space-y-6">
+                {showCreateForm ? (
+                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold">Criar tarefa</div>
+                      <button
+                        type="button"
+                        onClick={() => setShowCreateForm(false)}
+                        className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                      >
+                        Fechar
+                      </button>
+                    </div>
+                    <div className="mt-4 grid gap-3">
+                      <select
+                        value={newDepartment}
+                        onChange={(e) => setNewDepartment(e.target.value as Department)}
+                        className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                      >
+                        <option value="fiscal">Fiscal</option>
+                        <option value="contabil">Contábil</option>
+                        <option value="pessoal">Pessoal</option>
+                        <option value="societario_paralegal">Societário</option>
+                        <option value="administrativo">Administrativo</option>
+                      </select>
+                      <div className="grid grid-cols-3 gap-2">
+                        <select
+                          value={newTaskTypeId}
+                          onChange={(e) => setNewTaskTypeId(e.target.value)}
+                          className="col-span-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                          title="Tipo de tarefa"
+                        >
+                          {taskTypes.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                          {taskTypes.length === 0 ? <option value="outros">Outros</option> : null}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const v = (newTaskTypeName || "").trim();
+                            if (!v) return;
+                            void createTaskType();
+                          }}
+                          disabled={creatingTaskType || newTaskTypeName.trim().length < 2}
+                          className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8 disabled:opacity-60"
+                          title="Criar novo tipo"
+                        >
+                          {creatingTaskType ? "..." : "Novo"}
+                        </button>
+                      </div>
+                      <input
+                        value={newTaskTypeName}
+                        onChange={(e) => setNewTaskTypeName(e.target.value)}
+                        placeholder="Novo tipo (ex.: Regularização)"
+                        className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                      />
+                      <input
+                        value={newTitle}
+                        onChange={(e) => setNewTitle(e.target.value)}
+                        placeholder="Título"
+                        className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                      />
+                      <textarea
+                        value={newDescription}
+                        onChange={(e) => setNewDescription(e.target.value)}
+                        rows={3}
+                        placeholder="Descrição (opcional)"
+                        className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none resize-none"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          value={newClientName}
+                          onChange={(e) => setNewClientName(e.target.value)}
+                          placeholder="Cliente (nome)"
+                          className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                        />
+                        <select
+                          value={newAssignee}
+                          onChange={(e) => setNewAssignee(e.target.value as typeof newAssignee)}
+                          className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                        >
+                          <option value="none">Sem responsável</option>
+                          <option value="vanderlei">Vanderlei</option>
+                          <option value="gustavo">Gustavo</option>
+                        </select>
+                        <select
+                          value={newPriority}
+                          onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
+                          className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                        >
+                          <option value="low">Baixa</option>
+                          <option value="normal">Normal</option>
+                          <option value="high">Alta</option>
+                          <option value="urgent">Urgente</option>
+                        </select>
+                        <input
+                          type="datetime-local"
+                          value={newDueAt}
+                          onChange={(e) => setNewDueAt(e.target.value)}
+                          className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                        />
+                      </div>
 
-                <button
-                  type="button"
-                  onClick={() => void createTask()}
-                  disabled={creating || newTitle.trim().length === 0}
-                  className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                >
-                  {creating ? "Criando..." : "Criar tarefa"}
-                </button>
-              </div>
-              </div>
-            ) : null}
+                      <button
+                        type="button"
+                        onClick={() => void createTask()}
+                        disabled={creating || newTitle.trim().length === 0}
+                        className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                      >
+                        {creating ? "Criando..." : "Criar tarefa"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
 
-            {viewType === "list" && details ? (
-              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 space-y-4">
+                {details ? (
+                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="text-lg font-semibold truncate">
@@ -1512,9 +1432,12 @@ export default function TasksShell() {
                     {audit.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem alterações registradas.</div> : null}
                   </div>
                 </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-[var(--muted)]">Selecione uma tarefa na lista.</div>
+                )}
               </div>
-            ) : viewType === "list" ? (
-              <div className="text-sm text-[var(--muted)]">Selecione uma tarefa na lista.</div>
+              </div>
             ) : null}
 
             {null}
