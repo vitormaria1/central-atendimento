@@ -64,7 +64,7 @@ function statusLabel(s: TaskStatus) {
     case "in_progress":
       return "Em Andamento";
     case "blocked":
-      return "Bloqueado";
+      return "Pendente";
     case "done":
       return "Concluído";
   }
@@ -1079,7 +1079,6 @@ export default function TasksShell() {
                           >
                             <button type="button" onClick={() => setSelectedTaskId(t.id)} className="w-full text-left">
                               <div className="text-sm font-medium truncate">
-                                <span className="text-[var(--muted)] mr-2">#{t.taskNumber}</span>
                                 {t.title}
                               </div>
                               <div className="mt-1 text-xs text-[var(--muted)] truncate">
