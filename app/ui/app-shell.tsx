@@ -378,6 +378,45 @@ export default function AppShell() {
     return data.items;
   }, []);
 
+  const openConversationForNumber = useCallback(
+    async (phoneRaw: string) => {
+      const phone = (phoneRaw ?? "").trim();
+      if (!phone) {
+        setToast("Contato sem número.");
+        return;
+      }
+      const q = phone.replace(/[^\d+]/g, "");
+      try {
+        const url = new URL("/api/chats", window.location.origin);
+        url.searchParams.set("search", q);
+        url.searchParams.set("limit", "20");
+        url.searchParams.set("offset", "0");
+        const res = await fetch(url.toString(), { cache: "no-store" });
+        if (!res.ok) {
+          const data = (await res.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(data?.error ?? "Falha ao buscar contato");
+        }
+        const data = (await res.json()) as { items: ChatListItem[] };
+        const found = (data.items ?? []).find((c) => !c.isGroup) ?? (data.items ?? [])[0];
+        if (!found?.chatId) {
+          setToast("Não encontrei um chat para esse número.");
+          return;
+        }
+        setChats((prev) => {
+          const map = new Map<string, ChatListItem>();
+          for (const c of prev) map.set(c.chatId, c);
+          for (const c of data.items ?? []) map.set(c.chatId, c);
+          return Array.from(map.values());
+        });
+        setSelectedChatId(found.chatId);
+        setToast(null);
+      } catch (err) {
+        setToast(err instanceof Error ? err.message : "Falha ao iniciar conversa");
+      }
+    },
+    [],
+  );
+
   const loadMessages = useCallback(async (chatId: string) => {
     const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}/messages?limit=80`, {
       cache: "no-store",
@@ -1032,22 +1071,10 @@ export default function AppShell() {
                                 type="button"
                                 className="px-4 py-3 text-sm text-[color-mix(in_srgb,var(--accent)_75%,white)] hover:bg-white/5 border-l border-white/10"
                                 onClick={() => {
-                                  try {
-                                    const blob = new Blob([contact.vcard], { type: "text/vcard;charset=utf-8" });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement("a");
-                                    a.href = url;
-                                    a.download = `${contact.name || "contato"}.vcf`;
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    a.remove();
-                                    URL.revokeObjectURL(url);
-                                  } catch {
-                                    setToast("Falha ao baixar contato.");
-                                  }
+                                  void openConversationForNumber(contact.phones[0] ?? "");
                                 }}
                               >
-                                Baixar contato
+                                Conversar
                               </button>
                             </div>
                           </div>
