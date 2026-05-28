@@ -334,6 +334,8 @@ export default function AppShell() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [tagInput, setTagInput] = useState("");
+  const [chatMenuChatId, setChatMenuChatId] = useState<string | null>(null);
+  const [chatMenuTagInput, setChatMenuTagInput] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [downloadByMessageId, setDownloadByMessageId] = useState<Record<string, { fileURL: string; mimetype?: string }>>(
     {},
@@ -351,6 +353,11 @@ export default function AppShell() {
   const selectedChat = useMemo(
     () => chats.find((c) => c.chatId === selectedChatId) ?? null,
     [chats, selectedChatId],
+  );
+
+  const chatMenuChat = useMemo(
+    () => chats.find((c) => c.chatId === chatMenuChatId) ?? null,
+    [chats, chatMenuChatId],
   );
 
   useEffect(() => {
@@ -567,6 +574,29 @@ export default function AppShell() {
     setTags(updated);
     try {
       await saveState(selectedChatId, { tags: updated });
+    } catch {
+      setToast("Falha ao salvar etiquetas");
+    }
+  }
+
+  async function addTagToChat(chatId: string) {
+    const next = normalizeTag(chatMenuTagInput);
+    if (!next) return;
+    const current = chats.find((c) => c.chatId === chatId)?.state?.tags ?? [];
+    const updated = Array.from(new Set([...current, next])).slice(0, 12);
+    setChatMenuTagInput("");
+    try {
+      await saveState(chatId, { tags: updated });
+    } catch {
+      setToast("Falha ao salvar etiquetas");
+    }
+  }
+
+  async function removeTagFromChat(chatId: string, tag: string) {
+    const current = chats.find((c) => c.chatId === chatId)?.state?.tags ?? [];
+    const updated = current.filter((t) => t !== tag);
+    try {
+      await saveState(chatId, { tags: updated });
     } catch {
       setToast("Falha ao salvar etiquetas");
     }
@@ -989,34 +1019,69 @@ export default function AppShell() {
           <div className="overflow-y-auto h-[calc(100vh-64px-88px)]">
             {visibleChats.map((chat) => {
               const active = chat.chatId === selectedChatId;
+              const chatTags = chat.state?.tags ?? [];
               return (
-                <button
+                <div
                   key={chat.chatId}
-                  onClick={() => setSelectedChatId(chat.chatId)}
                   className={[
-                    "w-full text-left px-4 py-3 border-b border-[var(--border)] transition",
-                    active
-                      ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)]"
-                      : "hover:bg-white/3",
+                    "w-full px-4 py-3 border-b border-[var(--border)] transition",
+                    active ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)]" : "hover:bg-white/3",
                   ].join(" ")}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-11 w-11 rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 shrink-0 flex items-center justify-center">
-                        {chat.avatarUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={chat.avatarUrl} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <span className="text-xs font-semibold text-[var(--muted)]">{initialsFromName(chat.name)}</span>
-                        )}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedChatId(chat.chatId)}
+                      className="flex-1 min-w-0 text-left"
+                      aria-label={`Abrir chat: ${chat.name}`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-11 w-11 rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 shrink-0 flex items-center justify-center">
+                          {chat.avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={chat.avatarUrl} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-xs font-semibold text-[var(--muted)]">{initialsFromName(chat.name)}</span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium truncate">{chat.name}</div>
+                          <div className="text-xs text-[var(--muted)] truncate">{chat.lastMessageText}</div>
+                          {chatTags.length ? (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {chatTags.slice(0, 2).map((t) => (
+                                <span
+                                  key={t}
+                                  className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] px-2 py-0.5"
+                                >
+                                  {t}
+                                </span>
+                              ))}
+                              {chatTags.length > 2 ? (
+                                <span className="text-[10px] text-[var(--muted)]">+{chatTags.length - 2}</span>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">{chat.name}</div>
-                        <div className="text-xs text-[var(--muted)] truncate">{chat.lastMessageText}</div>
-                      </div>
-                    </div>
+                    </button>
+
                     <div className="flex flex-col items-end gap-1 shrink-0">
-                      <div className="text-[10px] text-[var(--muted)]">{formatTime(chat.lastMsgTimestamp ?? undefined)}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-[10px] text-[var(--muted)]">{formatTime(chat.lastMsgTimestamp ?? undefined)}</div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setChatMenuChatId(chat.chatId);
+                            setChatMenuTagInput("");
+                          }}
+                          className="h-8 w-8 rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 flex items-center justify-center text-lg"
+                          aria-label={`Mais opções do chat: ${chat.name}`}
+                          title="Mais opções"
+                        >
+                          ⋯
+                        </button>
+                      </div>
                       <div className="flex items-center gap-2">
                         {chat.isGroup ? (
                           <span className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_45%,transparent)] px-2 py-1">
@@ -1031,7 +1096,7 @@ export default function AppShell() {
                       </div>
                     </div>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -1537,6 +1602,121 @@ export default function AppShell() {
             ) : (
               <div className="mt-4 text-sm text-[var(--muted)]">Sem etiquetas ainda.</div>
             )}
+          </div>
+        </div>
+      ) : null}
+
+      {chatMenuChat ? (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60"
+            aria-label="Fechar"
+            onClick={() => setChatMenuChatId(null)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Opções do chat"
+            className="relative w-full max-w-lg rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] p-5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-base font-semibold truncate">{chatMenuChat.name}</div>
+                <div className="mt-1 text-sm text-[var(--muted)] truncate">{chatMenuChat.chatId}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChatMenuChatId(null)}
+                className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = (chatMenuChat.state?.assignedAgentId ?? null) === "vanderlei" ? "gustavo" : "vanderlei";
+                  void saveState(chatMenuChat.chatId, { assignedAgentId: next });
+                }}
+                className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3 text-sm hover:bg-white/8"
+              >
+                Atribuir: {chatMenuChat.state?.assignedAgentId === "vanderlei" ? "Vanderlei" : chatMenuChat.state?.assignedAgentId === "gustavo" ? "Gustavo" : "—"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const current = chatMenuChat.state?.status ?? "pendente";
+                  const next = current === "pendente" ? "resolvido" : "pendente";
+                  void saveState(chatMenuChat.chatId, { status: next });
+                }}
+                className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3 text-sm hover:bg-white/8"
+              >
+                Status: {chatMenuChat.state?.status ?? "pendente"}
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-white/5 ring-1 ring-white/10 p-4">
+              <div className="text-sm font-medium">Etiquetas</div>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  value={chatMenuTagInput}
+                  onChange={(e) => setChatMenuTagInput(e.target.value)}
+                  placeholder="Adicionar etiqueta…"
+                  aria-label="Adicionar etiqueta no chat"
+                  className="h-11 w-full rounded-2xl bg-[color-mix(in_srgb,var(--background)_55%,black)] ring-1 ring-white/10 px-4 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void addTagToChat(chatMenuChat.chatId);
+                    }
+                  }}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => void addTagToChat(chatMenuChat.chatId)}
+                  disabled={!chatMenuChatId || !chatMenuTagInput.trim()}
+                  className="h-11 shrink-0 rounded-2xl bg-[var(--primary)] px-4 text-sm font-medium text-white disabled:opacity-60"
+                >
+                  Adicionar
+                </button>
+              </div>
+
+              {(chatMenuChat.state?.tags ?? []).length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(chatMenuChat.state?.tags ?? []).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => void removeTagFromChat(chatMenuChat.chatId, t)}
+                      className="rounded-2xl bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-2 text-sm hover:bg-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
+                      title="Remover etiqueta"
+                    >
+                      {t} <span className="text-[var(--muted)]">✕</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 text-sm text-[var(--muted)]">Sem etiquetas.</div>
+              )}
+            </div>
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedChatId(chatMenuChat.chatId);
+                  setChatMenuChatId(null);
+                }}
+                className="rounded-2xl bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-4 py-3 text-sm hover:bg-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
+              >
+                Abrir chat
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
