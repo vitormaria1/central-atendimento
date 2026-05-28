@@ -336,6 +336,7 @@ export default function AppShell() {
   const [tagInput, setTagInput] = useState("");
   const [chatMenuChatId, setChatMenuChatId] = useState<string | null>(null);
   const [chatMenuTagInput, setChatMenuTagInput] = useState("");
+  const [labelsSyncing, setLabelsSyncing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [downloadByMessageId, setDownloadByMessageId] = useState<Record<string, { fileURL: string; mimetype?: string }>>(
     {},
@@ -599,6 +600,26 @@ export default function AppShell() {
       await saveState(chatId, { tags: updated });
     } catch {
       setToast("Falha ao salvar etiquetas");
+    }
+  }
+
+  async function syncWhatsappLabels() {
+    if (labelsSyncing) return;
+    setLabelsSyncing(true);
+    try {
+      const res = await fetch("/api/labels/sync", { method: "POST" });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? "Falha ao sincronizar etiquetas");
+      }
+      setToast("Etiquetas sincronizadas.");
+      await loadChats();
+      const selected = selectedChatIdRef.current;
+      if (selected) await loadChatState(selected);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Falha ao sincronizar etiquetas");
+    } finally {
+      setLabelsSyncing(false);
     }
   }
 
@@ -997,6 +1018,15 @@ export default function AppShell() {
                   Gustavo
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={() => void syncWhatsappLabels()}
+                disabled={labelsSyncing}
+                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60"
+                title="Sincronizar etiquetas do WhatsApp"
+              >
+                {labelsSyncing ? "Sync..." : "Sync etiquetas"}
+              </button>
               <button
                 type="button"
                 onClick={goBack}
