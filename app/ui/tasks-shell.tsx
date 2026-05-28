@@ -1751,7 +1751,137 @@ export default function TasksShell() {
               </div>
             ) : null}
 
-            {null}
+            {showCreateForm ? (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+                onMouseDown={(e) => {
+                  if (e.target === e.currentTarget) setShowCreateForm(false);
+                }}
+              >
+                <div className="w-full max-w-2xl rounded-3xl bg-[color-mix(in_srgb,var(--background)_92%,black)] ring-1 ring-white/10 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold">Nova tarefa</div>
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateForm(false)}
+                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid gap-3">
+                    <select
+                      value={newDepartment}
+                      onChange={(e) => setNewDepartment(e.target.value as Department)}
+                      className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                    >
+                      <option value="fiscal">Fiscal</option>
+                      <option value="contabil">Contábil</option>
+                      <option value="pessoal">Pessoal</option>
+                      <option value="societario_paralegal">Societário</option>
+                      <option value="administrativo">Administrativo</option>
+                    </select>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <select
+                        value={newTaskTypeId}
+                        onChange={(e) => setNewTaskTypeId(e.target.value)}
+                        className="col-span-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                        title="Tipo de tarefa"
+                      >
+                        {taskTypes.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                        {taskTypes.length === 0 ? <option value="outros">Outros</option> : null}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const v = (newTaskTypeName || "").trim();
+                          if (!v) return;
+                          void createTaskType();
+                        }}
+                        disabled={creatingTaskType || newTaskTypeName.trim().length < 2}
+                        className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8 disabled:opacity-60"
+                        title="Criar novo tipo"
+                      >
+                        {creatingTaskType ? "..." : "Novo"}
+                      </button>
+                    </div>
+
+                    <input
+                      value={newTaskTypeName}
+                      onChange={(e) => setNewTaskTypeName(e.target.value)}
+                      placeholder="Novo tipo (ex.: Regularização)"
+                      className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                    />
+
+                    <input
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder="Título"
+                      className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                    />
+
+                    <textarea
+                      value={newDescription}
+                      onChange={(e) => setNewDescription(e.target.value)}
+                      rows={3}
+                      placeholder="Descrição (opcional)"
+                      className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none resize-none"
+                    />
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        value={newClientName}
+                        onChange={(e) => setNewClientName(e.target.value)}
+                        placeholder="Cliente (nome)"
+                        className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                      />
+                      <select
+                        value={newAssignee}
+                        onChange={(e) => setNewAssignee(e.target.value as typeof newAssignee)}
+                        className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                      >
+                        <option value="none">Sem responsável</option>
+                        <option value="vanderlei">Vanderlei</option>
+                        <option value="gustavo">Gustavo</option>
+                      </select>
+                      <select
+                        value={newPriority}
+                        onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
+                        className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                      >
+                        <option value="low">Baixa</option>
+                        <option value="normal">Normal</option>
+                        <option value="high">Alta</option>
+                        <option value="urgent">Urgente</option>
+                      </select>
+                      <input
+                        type="datetime-local"
+                        value={newDueAt}
+                        onChange={(e) => setNewDueAt(e.target.value)}
+                        className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void createTask()}
+                      disabled={creating || newTitle.trim().length === 0}
+                      className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                    >
+                      {creating ? "Criando..." : "Criar tarefa"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {toast ? (
