@@ -40,8 +40,37 @@ const MAX_DOWNLOAD_CACHE = 300;
 
 function formatTime(ts?: number) {
   if (!ts) return "";
-  const date = new Date(ts);
+  const ms = ts < 1_000_000_000_000 ? ts * 1000 : ts;
+  const date = new Date(ms);
   return date.toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function dateKeyFromTs(ts?: number) {
+  if (!ts) return "";
+  const ms = ts < 1_000_000_000_000 ? ts * 1000 : ts;
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function dayLabelFromKey(key: string) {
+  if (!key) return "";
+  const today = new Date();
+  const todayKey = dateKeyFromTs(today.getTime());
+  if (key === todayKey) return "Hoje";
+  const y = Number(key.slice(0, 4));
+  const m = Number(key.slice(5, 7));
+  const d = Number(key.slice(8, 10));
+  if (!y || !m || !d) return key;
+  const dt = new Date(y, m - 1, d);
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yKey = dateKeyFromTs(yesterday.getTime());
+  if (key === yKey) return "Ontem";
+  return dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function getMessageText(m: MessageItem) {
@@ -302,6 +331,9 @@ export default function AppShell() {
   const [recording, setRecording] = useState(false);
   const [status, setStatus] = useState<"pendente" | "resolvido">("pendente");
   const [assignedAgentId, setAssignedAgentId] = useState<"vanderlei" | "gustavo" | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  const [tagInput, setTagInput] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [downloadByMessageId, setDownloadByMessageId] = useState<Record<string, { fileURL: string; mimetype?: string }>>(
     {},
@@ -320,6 +352,10 @@ export default function AppShell() {
     () => chats.find((c) => c.chatId === selectedChatId) ?? null,
     [chats, selectedChatId],
   );
+
+  useEffect(() => {
+    setTags(selectedChat?.state?.tags ?? []);
+  }, [selectedChatId, selectedChat?.state?.tags]);
 
   const filteredChats = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -453,12 +489,18 @@ export default function AppShell() {
       return;
     }
     const data = (await res.json()) as {
-      items: Array<{ chatId: string; status: "pendente" | "resolvido"; assignedAgentId: "vanderlei" | "gustavo" | null }>;
+      items: Array<{
+        chatId: string;
+        status: "pendente" | "resolvido";
+        assignedAgentId: "vanderlei" | "gustavo" | null;
+        tags?: string[];
+      }>;
     };
     const state = data.items[0];
     if (!state) return;
     setStatus(state.status);
     setAssignedAgentId(state.assignedAgentId);
+    setTags(state.tags ?? []);
   }, []);
 
   const refreshAll = useCallback(async (reason: string) => {
@@ -486,13 +528,48 @@ export default function AppShell() {
     [loadChats],
   );
 
-  async function saveState(chatId: string, patch: { status?: "pendente" | "resolvido"; assignedAgentId?: "vanderlei" | "gustavo" | null }) {
+  async function saveState(
+    chatId: string,
+    patch: { status?: "pendente" | "resolvido"; assignedAgentId?: "vanderlei" | "gustavo" | null; tags?: string[] },
+  ) {
     await fetch(`/api/chat-state/${encodeURIComponent(chatId)}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(patch),
     });
     await loadChats();
+  }
+
+  function normalizeTag(s: string) {
+    return s
+      .trim()
+      .replace(/\s+/g, " ")
+      .slice(0, 32);
+  }
+
+  async function addTag() {
+    if (!selectedChatId) return;
+    const next = normalizeTag(tagInput);
+    if (!next) return;
+    const updated = Array.from(new Set([...tags, next])).slice(0, 12);
+    setTags(updated);
+    setTagInput("");
+    try {
+      await saveState(selectedChatId, { tags: updated });
+    } catch {
+      setToast("Falha ao salvar etiquetas");
+    }
+  }
+
+  async function removeTag(tag: string) {
+    if (!selectedChatId) return;
+    const updated = tags.filter((t) => t !== tag);
+    setTags(updated);
+    try {
+      await saveState(selectedChatId, { tags: updated });
+    } catch {
+      setToast("Falha ao salvar etiquetas");
+    }
   }
 
   async function sendMessage() {
@@ -961,9 +1038,9 @@ export default function AppShell() {
         </aside>
 
         <main className="flex-1 flex flex-col">
-          <header className="h-16 border-b border-[var(--border)] bg-[var(--background)]/80 backdrop-blur px-5 flex items-center justify-between">
-            <div className="min-w-0 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 shrink-0 flex items-center justify-center">
+	          <header className="h-16 border-b border-[var(--border)] bg-[var(--background)]/80 backdrop-blur px-5 flex items-center justify-between">
+	            <div className="min-w-0 flex items-center gap-3">
+	              <div className="h-10 w-10 rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 shrink-0 flex items-center justify-center">
                 {selectedChat?.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={selectedChat.avatarUrl} alt="" className="h-full w-full object-cover" />
@@ -972,13 +1049,27 @@ export default function AppShell() {
                 ) : (
                   <span className="text-xs font-semibold text-[var(--muted)]">•</span>
                 )}
-              </div>
-              <div className="min-w-0">
-                <div className="text-sm font-semibold truncate">{selectedChat?.name ?? "Selecione um chat"}</div>
-                <div className="text-xs text-[var(--muted)] truncate">{selectedChatId ?? ""}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
+	              </div>
+	              <div className="min-w-0">
+	                <div className="text-sm font-semibold truncate">{selectedChat?.name ?? "Selecione um chat"}</div>
+	                {tags.length > 0 ? (
+	                  <div className="mt-1 flex flex-wrap gap-1">
+	                    {tags.slice(0, 3).map((t) => (
+	                      <span
+	                        key={t}
+	                        className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-2 py-0.5"
+	                      >
+	                        {t}
+	                      </span>
+	                    ))}
+	                    {tags.length > 3 ? <span className="text-[10px] text-[var(--muted)]">+{tags.length - 3}</span> : null}
+	                  </div>
+	                ) : (
+	                  <div className="text-xs text-[var(--muted)] truncate">{selectedChatId ?? ""}</div>
+	                )}
+	              </div>
+	            </div>
+	            <div className="flex items-center gap-2">
               <button
                 disabled={!selectedChatId}
                 onClick={() => {
@@ -996,44 +1087,64 @@ export default function AppShell() {
               >
                 {status === "pendente" ? "Marcar resolvido" : "Marcar pendente"}
               </button>
-              <button
-                disabled={!selectedChatId}
-                onClick={() => {
-                  if (!selectedChatId) return;
-                  const next = assignedAgentId === "vanderlei" ? "gustavo" : "vanderlei";
-                  setAssignedAgentId(next);
-                  void saveState(selectedChatId, { assignedAgentId: next });
-                }}
-                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60"
-              >
-                Atribuir: {assignedAgentId === "vanderlei" ? "Vanderlei" : assignedAgentId === "gustavo" ? "Gustavo" : "—"}
-              </button>
-            </div>
-          </header>
+	              <button
+	                disabled={!selectedChatId}
+	                onClick={() => {
+	                  if (!selectedChatId) return;
+	                  const next = assignedAgentId === "vanderlei" ? "gustavo" : "vanderlei";
+	                  setAssignedAgentId(next);
+	                  void saveState(selectedChatId, { assignedAgentId: next });
+	                }}
+	                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60"
+	              >
+	                Atribuir: {assignedAgentId === "vanderlei" ? "Vanderlei" : assignedAgentId === "gustavo" ? "Gustavo" : "—"}
+	              </button>
+	              <button
+	                disabled={!selectedChatId}
+	                onClick={() => setTagPickerOpen(true)}
+	                className="rounded-xl px-3 py-2 text-xs bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,var(--border))] hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] disabled:opacity-60"
+	                title="Etiquetas"
+	              >
+	                Etiquetas
+	              </button>
+	            </div>
+	          </header>
 
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-            {messages.map((m, idx) => {
-              const mine = Boolean(m.fromMe);
-              const text = getMessageText(m);
-              const mtLower = (m.messageType ?? "").toLowerCase();
-              const maybeContact = mtLower.includes("contact") || mtLower.includes("vcard") || /BEGIN:VCARD/i.test(text) || /X-WA-BIZ-/i.test(text);
-              const contact = maybeContact ? parseContactFromText(text) : null;
-              const id = m.messageid ?? m.id ?? "";
-              const cached = id ? downloadByMessageId[id] : undefined;
-              const mediaUrl = (id && cached?.fileURL) || m.fileURL || null;
-              const mimetype = cached?.mimetype;
-              const showMedia = !contact && (Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation"));
+	          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+	            {messages.map((m, idx) => {
+	              const mine = Boolean(m.fromMe);
+	              const text = getMessageText(m);
+	              const mtLower = (m.messageType ?? "").toLowerCase();
+	              const maybeContact = mtLower.includes("contact") || mtLower.includes("vcard") || /BEGIN:VCARD/i.test(text) || /X-WA-BIZ-/i.test(text);
+	              const contact = maybeContact ? parseContactFromText(text) : null;
+	              const dayKey = dateKeyFromTs(m.messageTimestamp);
+	              const prevDayKey = idx > 0 ? dateKeyFromTs(messages[idx - 1]?.messageTimestamp) : "";
+	              const showDaySeparator = Boolean(dayKey) && dayKey !== prevDayKey;
+	              const id = m.messageid ?? m.id ?? "";
+	              const cached = id ? downloadByMessageId[id] : undefined;
+	              const mediaUrl = (id && cached?.fileURL) || m.fileURL || null;
+	              const mimetype = cached?.mimetype;
+	              const showMedia = !contact && (Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation"));
               const showAudioPlayer = showMedia && isAudioLike(m, mimetype);
               const showImage = showMedia && !showAudioPlayer && isImageLike(m, mimetype, mediaUrl);
               const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
               const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
               const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
-              return (
-                <div key={stableKey} className={mine ? "flex justify-end" : "flex justify-start"}>
-                  <div
-                    className={[
-                      showAudioPlayer ? "max-w-[92%]" : "max-w-[78%]",
-                      "rounded-3xl px-4 py-3 ring-1",
+	              return (
+	                <div key={stableKey}>
+	                  {showDaySeparator ? (
+	                    <div className="flex justify-center py-2">
+	                      <div className="text-xs rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2">
+	                        {dayLabelFromKey(dayKey)}
+	                      </div>
+	                    </div>
+	                  ) : null}
+
+	                  <div className={mine ? "flex justify-end" : "flex justify-start"}>
+	                  <div
+	                    className={[
+	                      showAudioPlayer ? "max-w-[92%]" : "max-w-[78%]",
+	                      "rounded-3xl px-4 py-3 ring-1",
                       mine
                         ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
                         : "bg-white/5 ring-white/10",
@@ -1236,15 +1347,16 @@ export default function AppShell() {
                       </div>
                     ) : null}
 
-                    <div className="mt-2 text-[10px] text-[var(--muted)] text-right">
-                      {formatTime(m.messageTimestamp)}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            <div ref={messagesEndRef} />
-          </div>
+	                    <div className="mt-2 text-[10px] text-[var(--muted)] text-right">
+	                      {formatTime(m.messageTimestamp)}
+	                    </div>
+	                  </div>
+	                  </div>
+	                </div>
+	              );
+	            })}
+	            <div ref={messagesEndRef} />
+	          </div>
 
           <footer className="border-t border-[var(--border)] p-4 bg-[var(--background)]/80 backdrop-blur">
             <div className="flex items-end gap-3">
@@ -1354,6 +1466,80 @@ export default function AppShell() {
           </footer>
         </main>
       </div>
+
+      {tagPickerOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60"
+            aria-label="Fechar"
+            onClick={() => setTagPickerOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Etiquetas do chat"
+            className="relative w-full max-w-lg rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] p-5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-base font-semibold">Etiquetas</div>
+                <div className="mt-1 text-sm text-[var(--muted)]">Organize o chat com etiquetas (ex.: Fiscal, Urgente).</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTagPickerOpen(false)}
+                className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="mt-4 flex items-center gap-2">
+              <input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                placeholder="Adicionar etiqueta…"
+                aria-label="Adicionar etiqueta"
+                className="h-11 w-full rounded-2xl bg-[color-mix(in_srgb,var(--background)_55%,black)] ring-1 ring-white/10 px-4 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void addTag();
+                  }
+                }}
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => void addTag()}
+                disabled={!selectedChatId || !tagInput.trim()}
+                className="h-11 shrink-0 rounded-2xl bg-[var(--primary)] px-4 text-sm font-medium text-white disabled:opacity-60"
+              >
+                Adicionar
+              </button>
+            </div>
+
+            {tags.length > 0 ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {tags.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => void removeTag(t)}
+                    className="rounded-2xl bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-2 text-sm hover:bg-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
+                    title="Remover etiqueta"
+                  >
+                    {t} <span className="text-[var(--muted)]">✕</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-4 text-sm text-[var(--muted)]">Sem etiquetas ainda.</div>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {toast ? (
         <div className="fixed bottom-5 right-5 rounded-2xl bg-[var(--card)] ring-1 ring-[var(--border)] px-4 py-3 text-sm shadow-2xl">
