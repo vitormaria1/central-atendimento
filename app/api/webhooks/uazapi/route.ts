@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withApi } from "@/lib/api";
 import { getEnv } from "@/lib/env";
+import { dbQuery } from "@/lib/db";
 import { publish, recordWebhookDebug } from "@/lib/stream";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,22 @@ const payloadSchema = z.object({
   instanceName: z.string(),
   token: z.string(),
   chatSource: z.string().optional(),
+  label: z
+    .object({
+      id: z.string().optional(),
+      name: z.string().optional(),
+      color: z.string().optional(),
+    })
+    .optional(),
+  labels: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        name: z.string().optional(),
+        color: z.string().optional(),
+      }),
+    )
+    .optional(),
   message: z
     .object({
       chatid: z.string().optional(),
@@ -26,6 +43,8 @@ const payloadSchema = z.object({
       wa_fastid: z.string().optional(),
     })
     .optional(),
+  chatid: z.string().optional(),
+  chatId: z.string().optional(),
 });
 
 export const POST = withApi(async (req: Request) => {
@@ -46,10 +65,15 @@ export const POST = withApi(async (req: Request) => {
   const tokenOk = parsed.data.token === env.UAZAPI_TOKEN;
 
   const chatId =
-    parsed.data.message?.chatid ?? parsed.data.chat?.wa_chatid ?? parsed.data.chat?.wa_fastid ?? null;
+    parsed.data.message?.chatid ??
+    parsed.data.chatid ??
+    parsed.data.chatId ??
+    parsed.data.chat?.wa_chatid ??
+    parsed.data.chat?.wa_fastid ??
+    null;
 
+  const accepted = baseUrlOk && instanceOk && tokenOk;
   if (chatId) {
-    const accepted = baseUrlOk && instanceOk && tokenOk;
     recordWebhookDebug({
       at: Date.now(),
       accepted,
@@ -58,8 +82,60 @@ export const POST = withApi(async (req: Request) => {
         : `rejected:${baseUrlOk ? "" : "baseUrl"}${instanceOk ? "" : "|instance"}${tokenOk ? "" : "|token"}`,
       payload: parsed.data,
     });
+  }
 
-    if (accepted) {
+  if (accepted) {
+    const eventType = (parsed.data.EventType ?? "").toLowerCase();
+    const isLabelEvent = eventType.includes("label") || eventType.includes("etiquet");
+
+    if (isLabelEvent) {
+      const payloadLabels = parsed.data.labels ?? (parsed.data.label ? [parsed.data.label] : []);
+      const l0 = payloadLabels[0];
+      const labelId = (l0?.id ?? "").trim() || null;
+      const labelName = (l0?.name ?? "").trim() || null;
+      const labelColor = (l0?.color ?? "").trim() || null;
+
+      if (labelId && labelName) {
+        await dbQuery(
+          `
+            insert into wa_labels (id, name, color)
+            values ($1, $2, $3)
+            on conflict (id) do update set
+              name = excluded.name,
+              color = excluded.color,
+              updated_at = now()
+          `,
+          [labelId, labelName, labelColor],
+        );
+      }
+
+      // For chat label assign/remove events, update chat_state.tags (merge mode).
+      if (chatId) {
+        const isRemove = eventType.includes("remove") || eventType.includes("delete") || eventType.includes("unassign");
+        const tag = labelName ?? labelId;
+        if (tag) {
+          await dbQuery(
+            `
+              insert into chat_state (chat_id, status, assigned_agent_id, tags)
+              values ($1, 'pendente', null, $2)
+              on conflict (chat_id) do update set
+                tags = (
+                  select array(
+                    select distinct x from unnest(
+                      case when $3::boolean then array_remove(chat_state.tags, $4) else (chat_state.tags || excluded.tags) end
+                    ) as x
+                    where x is not null and length(trim(x)) > 0
+                  )
+                ),
+                updated_at = now()
+            `,
+            [chatId, isRemove ? [] : [tag], isRemove, tag],
+          );
+        }
+      }
+    }
+
+    if (chatId) {
       // Notificar apenas mensagens recebidas (não as enviadas por nós).
       const fromMe = parsed.data.message?.fromMe === true;
       if (!fromMe) {

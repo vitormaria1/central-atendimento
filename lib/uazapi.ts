@@ -31,7 +31,7 @@ export type UazapiMessage = {
   fileURL?: string;
 };
 
-type PathKind = "chatFind" | "messageFind" | "sendText";
+type PathKind = "chatFind" | "messageFind" | "sendText" | "labelsList" | "chatLabelsGet";
 
 const globalForUazapi = globalThis as unknown as {
   __ca_uazapi_paths?: Partial<Record<PathKind, string>>;
@@ -94,7 +94,9 @@ async function resolvePath(kind: PathKind) {
       ? env.UAZAPI_CHAT_FIND_PATH
       : kind === "messageFind"
         ? env.UAZAPI_MESSAGE_FIND_PATH
-        : env.UAZAPI_SEND_TEXT_PATH;
+        : kind === "sendText"
+          ? env.UAZAPI_SEND_TEXT_PATH
+          : undefined;
   if (override) {
     setCachedPath(kind, override);
     return override;
@@ -105,7 +107,11 @@ async function resolvePath(kind: PathKind) {
       ? ["/chat/find"]
       : kind === "messageFind"
         ? ["/message/find"]
-        : ["/send/text"];
+        : kind === "sendText"
+          ? ["/send/text"]
+          : kind === "labelsList"
+            ? ["/labels", "/labels/list", "/label", "/label/list"]
+            : ["/labels/chats", "/labels/chats/get", "/labels/chat", "/label/chat", "/labels/chat/get"];
 
   for (const path of candidates) {
     const probeBody =
@@ -113,9 +119,18 @@ async function resolvePath(kind: PathKind) {
         ? { limit: 1, offset: 0 }
         : kind === "messageFind"
           ? { chatid: "probe", limit: 1 }
-          : { number: "probe", text: "probe", linkPreview: false, replyid: "", mentions: "", readchat: false, delay: 0 };
+          : kind === "sendText"
+            ? { number: "probe", text: "probe", linkPreview: false, replyid: "", mentions: "", readchat: false, delay: 0 }
+            : kind === "labelsList"
+              ? {}
+              : { chatid: "probe" };
 
-    const attempt = await uazapiTryFetch(path, { method: "POST", body: JSON.stringify(probeBody) });
+    // Some label endpoints are GET, others are POST.
+    const attemptGet = kind === "labelsList" ? await uazapiTryFetch(path, { method: "GET" }) : null;
+    const attempt =
+      attemptGet?.ok
+        ? attemptGet
+        : await uazapiTryFetch(path, { method: "POST", body: JSON.stringify(probeBody) });
     // Consider 400/422 as "endpoint exists but probe body is invalid", which is acceptable for discovery.
     if (attempt.ok || attempt.status === 400 || attempt.status === 401 || attempt.status === 403 || attempt.status === 422) {
       setCachedPath(kind, path);
@@ -236,4 +251,91 @@ export async function sendMedia(params: {
     }),
   });
   return data;
+}
+
+export type UazapiLabel = { id?: string; name?: string; color?: string };
+
+export async function listLabels() {
+  const labelsListPath = await resolvePath("labelsList");
+  // Try GET first (many APIs expose list via GET), fallback to POST.
+  const attempt = await uazapiTryFetch(labelsListPath, { method: "GET" });
+  const res = attempt.ok
+    ? attempt.res
+    : await fetch(`${getEnv().UAZAPI_BASE_URL}${labelsListPath}`, {
+        method: "POST",
+        headers: { token: getEnv().UAZAPI_TOKEN, "content-type": "application/json" },
+        body: JSON.stringify({}),
+        cache: "no-store",
+      });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`UAZAPI ${res.status} ${res.statusText}: ${text}`);
+  }
+
+  const json = (await res.json().catch(() => null)) as unknown;
+  const obj = (json && typeof json === "object" ? (json as Record<string, unknown>) : null) ?? null;
+  const itemsUnknown =
+    (Array.isArray(json) ? json : null) ??
+    (Array.isArray(obj?.labels) ? (obj?.labels as unknown[]) : null) ??
+    (Array.isArray(obj?.items) ? (obj?.items as unknown[]) : null) ??
+    (obj?.data && typeof obj.data === "object" && Array.isArray((obj.data as Record<string, unknown>).labels)
+      ? (((obj.data as Record<string, unknown>).labels as unknown[]) ?? [])
+      : []);
+
+  const items = (itemsUnknown ?? [])
+    .map((x): UazapiLabel | null => {
+      if (!x || typeof x !== "object") return null;
+      const r = x as Record<string, unknown>;
+      return {
+        id: typeof r.id === "string" ? r.id : undefined,
+        name: typeof r.name === "string" ? r.name : undefined,
+        color: typeof r.color === "string" ? r.color : undefined,
+      };
+    })
+    .filter((x): x is UazapiLabel => x !== null);
+
+  return (items ?? []).map((x) => ({ id: x.id, name: x.name, color: x.color })).filter((x) => x.id || x.name);
+}
+
+export async function getChatLabels(params: { chatid: string }) {
+  const chatLabelsGetPath = await resolvePath("chatLabelsGet");
+  const res = await uazapiTryFetch(chatLabelsGetPath, {
+    method: "POST",
+    body: JSON.stringify({ chatid: params.chatid }),
+  });
+  const okRes = res.ok
+    ? res.res
+    : await fetch(`${getEnv().UAZAPI_BASE_URL}${chatLabelsGetPath}`, {
+        method: "GET",
+        headers: { token: getEnv().UAZAPI_TOKEN, "content-type": "application/json" },
+        cache: "no-store",
+      });
+
+  if (!okRes.ok) {
+    const text = await okRes.text().catch(() => "");
+    throw new Error(`UAZAPI ${okRes.status} ${okRes.statusText}: ${text}`);
+  }
+
+  const json = (await okRes.json().catch(() => null)) as unknown;
+  const obj = (json && typeof json === "object" ? (json as Record<string, unknown>) : null) ?? null;
+  const dataObj = obj?.data && typeof obj.data === "object" ? (obj.data as Record<string, unknown>) : null;
+  const itemsUnknown: unknown =
+    obj?.labels ?? obj?.items ?? dataObj?.labels ?? obj?.data ?? (Array.isArray(json) ? json : []);
+
+  const normalized: UazapiLabel[] = [];
+  const arr = Array.isArray(itemsUnknown) ? itemsUnknown : [];
+  for (const it of arr) {
+    if (!it) continue;
+    if (typeof it === "string") normalized.push({ id: it, name: undefined });
+    else if (typeof it === "object") {
+      const r = it as Record<string, unknown>;
+      normalized.push({
+        id: typeof r.id === "string" ? r.id : undefined,
+        name: typeof r.name === "string" ? r.name : undefined,
+        color: typeof r.color === "string" ? r.color : undefined,
+      });
+    }
+  }
+  return normalized.filter((x) => x.id || x.name);
 }
