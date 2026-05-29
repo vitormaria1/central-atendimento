@@ -926,13 +926,17 @@ export default function AppShell() {
 
     function startPolling() {
       if (pollTimer) return;
-      pollTimer = window.setInterval(() => void refreshAll("poll"), 15_000);
+      // Polling leve para manter a lista atualizada mesmo se o webhook/SSE falhar.
+      pollTimer = window.setInterval(() => void refreshChatsOnly("poll:chatsOnly"), 20_000);
     }
 
     function stopPolling() {
       if (pollTimer) window.clearInterval(pollTimer);
       pollTimer = null;
     }
+
+    // Sempre liga o polling leve
+    startPolling();
 
     try {
       const es = new EventSource("/api/stream");
@@ -965,7 +969,7 @@ export default function AppShell() {
         startPolling();
       };
       es.onopen = () => {
-        stopPolling();
+        // mantém polling leve
       };
     } catch {
       startPolling();

@@ -31,10 +31,12 @@ export default function RealtimeWhatsappNotifications() {
   const router = useRouter();
   const { toasts } = useWhatsappNotifyStore();
   const eventSourceRef = useRef<EventSource | null>(null);
+  const lastByChatRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
     let retryTimer: number | null = null;
+    let pollTimer: number | null = null;
 
     async function connect() {
       const me = await fetch("/api/me", { cache: "no-store" }).catch(() => null);
@@ -87,11 +89,46 @@ export default function RealtimeWhatsappNotifications() {
       }
     }
 
+    async function pollChats() {
+      // Fallback: mesmo com SSE conectado, se o webhook falhar, a lista não atualiza.
+      // Aqui a gente detecta novas mensagens pelo lastMsgTimestamp.
+      const res = await fetch("/api/chats?limit=80&offset=0", { cache: "no-store" }).catch(() => null);
+      if (cancelled || !res || !res.ok) return;
+      const data = (await res.json().catch(() => null)) as { items?: Array<{ chatId: string; lastMsgTimestamp: number | null }> } | null;
+      const items = data?.items ?? [];
+
+      let changed = false;
+      for (const c of items) {
+        const ts = typeof c.lastMsgTimestamp === "number" ? c.lastMsgTimestamp : null;
+        if (!c.chatId || ts == null) continue;
+        const prev = lastByChatRef.current.get(c.chatId) ?? ts;
+        if (ts > prev) {
+          lastByChatRef.current.set(c.chatId, ts);
+          changed = true;
+        } else if (!lastByChatRef.current.has(c.chatId)) {
+          lastByChatRef.current.set(c.chatId, ts);
+        }
+      }
+
+      if (!changed) return;
+      const path = window.location.pathname;
+      const isOnWhatsapp = path === "/whatsapp";
+      const shouldNotify = !isOnWhatsapp || document.hidden;
+      if (shouldNotify) {
+        incWhatsappBadge();
+        pushToast({ title: "WhatsApp", body: "Novas mensagens recebidas." });
+        playNotifySound();
+      }
+    }
+
     void connect();
+    void pollChats();
+    pollTimer = window.setInterval(() => void pollChats(), 20_000);
 
     return () => {
       cancelled = true;
       if (retryTimer) window.clearTimeout(retryTimer);
+      if (pollTimer) window.clearInterval(pollTimer);
       eventSourceRef.current?.close();
       eventSourceRef.current = null;
     };
