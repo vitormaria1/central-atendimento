@@ -934,45 +934,6 @@ export default function TasksShell() {
           </div>
 
           <div className="p-4 space-y-3 border-b border-[var(--border)]">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setViewType("list")}
-                className={[
-                  "rounded-2xl px-3 py-2 text-sm ring-1",
-                  viewType === "list"
-                    ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
-                    : "bg-white/5 ring-white/10 hover:bg-white/8",
-                ].join(" ")}
-              >
-                Lista
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewType("board")}
-                className={[
-                  "rounded-2xl px-3 py-2 text-sm ring-1",
-                  viewType === "board"
-                    ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
-                    : "bg-white/5 ring-white/10 hover:bg-white/8",
-                ].join(" ")}
-              >
-                Board
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewType("calendar")}
-                className={[
-                  "rounded-2xl px-3 py-2 text-sm ring-1 col-span-2",
-                  viewType === "calendar"
-                    ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
-                    : "bg-white/5 ring-white/10 hover:bg-white/8",
-                ].join(" ")}
-              >
-                Calendário
-              </button>
-            </div>
-
             <div className="grid gap-2">
               <select
                 value={selectedSavedViewId}
@@ -1100,7 +1061,7 @@ export default function TasksShell() {
 
         <main className="flex-1 flex flex-col min-w-0">
           <header className="h-16 border-b border-[var(--border)] px-6 flex items-center justify-between bg-[var(--background)]/80 backdrop-blur">
-            <div className="min-w-0">
+            <div className="min-w-0 w-[260px]">
               <div className="text-sm font-semibold truncate">
                 {viewType === "list" ? "Lista" : viewType === "board" ? "Quadro" : "Calendário"}
               </div>
@@ -1111,7 +1072,42 @@ export default function TasksShell() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex-1 flex items-center justify-center">
+              <div className="flex items-center gap-2 rounded-2xl bg-white/3 ring-1 ring-white/10 p-1">
+                <button
+                  type="button"
+                  onClick={() => setViewType("list")}
+                  className={[
+                    "rounded-xl px-3 py-2 text-sm transition",
+                    viewType === "list" ? "bg-white/8 ring-1 ring-white/10" : "hover:bg-white/5",
+                  ].join(" ")}
+                >
+                  Lista
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewType("board")}
+                  className={[
+                    "rounded-xl px-3 py-2 text-sm transition",
+                    viewType === "board" ? "bg-white/8 ring-1 ring-white/10" : "hover:bg-white/5",
+                  ].join(" ")}
+                >
+                  Quadro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewType("calendar")}
+                  className={[
+                    "rounded-xl px-3 py-2 text-sm transition",
+                    viewType === "calendar" ? "bg-white/8 ring-1 ring-white/10" : "hover:bg-white/5",
+                  ].join(" ")}
+                >
+                  Calendário
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-[260px] justify-end">
               <button
                 type="button"
                 onClick={goBack}
