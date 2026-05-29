@@ -40,16 +40,21 @@ type MessageItem = {
 
 const MAX_DOWNLOAD_CACHE = 300;
 
+function toMs(ts?: number | null) {
+  if (!ts) return 0;
+  return ts < 1_000_000_000_000 ? ts * 1000 : ts;
+}
+
 function formatTime(ts?: number) {
   if (!ts) return "";
-  const ms = ts < 1_000_000_000_000 ? ts * 1000 : ts;
+  const ms = toMs(ts);
   const date = new Date(ms);
   return date.toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
 function dateKeyFromTs(ts?: number) {
   if (!ts) return "";
-  const ms = ts < 1_000_000_000_000 ? ts * 1000 : ts;
+  const ms = toMs(ts);
   const d = new Date(ms);
   if (Number.isNaN(d.getTime())) return "";
   const y = d.getFullYear();
@@ -398,6 +403,12 @@ export default function AppShell() {
   const [tagInput, setTagInput] = useState("");
   const [chatMenuChatId, setChatMenuChatId] = useState<string | null>(null);
   const [chatMenuTagInput, setChatMenuTagInput] = useState("");
+  const [sidebarMenuOpen, setSidebarMenuOpen] = useState(false);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [conversationSelectionMode, setConversationSelectionMode] = useState(false);
+  const [selectedConversationIds, setSelectedConversationIds] = useState<Record<string, boolean>>({});
+  const [readAtByChatId, setReadAtByChatId] = useState<Record<string, number>>({});
+  const sidebarMenuRef = useRef<HTMLDivElement | null>(null);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -444,6 +455,49 @@ export default function AppShell() {
     setSearchCursor(0);
   }, [selectedChatId]);
 
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("wa:readAtByChatId");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== "object") return;
+      const obj = parsed as Record<string, unknown>;
+      const next: Record<string, number> = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (typeof v === "number" && Number.isFinite(v)) next[k] = v;
+      }
+      setReadAtByChatId(next);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("wa:readAtByChatId", JSON.stringify(readAtByChatId));
+    } catch {
+      // ignore
+    }
+  }, [readAtByChatId]);
+
+  useEffect(() => {
+    if (!sidebarMenuOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setSidebarMenuOpen(false);
+    }
+    function onPointerDown(e: PointerEvent) {
+      const el = sidebarMenuRef.current;
+      if (!el) return;
+      if (!el.contains(e.target as Node)) setSidebarMenuOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [sidebarMenuOpen]);
+
   const filteredChats = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return chats;
@@ -454,10 +508,15 @@ export default function AppShell() {
     });
   }, [chats, search]);
 
+  const tagFilteredChats = useMemo(() => {
+    if (!favoritesOnly) return filteredChats;
+    return filteredChats.filter((c) => (c.state?.tags ?? []).includes("Favoritos"));
+  }, [favoritesOnly, filteredChats]);
+
   const visibleChats = useMemo(() => {
-    if (assignedFilter === "all") return filteredChats;
-    return filteredChats.filter((c) => c.state?.assignedAgentId === assignedFilter);
-  }, [assignedFilter, filteredChats]);
+    if (assignedFilter === "all") return tagFilteredChats;
+    return tagFilteredChats.filter((c) => c.state?.assignedAgentId === assignedFilter);
+  }, [assignedFilter, tagFilteredChats]);
 
   const searchMatchKeys = useMemo(() => {
     const q = searchQuery.trim();
@@ -1146,7 +1205,7 @@ export default function AppShell() {
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div className="flex h-screen">
         <aside className="w-[440px] shrink-0 border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_80%,black)]">
-          <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--border)]">
+          <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--border)] relative">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-2xl bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] flex items-center justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1161,6 +1220,66 @@ export default function AppShell() {
             </div>
 
             <div className="flex items-center gap-2">
+              <div className="relative" ref={sidebarMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setSidebarMenuOpen((v) => !v)}
+                  className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 flex items-center justify-center text-lg"
+                  aria-label="Mais opções"
+                  title="Mais opções"
+                >
+                  ⋯
+                </button>
+                {sidebarMenuOpen ? (
+                  <div className="absolute right-0 top-12 z-40 w-72 overflow-hidden rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] shadow-2xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSidebarMenuOpen(false);
+                        setToast("Em breve: novo grupo.");
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                    >
+                      Novo grupo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSidebarMenuOpen(false);
+                        setFavoritesOnly((v) => !v);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                    >
+                      {favoritesOnly ? "Todas as conversas" : "Mensagens favoritas"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSidebarMenuOpen(false);
+                        setConversationSelectionMode((v) => !v);
+                        setSelectedConversationIds({});
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                    >
+                      Selecionar conversas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const now = Date.now();
+                        const next: Record<string, number> = { ...readAtByChatId };
+                        for (const c of chats) next[c.chatId] = now;
+                        setReadAtByChatId(next);
+                        setSidebarMenuOpen(false);
+                        setToast("Conversas marcadas como lidas.");
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                    >
+                      Marcar todas como lidas
+                    </button>
+                  </div>
+                ) : null}
+              </div>
               <div className="flex items-center gap-1 rounded-2xl bg-white/5 ring-1 ring-white/10 p-1">
                 <button
                   type="button"
@@ -1205,32 +1324,53 @@ export default function AppShell() {
               className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
             />
           </div>
-
-          <div className="overflow-y-auto h-[calc(100vh-64px-88px)]">
-            {visibleChats.map((chat) => {
-              const active = chat.chatId === selectedChatId;
-              const chatTags = chat.state?.tags ?? [];
-              return (
-                <div
-                  key={chat.chatId}
-                  className={[
-                    "w-full px-4 py-3 border-b border-[var(--border)] transition",
-                    active ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)]" : "hover:bg-white/3",
-                  ].join(" ")}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedChatId(chat.chatId)}
-                      className="flex-1 min-w-0 text-left"
-                      aria-label={`Abrir chat: ${chat.name}`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-11 w-11 rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 shrink-0 flex items-center justify-center">
-                          {chat.avatarUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={chat.avatarUrl} alt="" className="h-full w-full object-cover" />
-                          ) : (
+  
+            <div className="overflow-y-auto h-[calc(100vh-64px-88px)]">
+              {visibleChats.map((chat) => {
+                const active = chat.chatId === selectedChatId;
+                const chatTags = chat.state?.tags ?? [];
+                const lastMs = toMs(chat.lastMsgTimestamp);
+                const readAt = readAtByChatId[chat.chatId] ?? 0;
+                const effectiveUnread = chat.unreadCount > 0 && lastMs > readAt ? chat.unreadCount : 0;
+                return (
+                  <div
+                    key={chat.chatId}
+                    className={[
+                      "w-full px-4 py-3 border-b border-[var(--border)] transition",
+                      active ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)]" : "hover:bg-white/3",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (conversationSelectionMode) {
+                            setSelectedConversationIds((prev) => ({ ...prev, [chat.chatId]: !prev[chat.chatId] }));
+                            return;
+                          }
+                          setSelectedChatId(chat.chatId);
+                          setReadAtByChatId((prev) => ({ ...prev, [chat.chatId]: Date.now() }));
+                        }}
+                        className="flex-1 min-w-0 text-left"
+                        aria-label={`Abrir chat: ${chat.name}`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {conversationSelectionMode ? (
+                            <div
+                              className={[
+                                "h-5 w-5 rounded-md ring-2 shrink-0",
+                                selectedConversationIds[chat.chatId]
+                                  ? "bg-[var(--primary)] ring-[var(--primary)]"
+                                  : "bg-transparent ring-[color-mix(in_srgb,var(--accent)_40%,white)]",
+                              ].join(" ")}
+                              aria-hidden="true"
+                            />
+                          ) : null}
+                          <div className="h-11 w-11 rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 shrink-0 flex items-center justify-center">
+                            {chat.avatarUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={chat.avatarUrl} alt="" className="h-full w-full object-cover" />
+                            ) : (
                             <span className="text-xs font-semibold text-[var(--muted)]">{initialsFromName(chat.name)}</span>
                           )}
                         </div>
@@ -1272,20 +1412,20 @@ export default function AppShell() {
                           ⋯
                         </button>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {chat.isGroup ? (
-                          <span className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_45%,transparent)] px-2 py-1">
-                            Grupo
-                          </span>
-                        ) : null}
-                        {chat.unreadCount > 0 ? (
-                          <span className="text-[10px] rounded-full bg-[var(--primary)] text-white px-2 py-1">
-                            {chat.unreadCount}
-                          </span>
-                        ) : null}
+                        <div className="flex items-center gap-2">
+                          {chat.isGroup ? (
+                            <span className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_45%,transparent)] px-2 py-1">
+                              Grupo
+                            </span>
+                          ) : null}
+                          {effectiveUnread > 0 ? (
+                            <span className="text-[10px] rounded-full bg-[var(--primary)] text-white px-2 py-1">
+                              {effectiveUnread}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
-                  </div>
                 </div>
               );
             })}
@@ -1293,9 +1433,9 @@ export default function AppShell() {
         </aside>
 
         <main className="flex-1 flex flex-col">
-	          <header className="h-16 border-b border-[var(--border)] bg-[var(--background)]/80 backdrop-blur px-5 flex items-center justify-between">
-	            <div className="min-w-0 flex items-center gap-3">
-	              <div className="h-10 w-10 rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 shrink-0 flex items-center justify-center">
+            <header className="h-16 border-b border-[var(--border)] bg-[var(--background)]/80 backdrop-blur px-5 flex items-center justify-between">
+              <div className="min-w-0 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 shrink-0 flex items-center justify-center">
                 {selectedChat?.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={selectedChat.avatarUrl} alt="" className="h-full w-full object-cover" />
@@ -1304,178 +1444,178 @@ export default function AppShell() {
                 ) : (
                   <span className="text-xs font-semibold text-[var(--muted)]">•</span>
                 )}
-	              </div>
-	              <div className="min-w-0">
-	                <div className="text-sm font-semibold truncate">{selectedChat?.name ?? "Selecione um chat"}</div>
-	                {tags.length > 0 ? (
-	                  <div className="mt-1 flex flex-wrap gap-1">
-	                    {tags.slice(0, 3).map((t) => (
-	                      <span
-	                        key={t}
-	                        className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-2 py-0.5"
-	                      >
-	                        {t}
-	                      </span>
-	                    ))}
-	                    {tags.length > 3 ? <span className="text-[10px] text-[var(--muted)]">+{tags.length - 3}</span> : null}
-	                  </div>
-	                ) : (
-	                  <div className="text-xs text-[var(--muted)] truncate">{selectedChatId ?? ""}</div>
-	                )}
-	              </div>
-	            </div>
-	            <div className="flex items-center gap-2 relative">
-	              {selectionMode ? (
-	                <div className="flex items-center gap-2">
-	                  <div className="text-xs text-[var(--muted)]">{Object.keys(selectedMessageKeys).length} selecionada(s)</div>
-	                  <button
-	                    type="button"
-	                    onClick={() => copySelectedMessages()}
-	                    className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-	                  >
-	                    Copiar
-	                  </button>
-	                  <button
-	                    type="button"
-	                    onClick={() => {
-	                      setSelectionMode(false);
-	                      setSelectedMessageKeys({});
-	                    }}
-	                    className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-	                  >
-	                    Cancelar
-	                  </button>
-	                </div>
-	              ) : (
-	                <>
-	                  <button
-	                    type="button"
-	                    disabled={!selectedChatId}
-	                    onClick={() => setSearchOpen(true)}
-	                    className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60 flex items-center justify-center text-lg"
-	                    title="Pesquisar na conversa"
-	                    aria-label="Pesquisar na conversa"
-	                  >
-	                    🔎
-	                  </button>
-	                  <button
-	                    type="button"
-	                    disabled={!selectedChatId}
-	                    onClick={() => setHeaderMenuOpen((v) => !v)}
-	                    className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60 flex items-center justify-center text-lg"
-	                    title="Mais opções"
-	                    aria-label="Mais opções"
-	                  >
-	                    ⋯
-	                  </button>
-	                </>
-	              )}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold truncate">{selectedChat?.name ?? "Selecione um chat"}</div>
+                  {tags.length > 0 ? (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {tags.slice(0, 3).map((t) => (
+                        <span
+                          key={t}
+                          className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-2 py-0.5"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                      {tags.length > 3 ? <span className="text-[10px] text-[var(--muted)]">+{tags.length - 3}</span> : null}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-[var(--muted)] truncate">{selectedChatId ?? ""}</div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 relative">
+                {selectionMode ? (
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs text-[var(--muted)]">{Object.keys(selectedMessageKeys).length} selecionada(s)</div>
+                    <button
+                      type="button"
+                      onClick={() => copySelectedMessages()}
+                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                    >
+                      Copiar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectionMode(false);
+                        setSelectedMessageKeys({});
+                      }}
+                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={!selectedChatId}
+                      onClick={() => setSearchOpen(true)}
+                      className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60 flex items-center justify-center text-lg"
+                      title="Pesquisar na conversa"
+                      aria-label="Pesquisar na conversa"
+                    >
+                      🔎
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!selectedChatId}
+                      onClick={() => setHeaderMenuOpen((v) => !v)}
+                      className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60 flex items-center justify-center text-lg"
+                      title="Mais opções"
+                      aria-label="Mais opções"
+                    >
+                      ⋯
+                    </button>
+                  </>
+                )}
 
-	              {headerMenuOpen && selectedChatId ? (
-	                <div className="absolute right-0 top-12 w-72 rounded-2xl bg-[var(--card)] ring-1 ring-[var(--border)] shadow-2xl overflow-hidden z-20">
-	                  <button
-	                    type="button"
-	                    onClick={() => {
-	                      setHeaderMenuOpen(false);
-	                      setToast(`${selectedChat?.name ?? "Contato"} • ${selectedChatId}`);
-	                    }}
-	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-	                  >
-	                    Dados do contato
-	                  </button>
-	                  <button
-	                    type="button"
-	                    onClick={() => {
-	                      setHeaderMenuOpen(false);
-	                      setSearchOpen(true);
-	                    }}
-	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-	                  >
-	                    Pesquisar
-	                  </button>
-	                  <button
-	                    type="button"
-	                    onClick={() => {
-	                      setHeaderMenuOpen(false);
-	                      setSelectionMode(true);
-	                      setSelectedMessageKeys({});
-	                    }}
-	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-	                  >
-	                    Selecionar mensagens
-	                  </button>
-	                  <button
-	                    type="button"
-	                    onClick={() => {
-	                      const muted = isChatMutedLocal(selectedChatId);
-	                      setChatMutedLocal(selectedChatId, !muted);
-	                      setHeaderMenuOpen(false);
-	                      setToast(!muted ? "Notificações silenciadas." : "Notificações ativadas.");
-	                    }}
-	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-	                  >
-	                    {isChatMutedLocal(selectedChatId) ? "Ativar notificações" : "Silenciar notificações"}
-	                  </button>
-	                  <button
-	                    type="button"
-	                    onClick={() => {
-	                      setHeaderMenuOpen(false);
-	                      void toggleLabelForSelected("Favoritos");
-	                    }}
-	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-	                  >
-	                    {tags.includes("Favoritos") ? "Remover dos Favoritos" : "Adicionar aos Favoritos"}
-	                  </button>
-	                  <button
-	                    type="button"
-	                    onClick={() => {
-	                      setHeaderMenuOpen(false);
-	                      setTagPickerOpen(true);
-	                    }}
-	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-	                  >
-	                    Etiquetas
-	                  </button>
-	                  <button
-	                    type="button"
-	                    onClick={() => {
-	                      const next = assignedAgentId === "vanderlei" ? "gustavo" : "vanderlei";
-	                      setAssignedAgentId(next);
-	                      void saveState(selectedChatId, { assignedAgentId: next });
-	                      setHeaderMenuOpen(false);
-	                    }}
-	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-	                  >
-	                    Atribuir: {assignedAgentId === "vanderlei" ? "Vanderlei" : assignedAgentId === "gustavo" ? "Gustavo" : "—"}
-	                  </button>
-	                  <button
-	                    type="button"
-	                    onClick={() => {
-	                      const next = status === "pendente" ? "resolvido" : "pendente";
-	                      setStatus(next);
-	                      void saveState(selectedChatId, { status: next });
-	                      setHeaderMenuOpen(false);
-	                    }}
-	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-	                  >
-	                    {status === "pendente" ? "Fechar conversa" : "Reabrir conversa"}
-	                  </button>
-	                  <button
-	                    type="button"
-	                    onClick={() => {
-	                      setHeaderMenuOpen(false);
-	                      setMessages([]);
-	                      void loadMessages(selectedChatId);
-	                      setToast("Conversa atualizada.");
-	                    }}
-	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-	                  >
-	                    Limpar/atualizar conversa
-	                  </button>
-	                </div>
-	              ) : null}
-	            </div>
-	          </header>
+                {headerMenuOpen && selectedChatId ? (
+                  <div className="absolute right-0 top-12 w-72 rounded-2xl bg-[var(--card)] ring-1 ring-[var(--border)] shadow-2xl overflow-hidden z-20">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHeaderMenuOpen(false);
+                        setToast(`${selectedChat?.name ?? "Contato"} • ${selectedChatId}`);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                    >
+                      Dados do contato
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHeaderMenuOpen(false);
+                        setSearchOpen(true);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                    >
+                      Pesquisar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHeaderMenuOpen(false);
+                        setSelectionMode(true);
+                        setSelectedMessageKeys({});
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                    >
+                      Selecionar mensagens
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const muted = isChatMutedLocal(selectedChatId);
+                        setChatMutedLocal(selectedChatId, !muted);
+                        setHeaderMenuOpen(false);
+                        setToast(!muted ? "Notificações silenciadas." : "Notificações ativadas.");
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                    >
+                      {isChatMutedLocal(selectedChatId) ? "Ativar notificações" : "Silenciar notificações"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHeaderMenuOpen(false);
+                        void toggleLabelForSelected("Favoritos");
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                    >
+                      {tags.includes("Favoritos") ? "Remover dos Favoritos" : "Adicionar aos Favoritos"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHeaderMenuOpen(false);
+                        setTagPickerOpen(true);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                    >
+                      Etiquetas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = assignedAgentId === "vanderlei" ? "gustavo" : "vanderlei";
+                        setAssignedAgentId(next);
+                        void saveState(selectedChatId, { assignedAgentId: next });
+                        setHeaderMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                    >
+                      Atribuir: {assignedAgentId === "vanderlei" ? "Vanderlei" : assignedAgentId === "gustavo" ? "Gustavo" : "—"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = status === "pendente" ? "resolvido" : "pendente";
+                        setStatus(next);
+                        void saveState(selectedChatId, { status: next });
+                        setHeaderMenuOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                    >
+                      {status === "pendente" ? "Fechar conversa" : "Reabrir conversa"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHeaderMenuOpen(false);
+                        setMessages([]);
+                        void loadMessages(selectedChatId);
+                        setToast("Conversa atualizada.");
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                    >
+                      Limpar/atualizar conversa
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </header>
 
             {searchOpen ? (
               <div className="border-b border-[var(--border)] bg-[var(--background)]/70 backdrop-blur px-5 py-3">
@@ -1522,65 +1662,65 @@ export default function AppShell() {
                 </div>
               </div>
             ) : null}
-	
-		          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-		            {messages.map((m, idx) => {
-	              const mine = Boolean(m.fromMe);
-	              const rawText = getMessageText(m);
-	              const text = mine ? stripOwnSignature(rawText, me?.agentName ?? null) : rawText;
-	              const mtLower = (m.messageType ?? "").toLowerCase();
-	              const maybeContact = mtLower.includes("contact") || mtLower.includes("vcard") || /BEGIN:VCARD/i.test(text) || /X-WA-BIZ-/i.test(text);
-	              const contact = maybeContact ? parseContactFromText(text) : null;
-	              const dayKey = dateKeyFromTs(m.messageTimestamp);
-	              const prevDayKey = idx > 0 ? dateKeyFromTs(messages[idx - 1]?.messageTimestamp) : "";
-	              const showDaySeparator = Boolean(dayKey) && dayKey !== prevDayKey;
-	              const id = m.messageid ?? m.id ?? "";
-	              const cached = id ? downloadByMessageId[id] : undefined;
-	              const mediaUrl = (id && cached?.fileURL) || m.fileURL || null;
-	              const mimetype = cached?.mimetype;
-	              const showMedia = !contact && (Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation"));
+  
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                {messages.map((m, idx) => {
+                const mine = Boolean(m.fromMe);
+                const rawText = getMessageText(m);
+                const text = mine ? stripOwnSignature(rawText, me?.agentName ?? null) : rawText;
+                const mtLower = (m.messageType ?? "").toLowerCase();
+                const maybeContact = mtLower.includes("contact") || mtLower.includes("vcard") || /BEGIN:VCARD/i.test(text) || /X-WA-BIZ-/i.test(text);
+                const contact = maybeContact ? parseContactFromText(text) : null;
+                const dayKey = dateKeyFromTs(m.messageTimestamp);
+                const prevDayKey = idx > 0 ? dateKeyFromTs(messages[idx - 1]?.messageTimestamp) : "";
+                const showDaySeparator = Boolean(dayKey) && dayKey !== prevDayKey;
+                const id = m.messageid ?? m.id ?? "";
+                const cached = id ? downloadByMessageId[id] : undefined;
+                const mediaUrl = (id && cached?.fileURL) || m.fileURL || null;
+                const mimetype = cached?.mimetype;
+                const showMedia = !contact && (Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation"));
               const showAudioPlayer = showMedia && isAudioLike(m, mimetype);
               const showImage = showMedia && !showAudioPlayer && isImageLike(m, mimetype, mediaUrl);
               const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
               const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
               const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
-	              return (
-	                <div
-	                  key={stableKey}
-	                  ref={(el) => {
-	                    messageRefByKey.current[stableKey] = el;
-	                  }}
-	                >
-	                  {showDaySeparator ? (
-	                    <div className="flex justify-center py-2">
-	                      <div className="text-xs rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2">
-	                        {dayLabelFromKey(dayKey)}
-	                      </div>
-	                    </div>
-	                  ) : null}
+                return (
+                  <div
+                    key={stableKey}
+                    ref={(el) => {
+                      messageRefByKey.current[stableKey] = el;
+                    }}
+                  >
+                    {showDaySeparator ? (
+                      <div className="flex justify-center py-2">
+                        <div className="text-xs rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2">
+                          {dayLabelFromKey(dayKey)}
+                        </div>
+                      </div>
+                    ) : null}
 
-	                  <div className={mine ? "flex justify-end" : "flex justify-start"}>
-	                    {selectionMode ? (
-	                      <button
-	                        type="button"
-	                        onClick={() =>
-	                          setSelectedMessageKeys((prev) => {
-	                            const next = { ...prev };
-	                            if (next[stableKey]) delete next[stableKey];
-	                            else next[stableKey] = true;
-	                            return next;
-	                          })
-	                        }
-	                        className="mr-2 mt-2 h-6 w-6 rounded-md ring-2 ring-white/20 bg-white/5 hover:bg-white/8 flex items-center justify-center"
-	                        aria-label="Selecionar mensagem"
-	                      >
-	                        {selectedMessageKeys[stableKey] ? "✓" : ""}
-	                      </button>
-	                    ) : null}
-	                  <div
-	                    className={[
-	                      showAudioPlayer ? "max-w-[92%]" : "max-w-[78%]",
-	                      "rounded-3xl px-4 py-3 ring-1",
+                    <div className={mine ? "flex justify-end" : "flex justify-start"}>
+                      {selectionMode ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedMessageKeys((prev) => {
+                              const next = { ...prev };
+                              if (next[stableKey]) delete next[stableKey];
+                              else next[stableKey] = true;
+                              return next;
+                            })
+                          }
+                          className="mr-2 mt-2 h-6 w-6 rounded-md ring-2 ring-white/20 bg-white/5 hover:bg-white/8 flex items-center justify-center"
+                          aria-label="Selecionar mensagem"
+                        >
+                          {selectedMessageKeys[stableKey] ? "✓" : ""}
+                        </button>
+                      ) : null}
+                    <div
+                      className={[
+                        showAudioPlayer ? "max-w-[92%]" : "max-w-[78%]",
+                        "rounded-3xl px-4 py-3 ring-1",
                       mine
                         ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
                         : "bg-white/5 ring-white/10",
@@ -1591,8 +1731,8 @@ export default function AppShell() {
                       {":"}
                     </div>
 
-	                    {contact ? (
-	                      <div className="mt-2">
+                      {contact ? (
+                        <div className="mt-2">
                         {contact.caption ? (
                           <div className="text-sm whitespace-pre-wrap break-words">{contact.caption}</div>
                         ) : null}
@@ -1642,23 +1782,23 @@ export default function AppShell() {
                           </div>
                         </div>
                       </div>
-	                    ) : text.trim().length > 0 ? (
-	                      <div className="mt-1 text-sm whitespace-pre-wrap break-words">
-	                        {searchQuery.trim() ? renderHighlighted(text, searchQuery) : text}
-	                      </div>
-	                    ) : null}
+                      ) : text.trim().length > 0 ? (
+                        <div className="mt-1 text-sm whitespace-pre-wrap break-words">
+                          {searchQuery.trim() ? renderHighlighted(text, searchQuery) : text}
+                        </div>
+                      ) : null}
 
-	                    {showMedia ? (
-	                      <div className="mt-2">
-	                        {showAudioPlayer ? (
-	                          mediaUrl ? (
-	                            <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4 overflow-hidden">
-	                              <audio
-	                                controls
-	                                preload="metadata"
-	                                src={mediaUrl}
-	                                className="block w-[520px] max-w-full h-16"
-	                              />
+                      {showMedia ? (
+                        <div className="mt-2">
+                          {showAudioPlayer ? (
+                            mediaUrl ? (
+                              <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4 overflow-hidden">
+                                <audio
+                                  controls
+                                  preload="metadata"
+                                  src={mediaUrl}
+                                  className="block w-[520px] max-w-full h-16"
+                                />
                               <div className="mt-3 flex items-center justify-between gap-3">
                                 <div className="text-sm text-[var(--muted)] truncate">Áudio</div>
                                 <a
@@ -1762,51 +1902,51 @@ export default function AppShell() {
                             </div>
                             <div className="mt-2 text-xs text-[var(--muted)]">Pré-visualização indisponível para este tipo.</div>
                           </div>
-	                        ) : id && !cached?.unavailable ? (
-	                          <button
-	                            type="button"
-	                            className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
-	                            onClick={() => {
-	                              void (async () => {
-	                                try {
-	                                  const d = await ensureDownload(id);
-	                                  window.open(d.fileURL, "_blank", "noopener,noreferrer");
-	                                } catch (err) {
-	                                  const msg = err instanceof Error ? err.message : "Falha ao baixar mídia";
-	                                  // Se não existe arquivo, não faz sentido manter botão aparecendo.
-	                                  if (msg.toLowerCase().includes("indisponível")) {
-	                                    setDownloadByMessageId((prev) =>
-	                                      capDownloadCache(
-	                                        { ...prev, [id]: { fileURL: "", mimetype: prev[id]?.mimetype, unavailable: true } },
-	                                        MAX_DOWNLOAD_CACHE,
-	                                      ),
-	                                    );
-	                                  }
-	                                  setToast(msg);
-	                                }
-	                              })();
-	                            }}
-	                          >
-	                            Baixar/abrir documento
-	                          </button>
-	                        ) : cached?.unavailable ? (
-	                          <div className="text-xs text-[var(--muted)]">Arquivo indisponível.</div>
-	                        ) : (
-	                          <div className="text-xs text-[var(--muted)]">Mídia sem ID</div>
-	                        )}
-	                      </div>
-	                    ) : null}
+                          ) : id && !cached?.unavailable ? (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
+                              onClick={() => {
+                                void (async () => {
+                                  try {
+                                    const d = await ensureDownload(id);
+                                    window.open(d.fileURL, "_blank", "noopener,noreferrer");
+                                  } catch (err) {
+                                    const msg = err instanceof Error ? err.message : "Falha ao baixar mídia";
+                                    // Se não existe arquivo, não faz sentido manter botão aparecendo.
+                                    if (msg.toLowerCase().includes("indisponível")) {
+                                      setDownloadByMessageId((prev) =>
+                                        capDownloadCache(
+                                          { ...prev, [id]: { fileURL: "", mimetype: prev[id]?.mimetype, unavailable: true } },
+                                          MAX_DOWNLOAD_CACHE,
+                                        ),
+                                      );
+                                    }
+                                    setToast(msg);
+                                  }
+                                })();
+                              }}
+                            >
+                              Baixar/abrir documento
+                            </button>
+                          ) : cached?.unavailable ? (
+                            <div className="text-xs text-[var(--muted)]">Arquivo indisponível.</div>
+                          ) : (
+                            <div className="text-xs text-[var(--muted)]">Mídia sem ID</div>
+                          )}
+                        </div>
+                      ) : null}
 
-	                    <div className="mt-2 text-[10px] text-[var(--muted)] text-right">
-	                      {formatTime(m.messageTimestamp)}
-	                    </div>
-	                  </div>
-	                  </div>
-	                </div>
-	              );
-	            })}
-	            <div ref={messagesEndRef} />
-	          </div>
+                      <div className="mt-2 text-[10px] text-[var(--muted)] text-right">
+                        {formatTime(m.messageTimestamp)}
+                      </div>
+                    </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
 
           <footer className="border-t border-[var(--border)] p-4 bg-[var(--background)]/80 backdrop-blur">
             <div className="flex items-end gap-3">
