@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
 
-type Department = "fiscal" | "contabil" | "pessoal" | "societario_paralegal" | "administrativo";
+type Department = string;
 type DepartmentFilter = Department | "all";
-type TaskStatus = "to_do" | "in_progress" | "blocked" | "done";
+type TaskStatus = string;
 type TaskPriority = "low" | "normal" | "high" | "urgent";
 
 type Client = { id: string; name: string };
 type TaskType = { id: string; name: string };
+type StatusMeta = { id: string; name: string; color: string; sortOrder: number };
+type DepartmentMeta = { id: string; name: string; color: string; sortOrder: number };
 
 type ViewType = "list" | "board" | "calendar";
 type SavedView = { id: string; name: string; viewType: ViewType; department: Department | null; config: Record<string, unknown> };
@@ -42,32 +44,12 @@ type AttachmentItem = { id: string; filename: string; mimetype: string | null; s
 type ReactionSummary = { emoji: string; count: number; mine: boolean };
 type AuditItem = { id: string; actorName: string; eventType: string; data: unknown; createdAt: string };
 
-function deptLabel(d: Department) {
-  switch (d) {
-    case "fiscal":
-      return "Fiscal";
-    case "contabil":
-      return "Contábil";
-    case "pessoal":
-      return "Pessoal";
-    case "societario_paralegal":
-      return "Societário/Paralegal";
-    case "administrativo":
-      return "Administrativo";
-  }
+function deptLabel(d: Department, departments: DepartmentMeta[]) {
+  return departments.find((x) => x.id === d)?.name ?? d;
 }
 
-function statusLabel(s: TaskStatus) {
-  switch (s) {
-    case "to_do":
-      return "A Fazer";
-    case "in_progress":
-      return "Em Andamento";
-    case "blocked":
-      return "Pendente";
-    case "done":
-      return "Concluído";
-  }
+function statusLabel(s: TaskStatus, statuses: StatusMeta[]) {
+  return statuses.find((x) => x.id === s)?.name ?? s;
 }
 
 function priorityLabel(p: TaskPriority) {
@@ -150,6 +132,8 @@ function renderWithMentions(text: string) {
 export default function TasksShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
+  const [statusMeta, setStatusMeta] = useState<StatusMeta[]>([]);
+  const [departmentMeta, setDepartmentMeta] = useState<DepartmentMeta[]>([]);
 
   const [q, setQ] = useState("");
   const [department, setDepartment] = useState<DepartmentFilter>("fiscal");
@@ -175,13 +159,7 @@ export default function TasksShell() {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [boardDraggingTaskId, setBoardDraggingTaskId] = useState<string | null>(null);
   const [calendarAnchor, setCalendarAnchor] = useState<Date>(() => new Date());
-  const [openDepartments, setOpenDepartments] = useState<Record<Department, boolean>>({
-    fiscal: true,
-    contabil: true,
-    pessoal: true,
-    societario_paralegal: true,
-    administrativo: true,
-  });
+  const [openDepartments, setOpenDepartments] = useState<Record<string, boolean>>({});
 
   // create task
   const [creating, setCreating] = useState(false);
@@ -196,6 +174,18 @@ export default function TasksShell() {
   const [newTaskTypeId, setNewTaskTypeId] = useState<string>("outros");
   const [newTaskTypeName, setNewTaskTypeName] = useState("");
   const [creatingTaskType, setCreatingTaskType] = useState(false);
+
+  // customization (columns/departments)
+  const [showCustomize, setShowCustomize] = useState(false);
+  const [newStatusId, setNewStatusId] = useState("");
+  const [newStatusName, setNewStatusName] = useState("");
+  const [newStatusColor, setNewStatusColor] = useState("#64748b");
+  const [creatingStatus, setCreatingStatus] = useState(false);
+
+  const [newDeptId, setNewDeptId] = useState("");
+  const [newDeptName, setNewDeptName] = useState("");
+  const [newDeptColor, setNewDeptColor] = useState("#64748b");
+  const [creatingDept, setCreatingDept] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const commentFileRef = useRef<HTMLInputElement | null>(null);
@@ -267,10 +257,19 @@ export default function TasksShell() {
             }}
             className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
           >
-            <option value="to_do">A Fazer</option>
-            <option value="in_progress">Em Andamento</option>
-            <option value="blocked">Bloqueado</option>
-            <option value="done">Concluído</option>
+            {(statusMeta.length
+              ? statusMeta
+              : [
+                  { id: "to_do", name: "A Fazer" },
+                  { id: "in_progress", name: "Em Andamento" },
+                  { id: "blocked", name: "Pendente" },
+                  { id: "done", name: "Concluído" },
+                ]
+            ).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
           </select>
 
           <select
@@ -331,11 +330,20 @@ export default function TasksShell() {
             }}
             className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
           >
-            <option value="fiscal">Fiscal</option>
-            <option value="contabil">Contábil</option>
-            <option value="pessoal">Pessoal</option>
-            <option value="societario_paralegal">Societário</option>
-            <option value="administrativo">Administrativo</option>
+            {(departmentMeta.length
+              ? departmentMeta
+              : [
+                  { id: "fiscal", name: "Fiscal" },
+                  { id: "contabil", name: "Contábil" },
+                  { id: "pessoal", name: "Pessoal" },
+                  { id: "societario_paralegal", name: "Societário/Paralegal" },
+                  { id: "administrativo", name: "Administrativo" },
+                ]
+            ).map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -540,6 +548,82 @@ export default function TasksShell() {
     if (!res.ok) return;
     const data = (await res.json()) as Agent;
     setMe(data);
+  }
+
+  async function loadTaskMeta() {
+    const [resStatuses, resDepts] = await Promise.all([
+      fetch("/api/task-statuses", { cache: "no-store" }),
+      fetch("/api/task-departments", { cache: "no-store" }),
+    ]);
+    if (resStatuses.ok) {
+      const data = (await resStatuses.json()) as { items: StatusMeta[] };
+      setStatusMeta((data.items ?? []).slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)));
+    }
+    if (resDepts.ok) {
+      const data = (await resDepts.json()) as { items: DepartmentMeta[] };
+      const items = (data.items ?? []).slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      setDepartmentMeta(items);
+      setOpenDepartments((prev) => {
+        const next = { ...prev };
+        for (const d of items) if (next[d.id] === undefined) next[d.id] = true;
+        return next;
+      });
+      setDepartment((prev) => {
+        if (prev === "all") return prev;
+        if (items.some((x) => x.id === prev)) return prev;
+        return items[0]?.id ?? prev;
+      });
+    }
+  }
+
+  async function createStatusColumn() {
+    if (creatingStatus) return;
+    const id = newStatusId.trim().toLowerCase();
+    const name = newStatusName.trim();
+    if (!id || !name) return;
+    setCreatingStatus(true);
+    try {
+      const res = await fetch("/api/task-statuses", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, name, color: newStatusColor }),
+      });
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(data?.error ?? "Falha ao criar coluna");
+      setNewStatusId("");
+      setNewStatusName("");
+      setNewStatusColor("#64748b");
+      await loadTaskMeta();
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Falha ao criar coluna");
+    } finally {
+      setCreatingStatus(false);
+    }
+  }
+
+  async function createDepartment() {
+    if (creatingDept) return;
+    const id = newDeptId.trim().toLowerCase();
+    const name = newDeptName.trim();
+    if (!id || !name) return;
+    setCreatingDept(true);
+    try {
+      const res = await fetch("/api/task-departments", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, name, color: newDeptColor }),
+      });
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(data?.error ?? "Falha ao criar departamento");
+      setNewDeptId("");
+      setNewDeptName("");
+      setNewDeptColor("#64748b");
+      await loadTaskMeta();
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Falha ao criar departamento");
+    } finally {
+      setCreatingDept(false);
+    }
   }
 
   async function loadTaskTypes() {
@@ -775,6 +859,7 @@ export default function TasksShell() {
 
   useEffect(() => {
     void loadMe();
+    void loadTaskMeta();
     void loadTaskTypes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -944,11 +1029,20 @@ export default function TasksShell() {
                 className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
               >
                 <option value="all">Geral</option>
-                <option value="fiscal">Fiscal</option>
-                <option value="contabil">Contábil</option>
-                <option value="pessoal">Pessoal</option>
-                <option value="societario_paralegal">Societário</option>
-                <option value="administrativo">Administrativo</option>
+                {(departmentMeta.length
+                  ? departmentMeta
+                  : [
+                      { id: "fiscal", name: "Fiscal" },
+                      { id: "contabil", name: "Contábil" },
+                      { id: "pessoal", name: "Pessoal" },
+                      { id: "societario_paralegal", name: "Societário/Paralegal" },
+                      { id: "administrativo", name: "Administrativo" },
+                    ]
+                ).map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
               </select>
               <select
                 value={status}
@@ -956,10 +1050,19 @@ export default function TasksShell() {
                 className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
               >
                 <option value="all">Status</option>
-                <option value="to_do">A Fazer</option>
-                <option value="in_progress">Em Andamento</option>
-                <option value="blocked">Bloqueado</option>
-                <option value="done">Concluído</option>
+                {(statusMeta.length
+                  ? statusMeta
+                  : [
+                      { id: "to_do", name: "A Fazer" },
+                      { id: "in_progress", name: "Em Andamento" },
+                      { id: "blocked", name: "Pendente" },
+                      { id: "done", name: "Concluído" },
+                    ]
+                ).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
               </select>
               <select
                 value={assignee}
@@ -989,6 +1092,93 @@ export default function TasksShell() {
             >
               Atualizar lista
             </button>
+
+            {me?.agentId === "vanderlei" ? (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomize((v) => !v)}
+                  className="w-full rounded-2xl bg-white/3 ring-1 ring-white/10 px-4 py-2 text-sm hover:bg-white/6"
+                >
+                  {showCustomize ? "Fechar personalização" : "Personalizar colunas/deptos"}
+                </button>
+                {showCustomize ? (
+                  <div className="mt-3 space-y-4">
+                    <div className="rounded-3xl bg-white/3 ring-1 ring-white/10 p-4">
+                      <div className="text-sm font-semibold">Nova coluna (Quadro)</div>
+                      <div className="mt-3 grid gap-2">
+                        <input
+                          value={newStatusName}
+                          onChange={(e) => setNewStatusName(e.target.value)}
+                          placeholder="Nome (ex.: Revisão)"
+                          className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                        />
+                        <div className="grid grid-cols-[1fr,56px] gap-2">
+                          <input
+                            value={newStatusId}
+                            onChange={(e) => setNewStatusId(e.target.value)}
+                            placeholder="ID (ex.: revisao)"
+                            className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                          />
+                          <input
+                            type="color"
+                            value={newStatusColor}
+                            onChange={(e) => setNewStatusColor(e.target.value)}
+                            className="h-10 w-full rounded-2xl bg-white/5 ring-1 ring-white/10 p-1"
+                            title="Cor"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void createStatusColumn()}
+                          disabled={creatingStatus || !newStatusId.trim() || !newStatusName.trim()}
+                          className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                        >
+                          {creatingStatus ? "Criando..." : "Criar coluna"}
+                        </button>
+                        <div className="text-[11px] text-[var(--muted)]">Use apenas letras minúsculas, números e _ no ID.</div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-3xl bg-white/3 ring-1 ring-white/10 p-4">
+                      <div className="text-sm font-semibold">Novo departamento (Lista)</div>
+                      <div className="mt-3 grid gap-2">
+                        <input
+                          value={newDeptName}
+                          onChange={(e) => setNewDeptName(e.target.value)}
+                          placeholder="Nome (ex.: Jurídico)"
+                          className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                        />
+                        <div className="grid grid-cols-[1fr,56px] gap-2">
+                          <input
+                            value={newDeptId}
+                            onChange={(e) => setNewDeptId(e.target.value)}
+                            placeholder="ID (ex.: juridico)"
+                            className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                          />
+                          <input
+                            type="color"
+                            value={newDeptColor}
+                            onChange={(e) => setNewDeptColor(e.target.value)}
+                            className="h-10 w-full rounded-2xl bg-white/5 ring-1 ring-white/10 p-1"
+                            title="Cor"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void createDepartment()}
+                          disabled={creatingDept || !newDeptId.trim() || !newDeptName.trim()}
+                          className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                        >
+                          {creatingDept ? "Criando..." : "Criar departamento"}
+                        </button>
+                        <div className="text-[11px] text-[var(--muted)]">Use apenas letras minúsculas, números e _ no ID.</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="flex-1" />
@@ -1001,9 +1191,9 @@ export default function TasksShell() {
                 {viewType === "list" ? "Lista" : viewType === "board" ? "Quadro" : "Calendário"}
               </div>
               <div className="text-xs text-[var(--muted)] truncate">
-                {department === "all" ? "Geral" : deptLabel(department)}
+                {department === "all" ? "Geral" : deptLabel(department, departmentMeta)}
                 {assignee !== "all" ? ` • ${assignee === "vanderlei" ? "Vanderlei" : "Gustavo"}` : ""}
-                {status !== "all" ? ` • ${statusLabel(status)}` : ""}
+                {status !== "all" ? ` • ${statusLabel(status, statusMeta)}` : ""}
               </div>
             </div>
 
@@ -1028,7 +1218,7 @@ export default function TasksShell() {
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {viewType === "board" ? (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                {(["to_do", "in_progress", "blocked", "done"] as TaskStatus[]).map((s) => {
+                {(statusMeta.length ? statusMeta.map((x) => x.id) : (["to_do", "in_progress", "blocked", "done"] as TaskStatus[])).map((s) => {
                   const columnTasks = tasks.filter((t) => t.status === s).slice(0, 200);
                   return (
                     <div
@@ -1060,7 +1250,13 @@ export default function TasksShell() {
                       }}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-semibold">{statusLabel(s)}</div>
+                        <div className="text-sm font-semibold flex items-center gap-2">
+                          <span
+                            className="inline-block h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: statusMeta.find((x) => x.id === s)?.color ?? "#64748b" }}
+                          />
+                          {statusLabel(s, statusMeta)}
+                        </div>
                         <div className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">{columnTasks.length}</div>
                       </div>
                       <div className="mt-3 space-y-2">
@@ -1231,9 +1427,12 @@ export default function TasksShell() {
                 <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
                   <div className="text-sm font-semibold">Lista • por departamento</div>
                 <div className="mt-4 space-y-4">
-                  {(["fiscal", "contabil", "pessoal", "societario_paralegal", "administrativo"] as Department[]).map((dept) => {
+                  {(departmentMeta.length
+                    ? departmentMeta.map((d) => d.id)
+                    : (["fiscal", "contabil", "pessoal", "societario_paralegal", "administrativo"] as Department[])).map((dept) => {
                     const deptTasks = tasks.filter((t) => t.department === dept);
                     const open = openDepartments[dept] ?? true;
+                    const deptColor = departmentMeta.find((d) => d.id === dept)?.color ?? "#64748b";
                     return (
                       <div key={dept} className="rounded-3xl bg-white/3 ring-1 ring-white/10 overflow-hidden">
                         <button
@@ -1242,7 +1441,10 @@ export default function TasksShell() {
                           className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/3"
                         >
                           <div className="text-sm font-semibold">
-                            {deptLabel(dept)}{" "}
+                            <span className="inline-flex items-center gap-2">
+                              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: deptColor }} />
+                              {deptLabel(dept, departmentMeta)}{" "}
+                            </span>
                             <span className="text-[10px] text-[var(--muted)] font-normal">({deptTasks.length})</span>
                           </div>
                           <div className="text-xs text-[var(--muted)]">{open ? "—" : "+"}</div>
@@ -1271,7 +1473,7 @@ export default function TasksShell() {
                                             {t.title}
                                           </div>
                                           <div className="mt-1 text-xs text-[var(--muted)] truncate">
-                                            {statusLabel(t.status)}
+                                            {statusLabel(t.status, statusMeta)}
                                             {t.assignee ? ` • ${t.assignee.name}` : " • Sem responsável"}
                                             {t.client ? ` • ${t.client.name}` : ""}
                                           </div>
@@ -1317,17 +1519,26 @@ export default function TasksShell() {
                       </button>
                     </div>
                     <div className="mt-4 grid gap-3">
-                      <select
-                        value={newDepartment}
-                        onChange={(e) => setNewDepartment(e.target.value as Department)}
-                        className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                      >
-                        <option value="fiscal">Fiscal</option>
-                        <option value="contabil">Contábil</option>
-                        <option value="pessoal">Pessoal</option>
-                        <option value="societario_paralegal">Societário</option>
-                        <option value="administrativo">Administrativo</option>
-                      </select>
+                    <select
+                      value={newDepartment}
+                      onChange={(e) => setNewDepartment(e.target.value as Department)}
+                      className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                    >
+                      {(departmentMeta.length
+                        ? departmentMeta
+                        : [
+                            { id: "fiscal", name: "Fiscal" },
+                            { id: "contabil", name: "Contábil" },
+                            { id: "pessoal", name: "Pessoal" },
+                            { id: "societario_paralegal", name: "Societário/Paralegal" },
+                            { id: "administrativo", name: "Administrativo" },
+                          ]
+                      ).map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
                       <div className="grid grid-cols-3 gap-2">
                         <select
                           value={newTaskTypeId}
@@ -1760,11 +1971,20 @@ export default function TasksShell() {
                       onChange={(e) => setNewDepartment(e.target.value as Department)}
                       className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
                     >
-                      <option value="fiscal">Fiscal</option>
-                      <option value="contabil">Contábil</option>
-                      <option value="pessoal">Pessoal</option>
-                      <option value="societario_paralegal">Societário</option>
-                      <option value="administrativo">Administrativo</option>
+                      {(departmentMeta.length
+                        ? departmentMeta
+                        : [
+                            { id: "fiscal", name: "Fiscal" },
+                            { id: "contabil", name: "Contábil" },
+                            { id: "pessoal", name: "Pessoal" },
+                            { id: "societario_paralegal", name: "Societário/Paralegal" },
+                            { id: "administrativo", name: "Administrativo" },
+                          ]
+                      ).map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
                     </select>
 
                     <div className="grid grid-cols-3 gap-2">

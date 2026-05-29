@@ -8,15 +8,13 @@ import { requireTaskAccess } from "@/lib/task-access";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const departmentEnum = z.enum(["fiscal", "contabil", "pessoal", "societario_paralegal", "administrativo"]);
-const statusEnum = z.enum(["to_do", "in_progress", "blocked", "done"]);
 const priorityEnum = z.enum(["low", "normal", "high", "urgent"]);
 
 const patchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(20_000).nullable().optional(),
-  department: departmentEnum.optional(),
-  status: statusEnum.optional(),
+  department: z.string().min(1).max(40).optional(),
+  status: z.string().min(1).max(40).optional(),
   priority: priorityEnum.optional(),
   clientId: z.string().nullable().optional(),
   assigneeAgentId: z.enum(["vanderlei", "gustavo"]).nullable().optional(),
