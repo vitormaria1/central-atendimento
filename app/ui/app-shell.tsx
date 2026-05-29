@@ -97,6 +97,45 @@ function stripOwnSignature(text: string, agentName?: string | null) {
   return text;
 }
 
+function includesIgnoreCase(text: string, q: string) {
+  return text.toLowerCase().includes(q.toLowerCase());
+}
+
+function renderHighlighted(text: string, q: string) {
+  if (!q.trim()) return text;
+  const query = q.trim();
+  const lower = text.toLowerCase();
+  const qLower = query.toLowerCase();
+  const parts: Array<string | { m: string }> = [];
+  let i = 0;
+  while (i < text.length) {
+    const idx = lower.indexOf(qLower, i);
+    if (idx === -1) {
+      parts.push(text.slice(i));
+      break;
+    }
+    if (idx > i) parts.push(text.slice(i, idx));
+    parts.push({ m: text.slice(idx, idx + query.length) });
+    i = idx + query.length;
+  }
+  return (
+    <>
+      {parts.map((p, k) =>
+        typeof p === "string" ? (
+          <span key={k}>{p}</span>
+        ) : (
+          <mark
+            key={k}
+            className="rounded px-1 bg-[color-mix(in_srgb,var(--warning)_30%,transparent)] text-[var(--foreground)]"
+          >
+            {p.m}
+          </mark>
+        ),
+      )}
+    </>
+  );
+}
+
 function isAudioLike(m: MessageItem, mimetype?: string) {
   if (mimetype?.startsWith("audio/")) return true;
   const mt = (m.messageType ?? "").toLowerCase();
@@ -359,6 +398,12 @@ export default function AppShell() {
   const [tagInput, setTagInput] = useState("");
   const [chatMenuChatId, setChatMenuChatId] = useState<string | null>(null);
   const [chatMenuTagInput, setChatMenuTagInput] = useState("");
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchCursor, setSearchCursor] = useState(0);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedMessageKeys, setSelectedMessageKeys] = useState<Record<string, true>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [waLabels, setWaLabels] = useState<WaLabel[]>([]);
   const [downloadByMessageId, setDownloadByMessageId] = useState<
@@ -373,6 +418,7 @@ export default function AppShell() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
+  const messageRefByKey = useRef<Record<string, HTMLDivElement | null>>({});
 
   const selectedChat = useMemo(
     () => chats.find((c) => c.chatId === selectedChatId) ?? null,
@@ -388,6 +434,16 @@ export default function AppShell() {
     setTags(selectedChat?.state?.tags ?? []);
   }, [selectedChatId, selectedChat?.state?.tags]);
 
+  useEffect(() => {
+    // ao trocar de chat, reseta modos
+    setHeaderMenuOpen(false);
+    setSearchOpen(false);
+    setSearchQuery("");
+    setSelectionMode(false);
+    setSelectedMessageKeys({});
+    setSearchCursor(0);
+  }, [selectedChatId]);
+
   const filteredChats = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return chats;
@@ -402,6 +458,28 @@ export default function AppShell() {
     if (assignedFilter === "all") return filteredChats;
     return filteredChats.filter((c) => c.state?.assignedAgentId === assignedFilter);
   }, [assignedFilter, filteredChats]);
+
+  const searchMatchKeys = useMemo(() => {
+    const q = searchQuery.trim();
+    if (!q) return [] as string[];
+    const keys: string[] = [];
+    for (let idx = 0; idx < messages.length; idx += 1) {
+      const m = messages[idx]!;
+      const mine = Boolean(m.fromMe);
+      const rawText = getMessageText(m);
+      const text = mine ? stripOwnSignature(rawText, me?.agentName ?? null) : rawText;
+      if (!text) continue;
+      if (!includesIgnoreCase(text, q)) continue;
+      const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
+      keys.push(stableKey);
+    }
+    return keys;
+  }, [me?.agentName, messages, searchQuery, selectedChatId]);
+
+  useEffect(() => {
+    // reseta cursor quando muda query
+    setSearchCursor(0);
+  }, [searchQuery]);
 
   useEffect(() => {
     selectedChatIdRef.current = selectedChatId;
@@ -642,6 +720,45 @@ export default function AppShell() {
         setToast("Falha ao salvar etiquetas");
       }
     }
+  }
+
+  function isChatMutedLocal(chatId?: string | null) {
+    if (!chatId) return false;
+    try {
+      return window.localStorage.getItem(`wa:mute:${chatId}`) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function setChatMutedLocal(chatId: string, muted: boolean) {
+    try {
+      window.localStorage.setItem(`wa:mute:${chatId}`, muted ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }
+
+  function copySelectedMessages() {
+    const keys = Object.keys(selectedMessageKeys);
+    if (keys.length === 0) return;
+    const byKey = new Map<string, string>();
+    for (let idx = 0; idx < messages.length; idx += 1) {
+      const m = messages[idx]!;
+      const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
+      const mine = Boolean(m.fromMe);
+      const raw = getMessageText(m);
+      const t = mine ? stripOwnSignature(raw, me?.agentName ?? null) : raw;
+      byKey.set(stableKey, t);
+    }
+    const text = keys
+      .map((k) => byKey.get(k))
+      .filter(Boolean)
+      .join("\n\n");
+    void navigator.clipboard.writeText(text).then(
+      () => setToast("Mensagens copiadas."),
+      () => setToast("Falha ao copiar."),
+    );
   }
 
   async function sendMessage() {
@@ -922,6 +1039,15 @@ export default function AppShell() {
     else router.push("/");
   }
 
+  function jumpToMatch(next: number) {
+    if (!searchMatchKeys.length) return;
+    const clamped = ((next % searchMatchKeys.length) + searchMatchKeys.length) % searchMatchKeys.length;
+    setSearchCursor(clamped);
+    const key = searchMatchKeys[clamped]!;
+    const el = messageRefByKey.current[key];
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   useEffect(() => {
     void loadMe();
     void loadChats();
@@ -1198,49 +1324,207 @@ export default function AppShell() {
 	                )}
 	              </div>
 	            </div>
-	            <div className="flex items-center gap-2">
-              <button
-                disabled={!selectedChatId}
-                onClick={() => {
-                  if (!selectedChatId) return;
-                  const next = status === "pendente" ? "resolvido" : "pendente";
-                  setStatus(next);
-                  void saveState(selectedChatId, { status: next });
-                }}
-                className={[
-                  "rounded-xl px-3 py-2 text-xs ring-1 hover:bg-white/8 disabled:opacity-60 transition",
-                  status === "pendente"
-                    ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)]"
-                    : "bg-[color-mix(in_srgb,var(--warning)_12%,transparent)] ring-[color-mix(in_srgb,var(--warning)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--warning)_18%,transparent)]",
-                ].join(" ")}
-              >
-                {status === "pendente" ? "Marcar resolvido" : "Marcar pendente"}
-              </button>
-	              <button
-	                disabled={!selectedChatId}
-	                onClick={() => {
-	                  if (!selectedChatId) return;
-	                  const next = assignedAgentId === "vanderlei" ? "gustavo" : "vanderlei";
-	                  setAssignedAgentId(next);
-	                  void saveState(selectedChatId, { assignedAgentId: next });
-	                }}
-	                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60"
-	              >
-	                Atribuir: {assignedAgentId === "vanderlei" ? "Vanderlei" : assignedAgentId === "gustavo" ? "Gustavo" : "—"}
-	              </button>
-	              <button
-	                disabled={!selectedChatId}
-	                onClick={() => setTagPickerOpen(true)}
-	                className="rounded-xl px-3 py-2 text-xs bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,var(--border))] hover:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] disabled:opacity-60"
-	                title="Etiquetas"
-	              >
-	                Etiquetas
-	              </button>
+	            <div className="flex items-center gap-2 relative">
+	              {selectionMode ? (
+	                <div className="flex items-center gap-2">
+	                  <div className="text-xs text-[var(--muted)]">{Object.keys(selectedMessageKeys).length} selecionada(s)</div>
+	                  <button
+	                    type="button"
+	                    onClick={() => copySelectedMessages()}
+	                    className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+	                  >
+	                    Copiar
+	                  </button>
+	                  <button
+	                    type="button"
+	                    onClick={() => {
+	                      setSelectionMode(false);
+	                      setSelectedMessageKeys({});
+	                    }}
+	                    className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+	                  >
+	                    Cancelar
+	                  </button>
+	                </div>
+	              ) : (
+	                <>
+	                  <button
+	                    type="button"
+	                    disabled={!selectedChatId}
+	                    onClick={() => setSearchOpen(true)}
+	                    className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60 flex items-center justify-center text-lg"
+	                    title="Pesquisar na conversa"
+	                    aria-label="Pesquisar na conversa"
+	                  >
+	                    🔎
+	                  </button>
+	                  <button
+	                    type="button"
+	                    disabled={!selectedChatId}
+	                    onClick={() => setHeaderMenuOpen((v) => !v)}
+	                    className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60 flex items-center justify-center text-lg"
+	                    title="Mais opções"
+	                    aria-label="Mais opções"
+	                  >
+	                    ⋯
+	                  </button>
+	                </>
+	              )}
+
+	              {headerMenuOpen && selectedChatId ? (
+	                <div className="absolute right-0 top-12 w-72 rounded-2xl bg-[var(--card)] ring-1 ring-[var(--border)] shadow-2xl overflow-hidden z-20">
+	                  <button
+	                    type="button"
+	                    onClick={() => {
+	                      setHeaderMenuOpen(false);
+	                      setToast(`${selectedChat?.name ?? "Contato"} • ${selectedChatId}`);
+	                    }}
+	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+	                  >
+	                    Dados do contato
+	                  </button>
+	                  <button
+	                    type="button"
+	                    onClick={() => {
+	                      setHeaderMenuOpen(false);
+	                      setSearchOpen(true);
+	                    }}
+	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+	                  >
+	                    Pesquisar
+	                  </button>
+	                  <button
+	                    type="button"
+	                    onClick={() => {
+	                      setHeaderMenuOpen(false);
+	                      setSelectionMode(true);
+	                      setSelectedMessageKeys({});
+	                    }}
+	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+	                  >
+	                    Selecionar mensagens
+	                  </button>
+	                  <button
+	                    type="button"
+	                    onClick={() => {
+	                      const muted = isChatMutedLocal(selectedChatId);
+	                      setChatMutedLocal(selectedChatId, !muted);
+	                      setHeaderMenuOpen(false);
+	                      setToast(!muted ? "Notificações silenciadas." : "Notificações ativadas.");
+	                    }}
+	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+	                  >
+	                    {isChatMutedLocal(selectedChatId) ? "Ativar notificações" : "Silenciar notificações"}
+	                  </button>
+	                  <button
+	                    type="button"
+	                    onClick={() => {
+	                      setHeaderMenuOpen(false);
+	                      void toggleLabelForSelected("Favoritos");
+	                    }}
+	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+	                  >
+	                    {tags.includes("Favoritos") ? "Remover dos Favoritos" : "Adicionar aos Favoritos"}
+	                  </button>
+	                  <button
+	                    type="button"
+	                    onClick={() => {
+	                      setHeaderMenuOpen(false);
+	                      setTagPickerOpen(true);
+	                    }}
+	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+	                  >
+	                    Etiquetas
+	                  </button>
+	                  <button
+	                    type="button"
+	                    onClick={() => {
+	                      const next = assignedAgentId === "vanderlei" ? "gustavo" : "vanderlei";
+	                      setAssignedAgentId(next);
+	                      void saveState(selectedChatId, { assignedAgentId: next });
+	                      setHeaderMenuOpen(false);
+	                    }}
+	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+	                  >
+	                    Atribuir: {assignedAgentId === "vanderlei" ? "Vanderlei" : assignedAgentId === "gustavo" ? "Gustavo" : "—"}
+	                  </button>
+	                  <button
+	                    type="button"
+	                    onClick={() => {
+	                      const next = status === "pendente" ? "resolvido" : "pendente";
+	                      setStatus(next);
+	                      void saveState(selectedChatId, { status: next });
+	                      setHeaderMenuOpen(false);
+	                    }}
+	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+	                  >
+	                    {status === "pendente" ? "Fechar conversa" : "Reabrir conversa"}
+	                  </button>
+	                  <button
+	                    type="button"
+	                    onClick={() => {
+	                      setHeaderMenuOpen(false);
+	                      setMessages([]);
+	                      void loadMessages(selectedChatId);
+	                      setToast("Conversa atualizada.");
+	                    }}
+	                    className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+	                  >
+	                    Limpar/atualizar conversa
+	                  </button>
+	                </div>
+	              ) : null}
 	            </div>
 	          </header>
 
-	          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-	            {messages.map((m, idx) => {
+            {searchOpen ? (
+              <div className="border-b border-[var(--border)] bg-[var(--background)]/70 backdrop-blur px-5 py-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Pesquisar na conversa…"
+                    className="h-11 w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
+                    autoFocus
+                  />
+                  <div className="text-xs text-[var(--muted)] min-w-[72px] text-center">
+                    {searchMatchKeys.length ? `${searchCursor + 1}/${searchMatchKeys.length}` : "0/0"}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => jumpToMatch(searchCursor - 1)}
+                    disabled={!searchMatchKeys.length}
+                    className="h-11 w-11 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60"
+                    title="Anterior"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => jumpToMatch(searchCursor + 1)}
+                    disabled={!searchMatchKeys.length}
+                    className="h-11 w-11 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 disabled:opacity-60"
+                    title="Próximo"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchOpen(false);
+                      setSearchQuery("");
+                    }}
+                    className="h-11 rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 text-sm hover:bg-white/8"
+                    title="Fechar busca"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            ) : null}
+	
+		          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+		            {messages.map((m, idx) => {
 	              const mine = Boolean(m.fromMe);
 	              const rawText = getMessageText(m);
 	              const text = mine ? stripOwnSignature(rawText, me?.agentName ?? null) : rawText;
@@ -1261,7 +1545,12 @@ export default function AppShell() {
               const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
               const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
 	              return (
-	                <div key={stableKey}>
+	                <div
+	                  key={stableKey}
+	                  ref={(el) => {
+	                    messageRefByKey.current[stableKey] = el;
+	                  }}
+	                >
 	                  {showDaySeparator ? (
 	                    <div className="flex justify-center py-2">
 	                      <div className="text-xs rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2">
@@ -1271,6 +1560,23 @@ export default function AppShell() {
 	                  ) : null}
 
 	                  <div className={mine ? "flex justify-end" : "flex justify-start"}>
+	                    {selectionMode ? (
+	                      <button
+	                        type="button"
+	                        onClick={() =>
+	                          setSelectedMessageKeys((prev) => {
+	                            const next = { ...prev };
+	                            if (next[stableKey]) delete next[stableKey];
+	                            else next[stableKey] = true;
+	                            return next;
+	                          })
+	                        }
+	                        className="mr-2 mt-2 h-6 w-6 rounded-md ring-2 ring-white/20 bg-white/5 hover:bg-white/8 flex items-center justify-center"
+	                        aria-label="Selecionar mensagem"
+	                      >
+	                        {selectedMessageKeys[stableKey] ? "✓" : ""}
+	                      </button>
+	                    ) : null}
 	                  <div
 	                    className={[
 	                      showAudioPlayer ? "max-w-[92%]" : "max-w-[78%]",
@@ -1285,8 +1591,8 @@ export default function AppShell() {
                       {":"}
                     </div>
 
-                    {contact ? (
-                      <div className="mt-2">
+	                    {contact ? (
+	                      <div className="mt-2">
                         {contact.caption ? (
                           <div className="text-sm whitespace-pre-wrap break-words">{contact.caption}</div>
                         ) : null}
@@ -1336,9 +1642,11 @@ export default function AppShell() {
                           </div>
                         </div>
                       </div>
-                    ) : text.trim().length > 0 ? (
-                      <div className="mt-1 text-sm whitespace-pre-wrap break-words">{text}</div>
-                    ) : null}
+	                    ) : text.trim().length > 0 ? (
+	                      <div className="mt-1 text-sm whitespace-pre-wrap break-words">
+	                        {searchQuery.trim() ? renderHighlighted(text, searchQuery) : text}
+	                      </div>
+	                    ) : null}
 
 	                    {showMedia ? (
 	                      <div className="mt-2">

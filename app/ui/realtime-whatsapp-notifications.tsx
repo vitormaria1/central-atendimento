@@ -33,6 +33,15 @@ export default function RealtimeWhatsappNotifications() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const lastByChatRef = useRef<Map<string, number>>(new Map());
 
+  function isMuted(chatId?: string | null) {
+    if (!chatId) return false;
+    try {
+      return window.localStorage.getItem(`wa:mute:${chatId}`) === "1";
+    } catch {
+      return false;
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     let retryTimer: number | null = null;
@@ -73,6 +82,7 @@ export default function RealtimeWhatsappNotifications() {
           if (!data?.type || data.type === "ping" || data.type === "hello") return;
 
           if (data.type === "message_received") {
+            if (isMuted(data.chatId ?? null)) return;
             const path = window.location.pathname;
             const isOnWhatsapp = path === "/whatsapp";
             const shouldNotify = !isOnWhatsapp || document.hidden;
