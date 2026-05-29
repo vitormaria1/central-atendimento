@@ -176,12 +176,13 @@ export default function TasksShell() {
   const [creatingTaskType, setCreatingTaskType] = useState(false);
 
   // customization (columns/departments)
-  const [showCustomize, setShowCustomize] = useState(false);
+  const [showNewStatusForm, setShowNewStatusForm] = useState(false);
   const [newStatusId, setNewStatusId] = useState("");
   const [newStatusName, setNewStatusName] = useState("");
   const [newStatusColor, setNewStatusColor] = useState("#64748b");
   const [creatingStatus, setCreatingStatus] = useState(false);
 
+  const [showNewDeptForm, setShowNewDeptForm] = useState(false);
   const [newDeptId, setNewDeptId] = useState("");
   const [newDeptName, setNewDeptName] = useState("");
   const [newDeptColor, setNewDeptColor] = useState("#64748b");
@@ -1092,93 +1093,6 @@ export default function TasksShell() {
             >
               Atualizar lista
             </button>
-
-            {me?.agentId === "vanderlei" ? (
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCustomize((v) => !v)}
-                  className="w-full rounded-2xl bg-white/3 ring-1 ring-white/10 px-4 py-2 text-sm hover:bg-white/6"
-                >
-                  {showCustomize ? "Fechar personalização" : "Personalizar colunas/deptos"}
-                </button>
-                {showCustomize ? (
-                  <div className="mt-3 space-y-4">
-                    <div className="rounded-3xl bg-white/3 ring-1 ring-white/10 p-4">
-                      <div className="text-sm font-semibold">Nova coluna (Quadro)</div>
-                      <div className="mt-3 grid gap-2">
-                        <input
-                          value={newStatusName}
-                          onChange={(e) => setNewStatusName(e.target.value)}
-                          placeholder="Nome (ex.: Revisão)"
-                          className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                        />
-                        <div className="grid grid-cols-[1fr,56px] gap-2">
-                          <input
-                            value={newStatusId}
-                            onChange={(e) => setNewStatusId(e.target.value)}
-                            placeholder="ID (ex.: revisao)"
-                            className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                          />
-                          <input
-                            type="color"
-                            value={newStatusColor}
-                            onChange={(e) => setNewStatusColor(e.target.value)}
-                            className="h-10 w-full rounded-2xl bg-white/5 ring-1 ring-white/10 p-1"
-                            title="Cor"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void createStatusColumn()}
-                          disabled={creatingStatus || !newStatusId.trim() || !newStatusName.trim()}
-                          className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                        >
-                          {creatingStatus ? "Criando..." : "Criar coluna"}
-                        </button>
-                        <div className="text-[11px] text-[var(--muted)]">Use apenas letras minúsculas, números e _ no ID.</div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-3xl bg-white/3 ring-1 ring-white/10 p-4">
-                      <div className="text-sm font-semibold">Novo departamento (Lista)</div>
-                      <div className="mt-3 grid gap-2">
-                        <input
-                          value={newDeptName}
-                          onChange={(e) => setNewDeptName(e.target.value)}
-                          placeholder="Nome (ex.: Jurídico)"
-                          className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                        />
-                        <div className="grid grid-cols-[1fr,56px] gap-2">
-                          <input
-                            value={newDeptId}
-                            onChange={(e) => setNewDeptId(e.target.value)}
-                            placeholder="ID (ex.: juridico)"
-                            className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                          />
-                          <input
-                            type="color"
-                            value={newDeptColor}
-                            onChange={(e) => setNewDeptColor(e.target.value)}
-                            className="h-10 w-full rounded-2xl bg-white/5 ring-1 ring-white/10 p-1"
-                            title="Cor"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void createDepartment()}
-                          disabled={creatingDept || !newDeptId.trim() || !newDeptName.trim()}
-                          className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                        >
-                          {creatingDept ? "Criando..." : "Criar departamento"}
-                        </button>
-                        <div className="text-[11px] text-[var(--muted)]">Use apenas letras minúsculas, números e _ no ID.</div>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
           </div>
 
           <div className="flex-1" />
@@ -1205,6 +1119,26 @@ export default function TasksShell() {
               >
                 ← Voltar
               </button>
+              {me?.agentId === "vanderlei" && viewType === "board" ? (
+                <button
+                  type="button"
+                  onClick={() => setShowNewStatusForm(true)}
+                  className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                  title="Criar nova coluna do quadro"
+                >
+                  Nova coluna
+                </button>
+              ) : null}
+              {me?.agentId === "vanderlei" && viewType === "list" ? (
+                <button
+                  type="button"
+                  onClick={() => setShowNewDeptForm(true)}
+                  className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                  title="Criar novo departamento"
+                >
+                  Novo departamento
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => setShowCreateForm(true)}
@@ -2106,6 +2040,118 @@ export default function TasksShell() {
                     </button>
                   </div>
                   <div className="mt-4">{details ? renderInlineDetails() : <div className="text-sm text-[var(--muted)]">Carregando...</div>}</div>
+                </div>
+              </div>
+            ) : null}
+
+            {showNewStatusForm ? (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+                onMouseDown={(e) => {
+                  if (e.target === e.currentTarget) setShowNewStatusForm(false);
+                }}
+              >
+                <div className="w-full max-w-xl rounded-3xl bg-[color-mix(in_srgb,var(--background)_92%,black)] ring-1 ring-white/10 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold">Nova coluna (Quadro)</div>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewStatusForm(false)}
+                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                  <div className="mt-4 grid gap-2">
+                    <input
+                      value={newStatusName}
+                      onChange={(e) => setNewStatusName(e.target.value)}
+                      placeholder="Nome (ex.: Revisão)"
+                      className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                    />
+                    <div className="grid grid-cols-[1fr,56px] gap-2">
+                      <input
+                        value={newStatusId}
+                        onChange={(e) => setNewStatusId(e.target.value)}
+                        placeholder="ID (ex.: revisao)"
+                        className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                      />
+                      <input
+                        type="color"
+                        value={newStatusColor}
+                        onChange={(e) => setNewStatusColor(e.target.value)}
+                        className="h-10 w-full rounded-2xl bg-white/5 ring-1 ring-white/10 p-1"
+                        title="Cor"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void createStatusColumn()}
+                      disabled={creatingStatus || !newStatusId.trim() || !newStatusName.trim()}
+                      className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                    >
+                      {creatingStatus ? "Criando..." : "Criar coluna"}
+                    </button>
+                    <div className="text-[11px] text-[var(--muted)]">Use apenas letras minúsculas, números e _ no ID.</div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {showNewDeptForm ? (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+                onMouseDown={(e) => {
+                  if (e.target === e.currentTarget) setShowNewDeptForm(false);
+                }}
+              >
+                <div className="w-full max-w-xl rounded-3xl bg-[color-mix(in_srgb,var(--background)_92%,black)] ring-1 ring-white/10 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold">Novo departamento (Lista)</div>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewDeptForm(false)}
+                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                  <div className="mt-4 grid gap-2">
+                    <input
+                      value={newDeptName}
+                      onChange={(e) => setNewDeptName(e.target.value)}
+                      placeholder="Nome (ex.: Jurídico)"
+                      className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                    />
+                    <div className="grid grid-cols-[1fr,56px] gap-2">
+                      <input
+                        value={newDeptId}
+                        onChange={(e) => setNewDeptId(e.target.value)}
+                        placeholder="ID (ex.: juridico)"
+                        className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                      />
+                      <input
+                        type="color"
+                        value={newDeptColor}
+                        onChange={(e) => setNewDeptColor(e.target.value)}
+                        className="h-10 w-full rounded-2xl bg-white/5 ring-1 ring-white/10 p-1"
+                        title="Cor"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void createDepartment()}
+                      disabled={creatingDept || !newDeptId.trim() || !newDeptName.trim()}
+                      className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                    >
+                      {creatingDept ? "Criando..." : "Criar departamento"}
+                    </button>
+                    <div className="text-[11px] text-[var(--muted)]">Use apenas letras minúsculas, números e _ no ID.</div>
+                  </div>
                 </div>
               </div>
             ) : null}
