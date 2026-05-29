@@ -22,6 +22,8 @@ type ChatListItem = {
   } | null;
 };
 
+type WaLabel = { id: string; name: string; color?: string | null };
+
 type MessageItem = {
   id?: string;
   messageid?: string;
@@ -337,6 +339,7 @@ export default function AppShell() {
   const [chatMenuChatId, setChatMenuChatId] = useState<string | null>(null);
   const [chatMenuTagInput, setChatMenuTagInput] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [waLabels, setWaLabels] = useState<WaLabel[]>([]);
   const [downloadByMessageId, setDownloadByMessageId] = useState<Record<string, { fileURL: string; mimetype?: string }>>(
     {},
   );
@@ -599,6 +602,24 @@ export default function AppShell() {
       await saveState(chatId, { tags: updated });
     } catch {
       setToast("Falha ao salvar etiquetas");
+    }
+  }
+
+  async function toggleLabelForSelected(labelName: string) {
+    if (!selectedChatId) return;
+    const exists = tags.includes(labelName);
+    if (exists) {
+      await removeTag(labelName);
+    } else {
+      setTagInput(labelName);
+      const updated = Array.from(new Set([...tags, labelName])).slice(0, 12);
+      setTags(updated);
+      setTagInput("");
+      try {
+        await saveState(selectedChatId, { tags: updated });
+      } catch {
+        setToast("Falha ao salvar etiquetas");
+      }
     }
   }
 
@@ -877,6 +898,17 @@ export default function AppShell() {
     void loadMe();
     void loadChats();
   }, [loadChats, loadMe]);
+
+  const loadWaLabels = useCallback(async () => {
+    const res = await fetch("/api/labels", { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json().catch(() => null)) as { items?: WaLabel[] } | null;
+    setWaLabels((data?.items ?? []).filter((x): x is WaLabel => Boolean(x?.id && x?.name)));
+  }, []);
+
+  useEffect(() => {
+    void loadWaLabels();
+  }, [loadWaLabels]);
 
   useEffect(() => {
     clearWhatsappBadge();
@@ -1584,6 +1616,53 @@ export default function AppShell() {
                 Adicionar
               </button>
             </div>
+
+            {waLabels.length > 0 ? (
+              <div className="mt-4 rounded-2xl bg-white/5 ring-1 ring-white/10 p-4">
+                <div className="text-sm font-medium">Etiquetas do WhatsApp</div>
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {waLabels.map((l) => {
+                    const checked = tags.includes(l.name);
+                    return (
+                      <button
+                        key={l.id}
+                        type="button"
+                        onClick={() => void toggleLabelForSelected(l.name)}
+                        className={[
+                          "min-h-[46px] rounded-2xl px-4 py-3 ring-1 text-left hover:bg-white/5",
+                          checked
+                            ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] ring-[color-mix(in_srgb,var(--accent)_35%,transparent)]"
+                            : "bg-white/0 ring-white/10",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className="h-9 w-9 rounded-full ring-1 ring-white/10 shrink-0"
+                              style={{ backgroundColor: l.color ?? "rgba(255,255,255,0.08)" }}
+                              aria-hidden="true"
+                            />
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold truncate">{l.name}</div>
+                              <div className="text-xs text-[var(--muted)]">id: {l.id}</div>
+                            </div>
+                          </div>
+                          <div
+                            className={[
+                              "h-5 w-5 rounded-md ring-2 shrink-0",
+                              checked
+                                ? "bg-[var(--primary)] ring-[var(--primary)]"
+                                : "bg-transparent ring-[color-mix(in_srgb,var(--accent)_40%,white)]",
+                            ].join(" ")}
+                            aria-hidden="true"
+                          />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
 
             {tags.length > 0 ? (
               <div className="mt-4 flex flex-wrap gap-2">
