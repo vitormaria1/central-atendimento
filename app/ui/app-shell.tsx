@@ -1277,15 +1277,15 @@ export default function AppShell() {
 
                     {showMedia ? (
                       <div className="mt-2">
-                        {showAudioPlayer ? (
-                          mediaUrl ? (
-                            <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4">
-                              <audio
-                                controls
-                                preload="metadata"
-                                src={mediaUrl}
-                                className="w-[520px] max-w-full h-16 scale-110 origin-left"
-                              />
+	                        {showAudioPlayer ? (
+	                          mediaUrl ? (
+	                            <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4 overflow-hidden">
+	                              <audio
+	                                controls
+	                                preload="metadata"
+	                                src={mediaUrl}
+	                                className="w-full max-w-[420px] h-14"
+	                              />
                               <div className="mt-3 flex items-center justify-between gap-3">
                                 <div className="text-sm text-[var(--muted)] truncate">Áudio</div>
                                 <a
