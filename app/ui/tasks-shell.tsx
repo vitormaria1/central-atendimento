@@ -172,6 +172,7 @@ export default function TasksShell() {
   const [creatingView, setCreatingView] = useState(false);
   const [newViewName, setNewViewName] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
   const [boardDraggingTaskId, setBoardDraggingTaskId] = useState<string | null>(null);
   const [calendarAnchor, setCalendarAnchor] = useState<Date>(() => new Date());
   const [openDepartments, setOpenDepartments] = useState<Record<Department, boolean>>({
@@ -1077,7 +1078,14 @@ export default function TasksShell() {
                               t.id === selectedTaskId ? "ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]" : "",
                             ].join(" ")}
                           >
-                            <button type="button" onClick={() => setSelectedTaskId(t.id)} className="w-full text-left">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedTaskId(t.id);
+                                setShowTaskModal(true);
+                              }}
+                              className="w-full text-left"
+                            >
                               <div className="text-sm font-medium truncate">
                                 {t.title}
                               </div>
@@ -1145,8 +1153,7 @@ export default function TasksShell() {
                   }
                   const byDay = new Map<string, TaskListItem[]>();
                   for (const t of tasks) {
-                    if (!t.dueAt) continue;
-                    const d = new Date(t.dueAt);
+                    const d = new Date(t.dueAt ?? t.createdAt);
                     const key = dayKeyLocal(d);
                     const prev = byDay.get(key) ?? [];
                     prev.push(t);
@@ -1155,88 +1162,63 @@ export default function TasksShell() {
                   for (const [, list] of byDay) list.sort((a, b) => (a.priority > b.priority ? -1 : 1));
                   const today = new Date();
                   const dayNames = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
-                  const noDue = tasks.filter((t) => !t.dueAt).slice(0, 30);
                   return (
-                    <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr,320px] gap-4">
-                      <div>
-                        <div className="grid grid-cols-7 gap-2 text-xs text-[var(--muted)] px-1">
-                          {dayNames.map((n) => (
-                            <div key={n} className="text-center uppercase tracking-wide">
-                              {n}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-2 grid grid-cols-7 gap-2">
-                          {days.map((d) => {
-                            const inMonth = d.getMonth() === monthStart.getMonth();
-                            const key = dayKeyLocal(d);
-                            const list = byDay.get(key) ?? [];
-                            const isToday = sameDay(d, today);
-                            return (
-                              <div
-                                key={key}
-                                className={[
-                                  "rounded-3xl ring-1 p-2 min-h-[108px] overflow-hidden",
-                                  inMonth ? "bg-white/5 ring-white/10" : "bg-white/3 ring-white/5 opacity-70",
-                                  isToday ? "ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]" : "",
-                                ].join(" ")}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className={["text-xs font-semibold", isToday ? "text-white" : "text-[var(--muted)]"].join(" ")}>
-                                    {d.getDate()}
-                                  </div>
-                                  <div className="text-[10px] text-[var(--muted)]">{list.length ? list.length : ""}</div>
-                                </div>
-                                <div className="mt-2 space-y-1">
-                                  {list.slice(0, 4).map((t) => (
-                                    <button
-                                      key={t.id}
-                                      type="button"
-                                      onClick={() => setSelectedTaskId(t.id)}
-                                      className={[
-                                        "w-full text-left rounded-2xl px-2 py-1 text-xs ring-1 hover:bg-white/8",
-                                        t.id === selectedTaskId
-                                          ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
-                                          : "bg-white/5 ring-white/10",
-                                      ].join(" ")}
-                                    >
-                                      <div className="truncate">
-                                        <span className="text-[var(--muted)] mr-1">#{t.taskNumber}</span>
-                                        {t.title}
-                                      </div>
-                                    </button>
-                                  ))}
-                                  {list.length > 4 ? <div className="text-[10px] text-[var(--muted)] px-1">+{list.length - 4}…</div> : null}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                    <div className="mt-4">
+                      <div className="grid grid-cols-7 gap-2 text-xs text-[var(--muted)] px-1">
+                        {dayNames.map((n) => (
+                          <div key={n} className="text-center uppercase tracking-wide">
+                            {n}
+                          </div>
+                        ))}
                       </div>
-
-                      <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
-                        <div className="text-sm font-semibold">Sem prazo</div>
-                        <div className="mt-3 space-y-2">
-                          {noDue.map((t) => (
-                            <button
-                              key={t.id}
-                              type="button"
-                              onClick={() => setSelectedTaskId(t.id)}
-                              className="w-full text-left rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
+                      <div className="mt-2 grid grid-cols-7 gap-2">
+                        {days.map((d) => {
+                          const inMonth = d.getMonth() === monthStart.getMonth();
+                          const key = dayKeyLocal(d);
+                          const list = byDay.get(key) ?? [];
+                          const isToday = sameDay(d, today);
+                          return (
+                            <div
+                              key={key}
+                              className={[
+                                "rounded-3xl ring-1 p-2 min-h-[108px] overflow-hidden",
+                                inMonth ? "bg-white/5 ring-white/10" : "bg-white/3 ring-white/5 opacity-70",
+                                isToday ? "ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]" : "",
+                              ].join(" ")}
                             >
-                              <div className="text-sm font-medium truncate">
-                                <span className="text-[var(--muted)] mr-2">#{t.taskNumber}</span>
-                                {t.title}
+                              <div className="flex items-center justify-between">
+                                <div className={["text-xs font-semibold", isToday ? "text-white" : "text-[var(--muted)]"].join(" ")}>
+                                  {d.getDate()}
+                                </div>
+                                <div className="text-[10px] text-[var(--muted)]">{list.length ? list.length : ""}</div>
                               </div>
-                              <div className="mt-1 text-xs text-[var(--muted)] truncate">
-                                {statusLabel(t.status)}
-                                {t.assignee ? ` • ${t.assignee.name}` : ""}
-                                {t.client ? ` • ${t.client.name}` : ""}
+                              <div className="mt-2 space-y-1">
+                                {list.slice(0, 4).map((t) => (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedTaskId(t.id);
+                                      setShowTaskModal(true);
+                                    }}
+                                    className={[
+                                      "w-full text-left rounded-2xl px-2 py-1 text-xs ring-1 hover:bg-white/8",
+                                      t.id === selectedTaskId
+                                        ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
+                                        : "bg-white/5 ring-white/10",
+                                    ].join(" ")}
+                                  >
+                                    <div className="truncate">
+                                      <span className="text-[var(--muted)] mr-1">#{t.taskNumber}</span>
+                                      {t.title}
+                                    </div>
+                                  </button>
+                                ))}
+                                {list.length > 4 ? <div className="text-[10px] text-[var(--muted)] px-1">+{list.length - 4}…</div> : null}
                               </div>
-                            </button>
-                          ))}
-                          {noDue.length === 0 ? <div className="text-xs text-[var(--muted)]">Tudo agendado.</div> : null}
-                        </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -1879,6 +1861,31 @@ export default function TasksShell() {
                       {creating ? "Criando..." : "Criar tarefa"}
                     </button>
                   </div>
+                </div>
+              </div>
+            ) : null}
+
+            {showTaskModal ? (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+                onMouseDown={(e) => {
+                  if (e.target === e.currentTarget) setShowTaskModal(false);
+                }}
+              >
+                <div className="w-full max-w-4xl max-h-[86vh] overflow-y-auto rounded-3xl bg-[color-mix(in_srgb,var(--background)_92%,black)] ring-1 ring-white/10 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold">Editar tarefa</div>
+                    <button
+                      type="button"
+                      onClick={() => setShowTaskModal(false)}
+                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                  <div className="mt-4">{details ? renderInlineDetails() : <div className="text-sm text-[var(--muted)]">Carregando...</div>}</div>
                 </div>
               </div>
             ) : null}
