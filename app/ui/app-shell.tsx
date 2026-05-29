@@ -79,6 +79,24 @@ function getMessageText(m: MessageItem) {
   return m.text ?? m.content ?? "";
 }
 
+function stripOwnSignature(text: string, agentName?: string | null) {
+  const name = (agentName ?? "").trim();
+  if (!name) return text;
+  const t = (text ?? "").replace(/\r\n/g, "\n");
+  const lines = t.split("\n");
+  if (lines.length === 0) return text;
+  const first = (lines[0] ?? "").trim();
+  const sig1 = `*${name}:*`;
+  const sig2 = `${name}:`;
+  if (first === sig1 || first === sig2) {
+    // remove first line + optional empty line following
+    const rest = lines.slice(1);
+    if (rest[0]?.trim() === "") rest.shift();
+    return rest.join("\n").trimStart();
+  }
+  return text;
+}
+
 function isAudioLike(m: MessageItem, mimetype?: string) {
   if (mimetype?.startsWith("audio/")) return true;
   const mt = (m.messageType ?? "").toLowerCase();
@@ -268,11 +286,14 @@ function initialsFromName(name: string) {
   return letters || (first[0] ?? "•").toUpperCase();
 }
 
-function capDownloadCache(next: Record<string, { fileURL: string; mimetype?: string }>, maxSize: number) {
+function capDownloadCache(
+  next: Record<string, { fileURL: string; mimetype?: string; unavailable?: boolean }>,
+  maxSize: number,
+) {
   const keys = Object.keys(next);
   if (keys.length <= maxSize) return next;
   const toDrop = keys.length - maxSize;
-  const capped: Record<string, { fileURL: string; mimetype?: string }> = {};
+  const capped: Record<string, { fileURL: string; mimetype?: string; unavailable?: boolean }> = {};
   for (let i = toDrop; i < keys.length; i += 1) {
     const k = keys[i]!;
     capped[k] = next[k]!;
@@ -340,9 +361,9 @@ export default function AppShell() {
   const [chatMenuTagInput, setChatMenuTagInput] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [waLabels, setWaLabels] = useState<WaLabel[]>([]);
-  const [downloadByMessageId, setDownloadByMessageId] = useState<Record<string, { fileURL: string; mimetype?: string }>>(
-    {},
-  );
+  const [downloadByMessageId, setDownloadByMessageId] = useState<
+    Record<string, { fileURL: string; mimetype?: string; unavailable?: boolean }>
+  >({});
 
   const lastRefreshAtRef = useRef<number>(0);
   const selectedChatIdRef = useRef<string | null>(null);
@@ -820,14 +841,21 @@ export default function AppShell() {
 
   const ensureDownload = useCallback(
     async (messageId: string) => {
-      if (downloadByMessageId[messageId]?.fileURL) return downloadByMessageId[messageId]!;
+      const cached = downloadByMessageId[messageId];
+      if (cached?.unavailable) throw new Error("Arquivo indisponível");
+      if (cached?.fileURL) return cached;
       const res = await fetch(`/api/messages/${encodeURIComponent(messageId)}/download`, { cache: "no-store" });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(data?.error ?? "Falha ao baixar mídia");
       }
       const data = (await res.json()) as { fileURL?: string; mimetype?: string };
-      if (!data.fileURL) throw new Error("Arquivo indisponível (sem fileURL)");
+      if (!data.fileURL) {
+        setDownloadByMessageId((prev) =>
+          capDownloadCache({ ...prev, [messageId]: { fileURL: "", mimetype: data.mimetype, unavailable: true } }, MAX_DOWNLOAD_CACHE),
+        );
+        throw new Error("Arquivo indisponível");
+      }
       setDownloadByMessageId((prev) =>
         capDownloadCache({ ...prev, [messageId]: { fileURL: data.fileURL!, mimetype: data.mimetype } }, MAX_DOWNLOAD_CACHE),
       );
@@ -1214,7 +1242,8 @@ export default function AppShell() {
 	          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
 	            {messages.map((m, idx) => {
 	              const mine = Boolean(m.fromMe);
-	              const text = getMessageText(m);
+	              const rawText = getMessageText(m);
+	              const text = mine ? stripOwnSignature(rawText, me?.agentName ?? null) : rawText;
 	              const mtLower = (m.messageType ?? "").toLowerCase();
 	              const maybeContact = mtLower.includes("contact") || mtLower.includes("vcard") || /BEGIN:VCARD/i.test(text) || /X-WA-BIZ-/i.test(text);
 	              const contact = maybeContact ? parseContactFromText(text) : null;
@@ -1311,8 +1340,8 @@ export default function AppShell() {
                       <div className="mt-1 text-sm whitespace-pre-wrap break-words">{text}</div>
                     ) : null}
 
-                    {showMedia ? (
-                      <div className="mt-2">
+	                    {showMedia ? (
+	                      <div className="mt-2">
 	                        {showAudioPlayer ? (
 	                          mediaUrl ? (
 	                            <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-4 overflow-hidden">
@@ -1425,28 +1454,40 @@ export default function AppShell() {
                             </div>
                             <div className="mt-2 text-xs text-[var(--muted)]">Pré-visualização indisponível para este tipo.</div>
                           </div>
-                        ) : id ? (
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
-                            onClick={() => {
-                              void (async () => {
-                                try {
-                                  const d = await ensureDownload(id);
-                                  window.open(d.fileURL, "_blank", "noopener,noreferrer");
-                                } catch (err) {
-                                  setToast(err instanceof Error ? err.message : "Falha ao baixar mídia");
-                                }
-                              })();
-                            }}
-                          >
-                            Baixar/abrir documento
-                          </button>
-                        ) : (
-                          <div className="text-xs text-[var(--muted)]">Mídia sem ID</div>
-                        )}
-                      </div>
-                    ) : null}
+	                        ) : id && !cached?.unavailable ? (
+	                          <button
+	                            type="button"
+	                            className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
+	                            onClick={() => {
+	                              void (async () => {
+	                                try {
+	                                  const d = await ensureDownload(id);
+	                                  window.open(d.fileURL, "_blank", "noopener,noreferrer");
+	                                } catch (err) {
+	                                  const msg = err instanceof Error ? err.message : "Falha ao baixar mídia";
+	                                  // Se não existe arquivo, não faz sentido manter botão aparecendo.
+	                                  if (msg.toLowerCase().includes("indisponível")) {
+	                                    setDownloadByMessageId((prev) =>
+	                                      capDownloadCache(
+	                                        { ...prev, [id]: { fileURL: "", mimetype: prev[id]?.mimetype, unavailable: true } },
+	                                        MAX_DOWNLOAD_CACHE,
+	                                      ),
+	                                    );
+	                                  }
+	                                  setToast(msg);
+	                                }
+	                              })();
+	                            }}
+	                          >
+	                            Baixar/abrir documento
+	                          </button>
+	                        ) : cached?.unavailable ? (
+	                          <div className="text-xs text-[var(--muted)]">Arquivo indisponível.</div>
+	                        ) : (
+	                          <div className="text-xs text-[var(--muted)]">Mídia sem ID</div>
+	                        )}
+	                      </div>
+	                    ) : null}
 
 	                    <div className="mt-2 text-[10px] text-[var(--muted)] text-right">
 	                      {formatTime(m.messageTimestamp)}
