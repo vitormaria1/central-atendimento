@@ -1284,7 +1284,7 @@ export default function AppShell() {
 	                                controls
 	                                preload="metadata"
 	                                src={mediaUrl}
-	                                className="w-full max-w-[420px] h-14"
+	                                className="w-full max-w-[520px] h-16"
 	                              />
                               <div className="mt-3 flex items-center justify-between gap-3">
                                 <div className="text-sm text-[var(--muted)] truncate">Áudio</div>
