@@ -121,6 +121,21 @@ function dedupeWaLabels(labels: WaLabel[]) {
   return Array.from(byName.values());
 }
 
+function colorFromName(name: string) {
+  const s = normalizeLabelName(name).toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+  }
+  const hue = hash % 360;
+  return `hsl(${hue} 62% 52%)`;
+}
+
+function labelColor(label: WaLabel) {
+  const raw = (label.color ?? "").trim();
+  return raw || colorFromName(label.name);
+}
+
 function renderHighlighted(text: string, q: string) {
   if (!q.trim()) return text;
   const query = q.trim();
@@ -2221,14 +2236,14 @@ export default function AppShell() {
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div
-                              className="h-9 w-9 rounded-full ring-1 ring-white/10 shrink-0"
-                              style={{ backgroundColor: l.color ?? "rgba(255,255,255,0.08)" }}
-                              aria-hidden="true"
-                            />
-                            <div className="min-w-0">
-                              <div className="text-sm font-semibold truncate">{l.name}</div>
-                              <div className="text-xs text-[var(--muted)]">id: {l.id}</div>
+                              <div
+                                className="h-9 w-9 rounded-full ring-1 ring-white/10 shrink-0"
+                                style={{ backgroundColor: labelColor(l) }}
+                                aria-hidden="true"
+                              />
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold truncate">{l.name}</div>
+                                <div className="text-xs text-[var(--muted)]">id: {l.id}</div>
                             </div>
                           </div>
                           <div
@@ -2347,7 +2362,7 @@ export default function AppShell() {
                             <div className="flex items-center gap-3 min-w-0">
                               <div
                                 className="h-8 w-8 rounded-full ring-1 ring-white/10 shrink-0"
-                                style={{ backgroundColor: l.color ?? "rgba(255,255,255,0.08)" }}
+                                style={{ backgroundColor: labelColor(l) }}
                                 aria-hidden="true"
                               />
                               <div className="min-w-0">
