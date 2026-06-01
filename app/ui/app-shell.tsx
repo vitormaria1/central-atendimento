@@ -1529,10 +1529,13 @@ export default function AppShell() {
                         </div>
                         {(
                           [
-                            { id: "vanderlei" as const, label: "Vanderlei" },
-                            { id: "gustavo" as const, label: "Gustavo" },
-                            { id: null as const, label: "Sem responsável" },
-                          ] as const
+                            { id: "vanderlei", label: "Vanderlei" },
+                            { id: "gustavo", label: "Gustavo" },
+                            { id: null, label: "Sem responsável" },
+                          ] satisfies ReadonlyArray<{
+                            id: "vanderlei" | "gustavo" | null;
+                            label: string;
+                          }>
                         ).map((opt) => {
                           const selected = assignedAgentId === opt.id;
                           return (
