@@ -410,6 +410,7 @@ export default function AppShell() {
   const [readAtByChatId, setReadAtByChatId] = useState<Record<string, number>>({});
   const sidebarMenuRef = useRef<HTMLDivElement | null>(null);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [headerAssignOpen, setHeaderAssignOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchCursor, setSearchCursor] = useState(0);
@@ -448,6 +449,7 @@ export default function AppShell() {
   useEffect(() => {
     // ao trocar de chat, reseta modos
     setHeaderMenuOpen(false);
+    setHeaderAssignOpen(false);
     setSearchOpen(false);
     setSearchQuery("");
     setSelectionMode(false);
@@ -1513,105 +1515,151 @@ export default function AppShell() {
 
                 {headerMenuOpen && selectedChatId ? (
                   <div className="absolute right-0 top-12 w-72 rounded-2xl bg-[var(--card)] ring-1 ring-[var(--border)] shadow-2xl overflow-hidden z-20">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHeaderMenuOpen(false);
-                        setToast(`${selectedChat?.name ?? "Contato"} • ${selectedChatId}`);
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-                    >
-                      Dados do contato
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHeaderMenuOpen(false);
-                        setSearchOpen(true);
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-                    >
-                      Pesquisar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHeaderMenuOpen(false);
-                        setSelectionMode(true);
-                        setSelectedMessageKeys({});
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-                    >
-                      Selecionar mensagens
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const muted = isChatMutedLocal(selectedChatId);
-                        setChatMutedLocal(selectedChatId, !muted);
-                        setHeaderMenuOpen(false);
-                        setToast(!muted ? "Notificações silenciadas." : "Notificações ativadas.");
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-                    >
-                      {isChatMutedLocal(selectedChatId) ? "Ativar notificações" : "Silenciar notificações"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHeaderMenuOpen(false);
-                        void toggleLabelForSelected("Favoritos");
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-                    >
-                      {tags.includes("Favoritos") ? "Remover dos Favoritos" : "Adicionar aos Favoritos"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHeaderMenuOpen(false);
-                        setTagPickerOpen(true);
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-                    >
-                      Etiquetas
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = assignedAgentId === "vanderlei" ? "gustavo" : "vanderlei";
-                        setAssignedAgentId(next);
-                        void saveState(selectedChatId, { assignedAgentId: next });
-                        setHeaderMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-                    >
-                      Atribuir: {assignedAgentId === "vanderlei" ? "Vanderlei" : assignedAgentId === "gustavo" ? "Gustavo" : "—"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = status === "pendente" ? "resolvido" : "pendente";
-                        setStatus(next);
-                        void saveState(selectedChatId, { status: next });
-                        setHeaderMenuOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-                    >
-                      {status === "pendente" ? "Fechar conversa" : "Reabrir conversa"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHeaderMenuOpen(false);
-                        setMessages([]);
-                        void loadMessages(selectedChatId);
-                        setToast("Conversa atualizada.");
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
-                    >
-                      Limpar/atualizar conversa
-                    </button>
+                    {headerAssignOpen ? (
+                      <>
+                        <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+                          <div className="text-sm font-semibold">Atribuir conversa</div>
+                          <button
+                            type="button"
+                            onClick={() => setHeaderAssignOpen(false)}
+                            className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs hover:bg-white/8"
+                          >
+                            Voltar
+                          </button>
+                        </div>
+                        {(
+                          [
+                            { id: "vanderlei" as const, label: "Vanderlei" },
+                            { id: "gustavo" as const, label: "Gustavo" },
+                            { id: null as const, label: "Sem responsável" },
+                          ] as const
+                        ).map((opt) => {
+                          const selected = assignedAgentId === opt.id;
+                          return (
+                            <button
+                              key={opt.label}
+                              type="button"
+                              onClick={() => {
+                                setAssignedAgentId(opt.id);
+                                void saveState(selectedChatId, { assignedAgentId: opt.id });
+                                setHeaderAssignOpen(false);
+                                setHeaderMenuOpen(false);
+                                setToast(`Atribuído: ${opt.label}`);
+                              }}
+                              className={[
+                                "w-full text-left px-4 py-3 hover:bg-white/5 text-sm flex items-center justify-between gap-3",
+                                selected ? "bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]" : "",
+                              ].join(" ")}
+                            >
+                              <span className="truncate">{opt.label}</span>
+                              {selected ? <span className="text-[var(--primary)]">✓</span> : null}
+                            </button>
+                          );
+                        })}
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setToast(`${selectedChat?.name ?? "Contato"} • ${selectedChatId}`);
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                        >
+                          Dados do contato
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setSearchOpen(true);
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                        >
+                          Pesquisar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setSelectionMode(true);
+                            setSelectedMessageKeys({});
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                        >
+                          Selecionar mensagens
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const muted = isChatMutedLocal(selectedChatId);
+                            setChatMutedLocal(selectedChatId, !muted);
+                            setHeaderMenuOpen(false);
+                            setToast(!muted ? "Notificações silenciadas." : "Notificações ativadas.");
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                        >
+                          {isChatMutedLocal(selectedChatId) ? "Ativar notificações" : "Silenciar notificações"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            void toggleLabelForSelected("Favoritos");
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                        >
+                          {tags.includes("Favoritos") ? "Remover dos Favoritos" : "Adicionar aos Favoritos"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setTagPickerOpen(true);
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                        >
+                          Etiquetas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setHeaderAssignOpen(true)}
+                          className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                        >
+                          Atribuir:{" "}
+                          {assignedAgentId === "vanderlei"
+                            ? "Vanderlei"
+                            : assignedAgentId === "gustavo"
+                              ? "Gustavo"
+                              : "Sem responsável"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = status === "pendente" ? "resolvido" : "pendente";
+                            setStatus(next);
+                            void saveState(selectedChatId, { status: next });
+                            setHeaderMenuOpen(false);
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                        >
+                          {status === "pendente" ? "Fechar conversa" : "Reabrir conversa"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setMessages([]);
+                            void loadMessages(selectedChatId);
+                            setToast("Conversa atualizada.");
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                        >
+                          Limpar/atualizar conversa
+                        </button>
+                      </>
+                    )}
                   </div>
                 ) : null}
               </div>
