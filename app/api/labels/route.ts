@@ -14,8 +14,17 @@ export const GET = withApi(async () => {
     "select id, name, color from wa_labels order by name asc",
   );
 
+  // Alguns provedores podem gerar labels duplicadas (mesmo nome) com ids diferentes.
+  // Para UI de seleção, deduplicamos por nome (case-insensitive).
+  const byName = new Map<string, { id: string; name: string; color: string | null }>();
+  for (const r of rows) {
+    const name = (r.name ?? "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (!byName.has(key)) byName.set(key, { id: r.id, name, color: r.color });
+  }
+
   return NextResponse.json({
-    items: rows.map((r) => ({ id: r.id, name: r.name, color: r.color })),
+    items: Array.from(byName.values()).map((r) => ({ id: r.id, name: r.name, color: r.color })),
   });
 });
-

@@ -106,6 +106,21 @@ function includesIgnoreCase(text: string, q: string) {
   return text.toLowerCase().includes(q.toLowerCase());
 }
 
+function normalizeLabelName(name: string) {
+  return (name ?? "").trim().replace(/\s+/g, " ");
+}
+
+function dedupeWaLabels(labels: WaLabel[]) {
+  const byName = new Map<string, WaLabel>();
+  for (const l of labels) {
+    const name = normalizeLabelName(l.name);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (!byName.has(key)) byName.set(key, { ...l, name });
+  }
+  return Array.from(byName.values());
+}
+
 function renderHighlighted(text: string, q: string) {
   if (!q.trim()) return text;
   const query = q.trim();
@@ -670,7 +685,8 @@ export default function AppShell() {
     if (!state) return;
     setStatus(state.status);
     setAssignedAgentId(state.assignedAgentId);
-    setTags(state.tags ?? []);
+    const normalizedTags = (state.tags ?? []).map(normalizeLabelName).filter(Boolean);
+    setTags(Array.from(new Set(normalizedTags)).slice(0, 12));
   }, []);
 
   const refreshAll = useCallback(async (reason: string) => {
@@ -765,14 +781,37 @@ export default function AppShell() {
     }
   }
 
+  async function toggleLabelForChat(chatId: string, labelNameRaw: string) {
+    const labelName = normalizeLabelName(labelNameRaw);
+    if (!labelName) return;
+    const current = chats.find((c) => c.chatId === chatId)?.state?.tags ?? [];
+    const exists = current.includes(labelName);
+    const updated = exists
+      ? current.filter((t) => t !== labelName)
+      : Array.from(new Set([...current, labelName])).slice(0, 12);
+
+    // Atualiza também o estado do chat selecionado (modal do header) se for o mesmo chat.
+    if (selectedChatIdRef.current === chatId) {
+      setTags(updated);
+    }
+
+    try {
+      await saveState(chatId, { tags: updated });
+    } catch {
+      setToast("Falha ao salvar etiquetas");
+    }
+  }
+
   async function toggleLabelForSelected(labelName: string) {
     if (!selectedChatId) return;
-    const exists = tags.includes(labelName);
+    const normalized = normalizeLabelName(labelName);
+    if (!normalized) return;
+    const exists = tags.includes(normalized);
     if (exists) {
-      await removeTag(labelName);
+      await removeTag(normalized);
     } else {
-      setTagInput(labelName);
-      const updated = Array.from(new Set([...tags, labelName])).slice(0, 12);
+      setTagInput(normalized);
+      const updated = Array.from(new Set([...tags, normalized])).slice(0, 12);
       setTags(updated);
       setTagInput("");
       try {
@@ -1118,7 +1157,8 @@ export default function AppShell() {
     const res = await fetch("/api/labels", { cache: "no-store" });
     if (!res.ok) return;
     const data = (await res.json().catch(() => null)) as { items?: WaLabel[] } | null;
-    setWaLabels((data?.items ?? []).filter((x): x is WaLabel => Boolean(x?.id && x?.name)));
+    const items = (data?.items ?? []).filter((x): x is WaLabel => Boolean(x?.id && x?.name));
+    setWaLabels(dedupeWaLabels(items));
   }, []);
 
   useEffect(() => {
@@ -2284,6 +2324,53 @@ export default function AppShell() {
 
             <div className="mt-4 rounded-2xl bg-white/5 ring-1 ring-white/10 p-4">
               <div className="text-sm font-medium">Etiquetas</div>
+
+              {waLabels.length > 0 ? (
+                <div className="mt-3">
+                  <div className="text-xs font-medium text-[var(--muted)]">Etiquetas do WhatsApp</div>
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {waLabels.map((l) => {
+                      const checked = (chatMenuChat.state?.tags ?? []).includes(l.name);
+                      return (
+                        <button
+                          key={l.id}
+                          type="button"
+                          onClick={() => void toggleLabelForChat(chatMenuChat.chatId, l.name)}
+                          className={[
+                            "min-h-[44px] rounded-2xl px-4 py-3 ring-1 text-left hover:bg-white/5",
+                            checked
+                              ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] ring-[color-mix(in_srgb,var(--accent)_35%,transparent)]"
+                              : "bg-white/0 ring-white/10",
+                          ].join(" ")}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className="h-8 w-8 rounded-full ring-1 ring-white/10 shrink-0"
+                                style={{ backgroundColor: l.color ?? "rgba(255,255,255,0.08)" }}
+                                aria-hidden="true"
+                              />
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold truncate">{l.name}</div>
+                              </div>
+                            </div>
+                            <div
+                              className={[
+                                "h-5 w-5 rounded-md ring-2 shrink-0",
+                                checked
+                                  ? "bg-[var(--primary)] ring-[var(--primary)]"
+                                  : "bg-transparent ring-[color-mix(in_srgb,var(--accent)_40%,white)]",
+                              ].join(" ")}
+                              aria-hidden="true"
+                            />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="mt-2 flex items-center gap-2">
                 <input
                   value={chatMenuTagInput}
