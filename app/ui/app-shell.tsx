@@ -213,6 +213,44 @@ function isPdfLike(mimetype?: string, mediaUrl?: string | null) {
   return ext === "pdf";
 }
 
+function readableFileName(raw: string, fallback: string, requireExtension = false) {
+  try {
+    const decoded = decodeURIComponent(raw).trim();
+    if (!decoded) return fallback;
+    if (requireExtension && !/\.[a-z0-9]{2,8}$/i.test(decoded)) return fallback;
+    return decoded;
+  } catch {
+    const trimmed = raw.trim();
+    if (!trimmed) return fallback;
+    if (requireExtension && !/\.[a-z0-9]{2,8}$/i.test(trimmed)) return fallback;
+    return trimmed;
+  }
+}
+
+function fileNameFromUrl(url?: string | null, fallback = "documento") {
+  if (!url) return fallback;
+  try {
+    const { pathname, searchParams } = new URL(url);
+    const fromQuery = searchParams.get("filename") || searchParams.get("file") || searchParams.get("name");
+    if (fromQuery) return readableFileName(fromQuery, fallback);
+    const raw = pathname.split("/").filter(Boolean).at(-1) || fallback;
+    return readableFileName(raw, fallback, true);
+  } catch {
+    const clean = url.split("?")[0] ?? url;
+    const raw = clean.split("/").filter(Boolean).at(-1) || fallback;
+    return readableFileName(raw, fallback, true);
+  }
+}
+
+function fileLabelFromMime(mimetype?: string, mediaUrl?: string | null) {
+  const ext = mediaUrl ? extFromUrl(mediaUrl) : "";
+  if (mimetype === "application/pdf" || ext === "pdf") return "PDF";
+  if (mimetype?.includes("word") || ext === "doc" || ext === "docx") return "DOC";
+  if (mimetype?.includes("excel") || mimetype?.includes("spreadsheet") || ext === "xls" || ext === "xlsx") return "XLS";
+  if (mimetype?.includes("presentation") || ext === "ppt" || ext === "pptx") return "PPT";
+  return (ext || "arquivo").toUpperCase();
+}
+
 type ParsedContact = {
   caption?: string;
   name: string;
@@ -1784,12 +1822,12 @@ export default function AppShell() {
                 const cached = id ? downloadByMessageId[id] : undefined;
                 const mediaUrl = (id && cached?.fileURL) || m.fileURL || null;
                 const mimetype = cached?.mimetype;
-                const showMedia = !contact && (Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation"));
-              const showAudioPlayer = showMedia && isAudioLike(m, mimetype);
-              const showImage = showMedia && !showAudioPlayer && isImageLike(m, mimetype, mediaUrl);
-              const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
-              const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
-              const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
+                const showMedia = !contact && Boolean(mediaUrl);
+                const showAudioPlayer = showMedia && isAudioLike(m, mimetype);
+                const showImage = showMedia && !showAudioPlayer && isImageLike(m, mimetype, mediaUrl);
+                const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
+                const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
+                const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
                 return (
                   <div
                     key={stableKey}
@@ -1962,13 +2000,24 @@ export default function AppShell() {
                             </div>
                           </div>
                         ) : mediaUrl && showPdf ? (
-                          <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
-                            <iframe
-                              title="PDF"
-                              src={mediaUrl}
-                              className="w-[520px] max-w-full h-[520px] rounded-2xl bg-black/20"
-                            />
-                            <div className="mt-2 flex items-center justify-end gap-2">
+                          <div className="w-[360px] max-w-full overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
+                            <a
+                              href={mediaUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-3 bg-[color-mix(in_srgb,var(--background)_62%,black)] px-3 py-3 hover:bg-white/8"
+                              aria-label={`Abrir ${fileNameFromUrl(mediaUrl, "documento.pdf")}`}
+                            >
+                              <div className="relative flex h-12 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-[10px] font-black text-red-600 shadow-sm">
+                                <div className="absolute right-0 top-0 h-0 w-0 border-l-[10px] border-t-[10px] border-l-slate-200 border-t-transparent" />
+                                PDF
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-sm font-semibold">{fileNameFromUrl(mediaUrl, "documento.pdf")}</div>
+                                <div className="mt-0.5 text-xs text-[var(--muted)]">PDF • tocar para abrir</div>
+                              </div>
+                            </a>
+                            <div className="flex items-center justify-end gap-2 border-t border-white/10 px-3 py-2">
                               <a
                                 href={mediaUrl}
                                 target="_blank"
@@ -1987,9 +2036,23 @@ export default function AppShell() {
                             </div>
                           </div>
                         ) : mediaUrl ? (
-                          <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3">
-                            <div className="text-sm font-semibold">Documento</div>
-                            <div className="mt-2 flex items-center gap-2">
+                          <div className="w-[360px] max-w-full overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
+                            <a
+                              href={mediaUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-3 bg-[color-mix(in_srgb,var(--background)_62%,black)] px-3 py-3 hover:bg-white/8"
+                              aria-label={`Abrir ${fileNameFromUrl(mediaUrl, "documento")}`}
+                            >
+                              <div className="flex h-12 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-[9px] font-black text-slate-700 shadow-sm">
+                                {fileLabelFromMime(mimetype, mediaUrl)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-sm font-semibold">{fileNameFromUrl(mediaUrl, "documento")}</div>
+                                <div className="mt-0.5 text-xs text-[var(--muted)]">Documento • tocar para abrir</div>
+                              </div>
+                            </a>
+                            <div className="flex items-center justify-end gap-2 border-t border-white/10 px-3 py-2">
                               <a
                                 href={mediaUrl}
                                 target="_blank"
@@ -2006,40 +2069,8 @@ export default function AppShell() {
                                 Baixar
                               </a>
                             </div>
-                            <div className="mt-2 text-xs text-[var(--muted)]">Pré-visualização indisponível para este tipo.</div>
                           </div>
-                          ) : id && !cached?.unavailable ? (
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
-                              onClick={() => {
-                                void (async () => {
-                                  try {
-                                    const d = await ensureDownload(id);
-                                    window.open(d.fileURL, "_blank", "noopener,noreferrer");
-                                  } catch (err) {
-                                    const msg = err instanceof Error ? err.message : "Falha ao baixar mídia";
-                                    // Se não existe arquivo, não faz sentido manter botão aparecendo.
-                                    if (msg.toLowerCase().includes("indisponível")) {
-                                      setDownloadByMessageId((prev) =>
-                                        capDownloadCache(
-                                          { ...prev, [id]: { fileURL: "", mimetype: prev[id]?.mimetype, unavailable: true } },
-                                          MAX_DOWNLOAD_CACHE,
-                                        ),
-                                      );
-                                    }
-                                    setToast(msg);
-                                  }
-                                })();
-                              }}
-                            >
-                              Baixar/abrir documento
-                            </button>
-                          ) : cached?.unavailable ? (
-                            <div className="text-xs text-[var(--muted)]">Arquivo indisponível.</div>
-                          ) : (
-                            <div className="text-xs text-[var(--muted)]">Mídia sem ID</div>
-                          )}
+                          ) : null}
                         </div>
                       ) : null}
 
