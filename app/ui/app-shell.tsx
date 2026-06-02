@@ -470,12 +470,14 @@ export default function AppShell() {
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [chatMenuChatId, setChatMenuChatId] = useState<string | null>(null);
+  const [chatMenuPosition, setChatMenuPosition] = useState<{ left: number; top: number } | null>(null);
   const [chatMenuTagInput, setChatMenuTagInput] = useState("");
   const [sidebarMenuOpen, setSidebarMenuOpen] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [conversationSelectionMode, setConversationSelectionMode] = useState(false);
   const [selectedConversationIds, setSelectedConversationIds] = useState<Record<string, boolean>>({});
   const [readAtByChatId, setReadAtByChatId] = useState<Record<string, number>>({});
+  const [manualUnreadByChatId, setManualUnreadByChatId] = useState<Record<string, true>>({});
   const sidebarMenuRef = useRef<HTMLDivElement | null>(null);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [headerAssignOpen, setHeaderAssignOpen] = useState(false);
@@ -510,6 +512,25 @@ export default function AppShell() {
     [chats, chatMenuChatId],
   );
 
+  function openChatActionMenu(chatId: string, x: number, y: number) {
+    const width = 320;
+    const height = 468;
+    const margin = 8;
+    const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+    const maxTop = Math.max(margin, window.innerHeight - height - margin);
+
+    setChatMenuChatId(chatId);
+    setChatMenuTagInput("");
+    setChatMenuPosition({
+      left: Math.min(Math.max(margin, x), maxLeft),
+      top: Math.min(Math.max(margin, y), maxTop),
+    });
+  }
+
+  function closeChatActionMenu() {
+    setChatMenuPosition(null);
+  }
+
   useEffect(() => {
     setTags(selectedChat?.state?.tags ?? []);
   }, [selectedChatId, selectedChat?.state?.tags]);
@@ -518,6 +539,7 @@ export default function AppShell() {
     // ao trocar de chat, reseta modos
     setHeaderMenuOpen(false);
     setHeaderAssignOpen(false);
+    setChatMenuPosition(null);
     setSearchOpen(false);
     setSearchQuery("");
     setSelectionMode(false);
@@ -1365,6 +1387,7 @@ export default function AppShell() {
                         const next: Record<string, number> = { ...readAtByChatId };
                         for (const c of chats) next[c.chatId] = now;
                         setReadAtByChatId(next);
+                        setManualUnreadByChatId({});
                         setSidebarMenuOpen(false);
                         setToast("Conversas marcadas como lidas.");
                       }}
@@ -1426,7 +1449,11 @@ export default function AppShell() {
                 const chatTags = chat.state?.tags ?? [];
                 const lastMs = toMs(chat.lastMsgTimestamp);
                 const readAt = readAtByChatId[chat.chatId] ?? 0;
-                const effectiveUnread = chat.unreadCount > 0 && lastMs > readAt ? chat.unreadCount : 0;
+                const effectiveUnread = manualUnreadByChatId[chat.chatId]
+                  ? Math.max(chat.unreadCount, 1)
+                  : chat.unreadCount > 0 && lastMs > readAt
+                    ? chat.unreadCount
+                    : 0;
                 return (
                   <div
                     key={chat.chatId}
@@ -1434,6 +1461,10 @@ export default function AppShell() {
                       "w-full px-4 py-3 border-b border-[var(--border)] transition",
                       active ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)]" : "hover:bg-white/3",
                     ].join(" ")}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      openChatActionMenu(chat.chatId, e.clientX, e.clientY);
+                    }}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <button
@@ -1445,6 +1476,12 @@ export default function AppShell() {
                           }
                           setSelectedChatId(chat.chatId);
                           setReadAtByChatId((prev) => ({ ...prev, [chat.chatId]: Date.now() }));
+                          setManualUnreadByChatId((prev) => {
+                            if (!prev[chat.chatId]) return prev;
+                            const next = { ...prev };
+                            delete next[chat.chatId];
+                            return next;
+                          });
                         }}
                         className="flex-1 min-w-0 text-left"
                         aria-label={`Abrir chat: ${chat.name}`}
@@ -1496,9 +1533,9 @@ export default function AppShell() {
                         <div className="text-[10px] text-[var(--muted)]">{formatTime(chat.lastMsgTimestamp ?? undefined)}</div>
                         <button
                           type="button"
-                          onClick={() => {
-                            setChatMenuChatId(chat.chatId);
-                            setChatMenuTagInput("");
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openChatActionMenu(chat.chatId, e.clientX, e.clientY);
                           }}
                           className="h-8 w-8 rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 flex items-center justify-center text-lg"
                           aria-label={`Mais opções do chat: ${chat.name}`}
@@ -1822,12 +1859,12 @@ export default function AppShell() {
                 const cached = id ? downloadByMessageId[id] : undefined;
                 const mediaUrl = (id && cached?.fileURL) || m.fileURL || null;
                 const mimetype = cached?.mimetype;
-                const showMedia = !contact && (Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation"));
-              const showAudioPlayer = showMedia && isAudioLike(m, mimetype);
-              const showImage = showMedia && !showAudioPlayer && isImageLike(m, mimetype, mediaUrl);
-              const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
-              const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
-              const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
+                const showMedia = !contact && Boolean(mediaUrl);
+                const showAudioPlayer = showMedia && isAudioLike(m, mimetype);
+                const showImage = showMedia && !showAudioPlayer && isImageLike(m, mimetype, mediaUrl);
+                const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
+                const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
+                const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
                 return (
                   <div
                     key={stableKey}
@@ -2070,38 +2107,7 @@ export default function AppShell() {
                               </a>
                             </div>
                           </div>
-                          ) : id && !cached?.unavailable ? (
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
-                              onClick={() => {
-                                void (async () => {
-                                  try {
-                                    const d = await ensureDownload(id);
-                                    window.open(d.fileURL, "_blank", "noopener,noreferrer");
-                                  } catch (err) {
-                                    const msg = err instanceof Error ? err.message : "Falha ao baixar mídia";
-                                    // Se não existe arquivo, não faz sentido manter botão aparecendo.
-                                    if (msg.toLowerCase().includes("indisponível")) {
-                                      setDownloadByMessageId((prev) =>
-                                        capDownloadCache(
-                                          { ...prev, [id]: { fileURL: "", mimetype: prev[id]?.mimetype, unavailable: true } },
-                                          MAX_DOWNLOAD_CACHE,
-                                        ),
-                                      );
-                                    }
-                                    setToast(msg);
-                                  }
-                                })();
-                              }}
-                            >
-                              Baixar/abrir documento
-                            </button>
-                          ) : cached?.unavailable ? (
-                            <div className="text-xs text-[var(--muted)]">Arquivo indisponível.</div>
-                          ) : (
-                            <div className="text-xs text-[var(--muted)]">Mídia sem ID</div>
-                          )}
+                          ) : null}
                         </div>
                       ) : null}
 
@@ -2346,7 +2352,150 @@ export default function AppShell() {
         </div>
       ) : null}
 
-      {chatMenuChat ? (
+      {chatMenuChat && chatMenuPosition ? (
+        <div className="fixed inset-0 z-50">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label="Fechar opções do chat"
+            onClick={() => {
+              setChatMenuChatId(null);
+              closeChatActionMenu();
+            }}
+          />
+          <div
+            role="menu"
+            aria-label={`Opções do chat ${chatMenuChat.name}`}
+            className="absolute w-80 overflow-hidden rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] shadow-2xl"
+            style={{ left: chatMenuPosition.left, top: chatMenuPosition.top }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast("Em breve: arquivar conversa.");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">▣</span>
+              <span>Arquivar conversa</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast("Em breve: desafixar conversa.");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">⌧</span>
+              <span>Desafixar conversa</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setReadAtByChatId((prev) => ({ ...prev, [chatMenuChat.chatId]: 0 }));
+                setManualUnreadByChatId((prev) => ({ ...prev, [chatMenuChat.chatId]: true }));
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast("Conversa marcada como não lida.");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">☰</span>
+              <span>Marcar como não lida</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                const alreadyFavorite = (chatMenuChat.state?.tags ?? []).includes("Favoritos");
+                void toggleLabelForChat(chatMenuChat.chatId, "Favoritos");
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast(alreadyFavorite ? "Removido dos Favoritos." : "Adicionado aos Favoritos.");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">♡</span>
+              <span>{(chatMenuChat.state?.tags ?? []).includes("Favoritos") ? "Remover dos Favoritos" : "Adicionar aos Favoritos"}</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeChatActionMenu();
+                setChatMenuTagInput("");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">🏷</span>
+              <span>Etiquetas</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                const next = (chatMenuChat.state?.assignedAgentId ?? null) === "vanderlei" ? "gustavo" : "vanderlei";
+                void saveState(chatMenuChat.chatId, { assignedAgentId: next });
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast(`Conversa atribuída para ${next === "vanderlei" ? "Vanderlei" : "Gustavo"}.`);
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">👤</span>
+              <span>
+                Atribuir
+                <span className="ml-2 text-xs text-[var(--muted)]">
+                  {chatMenuChat.state?.assignedAgentId === "vanderlei"
+                    ? "Vanderlei"
+                    : chatMenuChat.state?.assignedAgentId === "gustavo"
+                      ? "Gustavo"
+                      : "—"}
+                </span>
+              </span>
+            </button>
+            <div className="mx-5 border-t border-[var(--border)]" />
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                if (selectedChatIdRef.current === chatMenuChat.chatId) {
+                  setMessages([]);
+                }
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast("Conversa limpa nesta visualização.");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">⊖</span>
+              <span>Limpar conversa</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast("Em breve: apagar conversa.");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">🗑</span>
+              <span>Apagar conversa</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {chatMenuChat && !chatMenuPosition ? (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4">
           <button
             type="button"
