@@ -1918,12 +1918,12 @@ export default function AppShell() {
                 const cached = id ? downloadByMessageId[id] : undefined;
                 const mediaUrl = (id && cached?.fileURL) || m.fileURL || null;
                 const mimetype = cached?.mimetype;
-                const hasDownloadableMedia = isDownloadableMediaLike(m, mimetype, mediaUrl);
-                const showMedia = !contact && (Boolean(mediaUrl) || hasDownloadableMedia);
+                const showMedia = !contact && Boolean(mediaUrl);
                 const showAudioPlayer = showMedia && isAudioLike(m, mimetype);
                 const showImage = showMedia && !showAudioPlayer && isImageLike(m, mimetype, mediaUrl);
                 const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
                 const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
+                const hasDownloadableMedia = !contact && isDownloadableMediaLike(m, mimetype, mediaUrl);
                 const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
                 return (
                   <div
@@ -2167,26 +2167,30 @@ export default function AppShell() {
                               </a>
                             </div>
                           </div>
-                          ) : id && hasDownloadableMedia && !cached?.unavailable ? (
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
-                              onClick={() => {
-                                void (async () => {
-                                  try {
-                                    await ensureDownload(id);
-                                  } catch (err) {
-                                    setToast(err instanceof Error ? err.message : "Falha ao carregar mídia");
-                                  }
-                                })();
-                              }}
-                            >
-                              Carregar mídia
-                            </button>
-                          ) : cached?.unavailable ? (
-                            <div className="text-xs text-[var(--muted)]">Mídia indisponível.</div>
                           ) : null}
                         </div>
+                      ) : null}
+
+                      {!showMedia && id && hasDownloadableMedia && !cached?.unavailable ? (
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
+                            onClick={() => {
+                              void (async () => {
+                                try {
+                                  await ensureDownload(id);
+                                } catch (err) {
+                                  setToast(err instanceof Error ? err.message : "Falha ao carregar mídia");
+                                }
+                              })();
+                            }}
+                          >
+                            Carregar mídia
+                          </button>
+                        </div>
+                      ) : !showMedia && cached?.unavailable ? (
+                        <div className="mt-2 text-xs text-[var(--muted)]">Mídia indisponível.</div>
                       ) : null}
 
                       <div className="mt-2 text-[10px] text-[var(--muted)] text-right">
