@@ -213,6 +213,63 @@ function isPdfLike(mimetype?: string, mediaUrl?: string | null) {
   return ext === "pdf";
 }
 
+function isDownloadableMediaLike(m: MessageItem, mimetype?: string, mediaUrl?: string | null) {
+  if (mimetype && !mimetype.startsWith("text/")) return true;
+  if (mediaUrl) return isAudioLike(m, mimetype) || isImageLike(m, mimetype, mediaUrl) || isVideoLike(m, mimetype, mediaUrl) || isPdfLike(mimetype, mediaUrl);
+
+  const mt = (m.messageType ?? "").toLowerCase();
+  const t = (m.type ?? "").toLowerCase();
+  const mediaHints = [
+    "audio",
+    "document",
+    "file",
+    "image",
+    "media",
+    "ptt",
+    "sticker",
+    "video",
+  ];
+  return mediaHints.some((hint) => mt.includes(hint) || t.includes(hint));
+}
+
+function readableFileName(raw: string, fallback: string, requireExtension = false) {
+  try {
+    const decoded = decodeURIComponent(raw).trim();
+    if (!decoded) return fallback;
+    if (requireExtension && !/\.[a-z0-9]{2,8}$/i.test(decoded)) return fallback;
+    return decoded;
+  } catch {
+    const trimmed = raw.trim();
+    if (!trimmed) return fallback;
+    if (requireExtension && !/\.[a-z0-9]{2,8}$/i.test(trimmed)) return fallback;
+    return trimmed;
+  }
+}
+
+function fileNameFromUrl(url?: string | null, fallback = "documento") {
+  if (!url) return fallback;
+  try {
+    const { pathname, searchParams } = new URL(url);
+    const fromQuery = searchParams.get("filename") || searchParams.get("file") || searchParams.get("name");
+    if (fromQuery) return readableFileName(fromQuery, fallback);
+    const raw = pathname.split("/").filter(Boolean).at(-1) || fallback;
+    return readableFileName(raw, fallback, true);
+  } catch {
+    const clean = url.split("?")[0] ?? url;
+    const raw = clean.split("/").filter(Boolean).at(-1) || fallback;
+    return readableFileName(raw, fallback, true);
+  }
+}
+
+function fileLabelFromMime(mimetype?: string, mediaUrl?: string | null) {
+  const ext = mediaUrl ? extFromUrl(mediaUrl) : "";
+  if (mimetype === "application/pdf" || ext === "pdf") return "PDF";
+  if (mimetype?.includes("word") || ext === "doc" || ext === "docx") return "DOC";
+  if (mimetype?.includes("excel") || mimetype?.includes("spreadsheet") || ext === "xls" || ext === "xlsx") return "XLS";
+  if (mimetype?.includes("presentation") || ext === "ppt" || ext === "pptx") return "PPT";
+  return (ext || "arquivo").toUpperCase();
+}
+
 type ParsedContact = {
   caption?: string;
   name: string;
@@ -432,12 +489,15 @@ export default function AppShell() {
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [chatMenuChatId, setChatMenuChatId] = useState<string | null>(null);
+  const [chatMenuPosition, setChatMenuPosition] = useState<{ left: number; top: number } | null>(null);
   const [chatMenuTagInput, setChatMenuTagInput] = useState("");
   const [sidebarMenuOpen, setSidebarMenuOpen] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [conversationSelectionMode, setConversationSelectionMode] = useState(false);
   const [selectedConversationIds, setSelectedConversationIds] = useState<Record<string, boolean>>({});
   const [readAtByChatId, setReadAtByChatId] = useState<Record<string, number>>({});
+  const [manualUnreadByChatId, setManualUnreadByChatId] = useState<Record<string, true>>({});
+  const [pinnedByChatId, setPinnedByChatId] = useState<Record<string, true>>({});
   const sidebarMenuRef = useRef<HTMLDivElement | null>(null);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [headerAssignOpen, setHeaderAssignOpen] = useState(false);
@@ -472,6 +532,25 @@ export default function AppShell() {
     [chats, chatMenuChatId],
   );
 
+  function openChatActionMenu(chatId: string, x: number, y: number) {
+    const width = 320;
+    const height = 468;
+    const margin = 8;
+    const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+    const maxTop = Math.max(margin, window.innerHeight - height - margin);
+
+    setChatMenuChatId(chatId);
+    setChatMenuTagInput("");
+    setChatMenuPosition({
+      left: Math.min(Math.max(margin, x), maxLeft),
+      top: Math.min(Math.max(margin, y), maxTop),
+    });
+  }
+
+  function closeChatActionMenu() {
+    setChatMenuPosition(null);
+  }
+
   useEffect(() => {
     setTags(selectedChat?.state?.tags ?? []);
   }, [selectedChatId, selectedChat?.state?.tags]);
@@ -480,6 +559,7 @@ export default function AppShell() {
     // ao trocar de chat, reseta modos
     setHeaderMenuOpen(false);
     setHeaderAssignOpen(false);
+    setChatMenuPosition(null);
     setSearchOpen(false);
     setSearchQuery("");
     setSelectionMode(false);
@@ -506,11 +586,36 @@ export default function AppShell() {
 
   useEffect(() => {
     try {
+      const raw = window.localStorage.getItem("wa:pinnedByChatId");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== "object") return;
+      const obj = parsed as Record<string, unknown>;
+      const next: Record<string, true> = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (v === true) next[k] = true;
+      }
+      setPinnedByChatId(next);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
       window.localStorage.setItem("wa:readAtByChatId", JSON.stringify(readAtByChatId));
     } catch {
       // ignore
     }
   }, [readAtByChatId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("wa:pinnedByChatId", JSON.stringify(pinnedByChatId));
+    } catch {
+      // ignore
+    }
+  }, [pinnedByChatId]);
 
   useEffect(() => {
     if (!sidebarMenuOpen) return;
@@ -546,9 +651,14 @@ export default function AppShell() {
   }, [favoritesOnly, filteredChats]);
 
   const visibleChats = useMemo(() => {
-    if (assignedFilter === "all") return tagFilteredChats;
-    return tagFilteredChats.filter((c) => c.state?.assignedAgentId === assignedFilter);
-  }, [assignedFilter, tagFilteredChats]);
+    const items = assignedFilter === "all" ? tagFilteredChats : tagFilteredChats.filter((c) => c.state?.assignedAgentId === assignedFilter);
+    return [...items].sort((a, b) => {
+      const aPinned = pinnedByChatId[a.chatId] ? 1 : 0;
+      const bPinned = pinnedByChatId[b.chatId] ? 1 : 0;
+      if (aPinned !== bPinned) return bPinned - aPinned;
+      return toMs(b.lastMsgTimestamp) - toMs(a.lastMsgTimestamp);
+    });
+  }, [assignedFilter, pinnedByChatId, tagFilteredChats]);
 
   const searchMatchKeys = useMemo(() => {
     const q = searchQuery.trim();
@@ -1114,32 +1224,33 @@ export default function AppShell() {
     };
   }, [messages]);
 
-  // Áudios: pré-carrega automaticamente para já ficar pronto para dar play.
+  // Mídias: pré-carrega automaticamente para evitar bolhas vazias quando a API ainda não trouxe fileURL.
   useEffect(() => {
     if (!selectedChatId) return;
     if (messages.length === 0) return;
 
-    const audioToPrefetch: string[] = [];
+    const mediaToPrefetch: string[] = [];
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const m = messages[i]!;
       const id = m.messageid ?? m.id ?? "";
       if (!id) continue;
-      if (downloadByMessageId[id]?.fileURL) continue;
-      if (!isAudioLike(m, downloadByMessageId[id]?.mimetype)) continue;
-      // Só faz prefetch dos mais recentes para evitar flood.
-      audioToPrefetch.push(id);
-      if (audioToPrefetch.length >= 3) break;
+      const cached = downloadByMessageId[id];
+      if (cached?.fileURL || cached?.unavailable || m.fileURL) continue;
+      if (!isDownloadableMediaLike(m, cached?.mimetype, m.fileURL ?? null)) continue;
+      // Só faz prefetch das mais recentes para evitar flood.
+      mediaToPrefetch.push(id);
+      if (mediaToPrefetch.length >= 6) break;
     }
 
-    if (audioToPrefetch.length === 0) return;
+    if (mediaToPrefetch.length === 0) return;
     let cancelled = false;
     void (async () => {
-      for (const id of audioToPrefetch) {
+      for (const id of mediaToPrefetch) {
         if (cancelled) return;
         try {
           await ensureDownload(id);
         } catch {
-          // Silencioso: se falhar, o botão de "Carregar áudio" continua aparecendo.
+          // Silencioso: se falhar, a mensagem continua com a opção manual de carregar mídia.
         }
       }
     })();
@@ -1327,6 +1438,7 @@ export default function AppShell() {
                         const next: Record<string, number> = { ...readAtByChatId };
                         for (const c of chats) next[c.chatId] = now;
                         setReadAtByChatId(next);
+                        setManualUnreadByChatId({});
                         setSidebarMenuOpen(false);
                         setToast("Conversas marcadas como lidas.");
                       }}
@@ -1386,9 +1498,14 @@ export default function AppShell() {
               {visibleChats.map((chat) => {
                 const active = chat.chatId === selectedChatId;
                 const chatTags = chat.state?.tags ?? [];
+                const pinned = Boolean(pinnedByChatId[chat.chatId]);
                 const lastMs = toMs(chat.lastMsgTimestamp);
                 const readAt = readAtByChatId[chat.chatId] ?? 0;
-                const effectiveUnread = chat.unreadCount > 0 && lastMs > readAt ? chat.unreadCount : 0;
+                const effectiveUnread = manualUnreadByChatId[chat.chatId]
+                  ? Math.max(chat.unreadCount, 1)
+                  : chat.unreadCount > 0 && lastMs > readAt
+                    ? chat.unreadCount
+                    : 0;
                 return (
                   <div
                     key={chat.chatId}
@@ -1396,6 +1513,10 @@ export default function AppShell() {
                       "w-full px-4 py-3 border-b border-[var(--border)] transition",
                       active ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)]" : "hover:bg-white/3",
                     ].join(" ")}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      openChatActionMenu(chat.chatId, e.clientX, e.clientY);
+                    }}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <button
@@ -1407,6 +1528,12 @@ export default function AppShell() {
                           }
                           setSelectedChatId(chat.chatId);
                           setReadAtByChatId((prev) => ({ ...prev, [chat.chatId]: Date.now() }));
+                          setManualUnreadByChatId((prev) => {
+                            if (!prev[chat.chatId]) return prev;
+                            const next = { ...prev };
+                            delete next[chat.chatId];
+                            return next;
+                          });
                         }}
                         className="flex-1 min-w-0 text-left"
                         aria-label={`Abrir chat: ${chat.name}`}
@@ -1458,9 +1585,9 @@ export default function AppShell() {
                         <div className="text-[10px] text-[var(--muted)]">{formatTime(chat.lastMsgTimestamp ?? undefined)}</div>
                         <button
                           type="button"
-                          onClick={() => {
-                            setChatMenuChatId(chat.chatId);
-                            setChatMenuTagInput("");
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openChatActionMenu(chat.chatId, e.clientX, e.clientY);
                           }}
                           className="h-8 w-8 rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 flex items-center justify-center text-lg"
                           aria-label={`Mais opções do chat: ${chat.name}`}
@@ -1470,6 +1597,11 @@ export default function AppShell() {
                         </button>
                       </div>
                         <div className="flex items-center gap-2">
+                          {pinned ? (
+                            <span className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1" title="Conversa fixada">
+                              Fixada
+                            </span>
+                          ) : null}
                           {chat.isGroup ? (
                             <span className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_45%,transparent)] px-2 py-1">
                               Grupo
@@ -1784,12 +1916,13 @@ export default function AppShell() {
                 const cached = id ? downloadByMessageId[id] : undefined;
                 const mediaUrl = (id && cached?.fileURL) || m.fileURL || null;
                 const mimetype = cached?.mimetype;
-                const showMedia = !contact && (Boolean(mediaUrl) || (m.messageType && m.messageType !== "Conversation"));
-              const showAudioPlayer = showMedia && isAudioLike(m, mimetype);
-              const showImage = showMedia && !showAudioPlayer && isImageLike(m, mimetype, mediaUrl);
-              const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
-              const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
-              const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
+                const hasDownloadableMedia = isDownloadableMediaLike(m, mimetype, mediaUrl);
+                const showMedia = !contact && (Boolean(mediaUrl) || hasDownloadableMedia);
+                const showAudioPlayer = showMedia && isAudioLike(m, mimetype);
+                const showImage = showMedia && !showAudioPlayer && isImageLike(m, mimetype, mediaUrl);
+                const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
+                const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
+                const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
                 return (
                   <div
                     key={stableKey}
@@ -1962,13 +2095,24 @@ export default function AppShell() {
                             </div>
                           </div>
                         ) : mediaUrl && showPdf ? (
-                          <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
-                            <iframe
-                              title="PDF"
-                              src={mediaUrl}
-                              className="w-[520px] max-w-full h-[520px] rounded-2xl bg-black/20"
-                            />
-                            <div className="mt-2 flex items-center justify-end gap-2">
+                          <div className="w-[360px] max-w-full overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
+                            <a
+                              href={mediaUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-3 bg-[color-mix(in_srgb,var(--background)_62%,black)] px-3 py-3 hover:bg-white/8"
+                              aria-label={`Abrir ${fileNameFromUrl(mediaUrl, "documento.pdf")}`}
+                            >
+                              <div className="relative flex h-12 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-[10px] font-black text-red-600 shadow-sm">
+                                <div className="absolute right-0 top-0 h-0 w-0 border-l-[10px] border-t-[10px] border-l-slate-200 border-t-transparent" />
+                                PDF
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-sm font-semibold">{fileNameFromUrl(mediaUrl, "documento.pdf")}</div>
+                                <div className="mt-0.5 text-xs text-[var(--muted)]">PDF • tocar para abrir</div>
+                              </div>
+                            </a>
+                            <div className="flex items-center justify-end gap-2 border-t border-white/10 px-3 py-2">
                               <a
                                 href={mediaUrl}
                                 target="_blank"
@@ -1987,9 +2131,23 @@ export default function AppShell() {
                             </div>
                           </div>
                         ) : mediaUrl ? (
-                          <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3">
-                            <div className="text-sm font-semibold">Documento</div>
-                            <div className="mt-2 flex items-center gap-2">
+                          <div className="w-[360px] max-w-full overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
+                            <a
+                              href={mediaUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-3 bg-[color-mix(in_srgb,var(--background)_62%,black)] px-3 py-3 hover:bg-white/8"
+                              aria-label={`Abrir ${fileNameFromUrl(mediaUrl, "documento")}`}
+                            >
+                              <div className="flex h-12 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-[9px] font-black text-slate-700 shadow-sm">
+                                {fileLabelFromMime(mimetype, mediaUrl)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-sm font-semibold">{fileNameFromUrl(mediaUrl, "documento")}</div>
+                                <div className="mt-0.5 text-xs text-[var(--muted)]">Documento • tocar para abrir</div>
+                              </div>
+                            </a>
+                            <div className="flex items-center justify-end gap-2 border-t border-white/10 px-3 py-2">
                               <a
                                 href={mediaUrl}
                                 target="_blank"
@@ -2006,40 +2164,26 @@ export default function AppShell() {
                                 Baixar
                               </a>
                             </div>
-                            <div className="mt-2 text-xs text-[var(--muted)]">Pré-visualização indisponível para este tipo.</div>
                           </div>
-                          ) : id && !cached?.unavailable ? (
+                          ) : id && hasDownloadableMedia && !cached?.unavailable ? (
                             <button
                               type="button"
                               className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
                               onClick={() => {
                                 void (async () => {
                                   try {
-                                    const d = await ensureDownload(id);
-                                    window.open(d.fileURL, "_blank", "noopener,noreferrer");
+                                    await ensureDownload(id);
                                   } catch (err) {
-                                    const msg = err instanceof Error ? err.message : "Falha ao baixar mídia";
-                                    // Se não existe arquivo, não faz sentido manter botão aparecendo.
-                                    if (msg.toLowerCase().includes("indisponível")) {
-                                      setDownloadByMessageId((prev) =>
-                                        capDownloadCache(
-                                          { ...prev, [id]: { fileURL: "", mimetype: prev[id]?.mimetype, unavailable: true } },
-                                          MAX_DOWNLOAD_CACHE,
-                                        ),
-                                      );
-                                    }
-                                    setToast(msg);
+                                    setToast(err instanceof Error ? err.message : "Falha ao carregar mídia");
                                   }
                                 })();
                               }}
                             >
-                              Baixar/abrir documento
+                              Carregar mídia
                             </button>
                           ) : cached?.unavailable ? (
-                            <div className="text-xs text-[var(--muted)]">Arquivo indisponível.</div>
-                          ) : (
-                            <div className="text-xs text-[var(--muted)]">Mídia sem ID</div>
-                          )}
+                            <div className="text-xs text-[var(--muted)]">Mídia indisponível.</div>
+                          ) : null}
                         </div>
                       ) : null}
 
@@ -2284,7 +2428,157 @@ export default function AppShell() {
         </div>
       ) : null}
 
-      {chatMenuChat ? (
+      {chatMenuChat && chatMenuPosition ? (
+        <div className="fixed inset-0 z-50">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label="Fechar opções do chat"
+            onClick={() => {
+              setChatMenuChatId(null);
+              closeChatActionMenu();
+            }}
+          />
+          <div
+            role="menu"
+            aria-label={`Opções do chat ${chatMenuChat.name}`}
+            className="absolute w-80 overflow-hidden rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] shadow-2xl"
+            style={{ left: chatMenuPosition.left, top: chatMenuPosition.top }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast("Em breve: arquivar conversa.");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">▣</span>
+              <span>Arquivar conversa</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                const pinned = Boolean(pinnedByChatId[chatMenuChat.chatId]);
+                setPinnedByChatId((prev) => {
+                  const next = { ...prev };
+                  if (pinned) delete next[chatMenuChat.chatId];
+                  else next[chatMenuChat.chatId] = true;
+                  return next;
+                });
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast(pinned ? "Conversa desafixada." : "Conversa fixada.");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">⌧</span>
+              <span>{pinnedByChatId[chatMenuChat.chatId] ? "Desafixar conversa" : "Fixar conversa"}</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setReadAtByChatId((prev) => ({ ...prev, [chatMenuChat.chatId]: 0 }));
+                setManualUnreadByChatId((prev) => ({ ...prev, [chatMenuChat.chatId]: true }));
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast("Conversa marcada como não lida.");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">☰</span>
+              <span>Marcar como não lida</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                const alreadyFavorite = (chatMenuChat.state?.tags ?? []).includes("Favoritos");
+                void toggleLabelForChat(chatMenuChat.chatId, "Favoritos");
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast(alreadyFavorite ? "Removido dos Favoritos." : "Adicionado aos Favoritos.");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">♡</span>
+              <span>{(chatMenuChat.state?.tags ?? []).includes("Favoritos") ? "Remover dos Favoritos" : "Adicionar aos Favoritos"}</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeChatActionMenu();
+                setChatMenuTagInput("");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">🏷</span>
+              <span>Etiquetas</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                const next = (chatMenuChat.state?.assignedAgentId ?? null) === "vanderlei" ? "gustavo" : "vanderlei";
+                void saveState(chatMenuChat.chatId, { assignedAgentId: next });
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast(`Conversa atribuída para ${next === "vanderlei" ? "Vanderlei" : "Gustavo"}.`);
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">👤</span>
+              <span>
+                Atribuir
+                <span className="ml-2 text-xs text-[var(--muted)]">
+                  {chatMenuChat.state?.assignedAgentId === "vanderlei"
+                    ? "Vanderlei"
+                    : chatMenuChat.state?.assignedAgentId === "gustavo"
+                      ? "Gustavo"
+                      : "—"}
+                </span>
+              </span>
+            </button>
+            <div className="mx-5 border-t border-[var(--border)]" />
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                if (selectedChatIdRef.current === chatMenuChat.chatId) {
+                  setMessages([]);
+                }
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast("Conversa limpa nesta visualização.");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">⊖</span>
+              <span>Limpar conversa</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeChatActionMenu();
+                setChatMenuChatId(null);
+                setToast("Em breve: apagar conversa.");
+              }}
+              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+            >
+              <span className="w-6 text-center text-lg" aria-hidden="true">🗑</span>
+              <span>Apagar conversa</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {chatMenuChat && !chatMenuPosition ? (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4">
           <button
             type="button"
