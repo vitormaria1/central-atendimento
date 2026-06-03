@@ -495,7 +495,6 @@ export default function AppShell() {
   const [selectedConversationIds, setSelectedConversationIds] = useState<Record<string, boolean>>({});
   const [readAtByChatId, setReadAtByChatId] = useState<Record<string, number>>({});
   const [manualUnreadByChatId, setManualUnreadByChatId] = useState<Record<string, true>>({});
-  const [pinnedByChatId, setPinnedByChatId] = useState<Record<string, true>>({});
   const sidebarMenuRef = useRef<HTMLDivElement | null>(null);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [headerAssignOpen, setHeaderAssignOpen] = useState(false);
@@ -509,6 +508,7 @@ export default function AppShell() {
   const [downloadByMessageId, setDownloadByMessageId] = useState<
     Record<string, { fileURL: string; mimetype?: string; unavailable?: boolean }>
   >({});
+  const [pinnedByChatId, setPinnedByChatId] = useState<Record<string, true>>({});
 
   const lastRefreshAtRef = useRef<number>(0);
   const selectedChatIdRef = useRef<string | null>(null);
@@ -649,14 +649,18 @@ export default function AppShell() {
   }, [favoritesOnly, filteredChats]);
 
   const visibleChats = useMemo(() => {
-    const items = assignedFilter === "all" ? tagFilteredChats : tagFilteredChats.filter((c) => c.state?.assignedAgentId === assignedFilter);
-    return [...items].sort((a, b) => {
+    if (assignedFilter === "all") return tagFilteredChats;
+    return tagFilteredChats.filter((c) => c.state?.assignedAgentId === assignedFilter);
+  }, [assignedFilter, tagFilteredChats]);
+
+  const pinnedVisibleChats = useMemo(() => {
+    return [...visibleChats].sort((a, b) => {
       const aPinned = pinnedByChatId[a.chatId] ? 1 : 0;
       const bPinned = pinnedByChatId[b.chatId] ? 1 : 0;
       if (aPinned !== bPinned) return bPinned - aPinned;
       return toMs(b.lastMsgTimestamp) - toMs(a.lastMsgTimestamp);
     });
-  }, [assignedFilter, pinnedByChatId, tagFilteredChats]);
+  }, [pinnedByChatId, visibleChats]);
 
   const searchMatchKeys = useMemo(() => {
     const q = searchQuery.trim();
@@ -1493,7 +1497,7 @@ export default function AppShell() {
           </div>
   
             <div className="overflow-y-auto h-[calc(100vh-64px-88px)]">
-              {visibleChats.map((chat) => {
+              {pinnedVisibleChats.map((chat) => {
                 const active = chat.chatId === selectedChatId;
                 const chatTags = chat.state?.tags ?? [];
                 const pinned = Boolean(pinnedByChatId[chat.chatId]);
