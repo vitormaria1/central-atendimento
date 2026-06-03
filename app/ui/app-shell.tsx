@@ -633,6 +633,47 @@ export default function AppShell() {
     };
   }, [sidebarMenuOpen]);
 
+  useEffect(() => {
+    if (!chatMenuChat || !chatMenuPosition) return;
+
+    const menuSelector = `div[role="menu"][aria-label="Opções do chat ${CSS.escape(chatMenuChat.name)}"]`;
+    const pinButtonIndex = 1;
+
+    function getPinButton() {
+      const menu = document.querySelector(menuSelector);
+      const items = menu ? Array.from(menu.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]')) : [];
+      return items[pinButtonIndex] ?? null;
+    }
+
+    const pinButton = getPinButton();
+    const label = pinButton?.querySelector<HTMLSpanElement>("span:last-child");
+    if (label) label.textContent = pinnedByChatId[chatMenuChat.chatId] ? "Desafixar conversa" : "Fixar conversa";
+
+    function onClick(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      const button = target?.closest<HTMLButtonElement>('button[role="menuitem"]');
+      if (!button || button !== getPinButton()) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      const pinned = Boolean(pinnedByChatId[chatMenuChat!.chatId]);
+      setPinnedByChatId((prev) => {
+        const next = { ...prev };
+        if (pinned) delete next[chatMenuChat!.chatId];
+        else next[chatMenuChat!.chatId] = true;
+        return next;
+      });
+      closeChatActionMenu();
+      setChatMenuChatId(null);
+      setToast(pinned ? "Conversa desafixada." : "Conversa fixada.");
+    }
+
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [chatMenuChat, chatMenuPosition, pinnedByChatId]);
+
   const filteredChats = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return chats;
@@ -2447,42 +2488,9 @@ export default function AppShell() {
           <div
             role="menu"
             aria-label={`Opções do chat ${chatMenuChat.name}`}
-            data-chat-pinned={pinnedByChatId[chatMenuChat.chatId] ? "true" : "false"}
             className="absolute w-80 overflow-hidden rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] shadow-2xl"
             style={{ left: chatMenuPosition.left, top: chatMenuPosition.top }}
-            onClickCapture={(e) => {
-              const target = e.target as HTMLElement;
-              const button = target.closest('button[role="menuitem"]');
-              const menu = e.currentTarget;
-              if (!button || !menu.contains(button)) return;
-              const menuItems = Array.from(menu.querySelectorAll('button[role="menuitem"]'));
-              const pinButtonIndex = 1;
-              if (menuItems.indexOf(button as HTMLButtonElement) !== pinButtonIndex) return;
-
-              e.preventDefault();
-              e.stopPropagation();
-
-              const pinned = Boolean(pinnedByChatId[chatMenuChat.chatId]);
-              setPinnedByChatId((prev) => {
-                const next = { ...prev };
-                if (pinned) delete next[chatMenuChat.chatId];
-                else next[chatMenuChat.chatId] = true;
-                return next;
-              });
-              closeChatActionMenu();
-              setChatMenuChatId(null);
-              setToast(pinned ? "Conversa desafixada." : "Conversa fixada.");
-            }}
           >
-            <style jsx>{`
-              div[data-chat-pinned="false"] > button:nth-of-type(2) > span:last-child {
-                font-size: 0;
-              }
-              div[data-chat-pinned="false"] > button:nth-of-type(2) > span:last-child::after {
-                content: "Fixar conversa";
-                font-size: 0.875rem;
-              }
-            `}</style>
             <button
               type="button"
               role="menuitem"
