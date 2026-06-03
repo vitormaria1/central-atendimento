@@ -213,25 +213,6 @@ function isPdfLike(mimetype?: string, mediaUrl?: string | null) {
   return ext === "pdf";
 }
 
-function isDownloadableMediaLike(m: MessageItem, mimetype?: string, mediaUrl?: string | null) {
-  if (mimetype && !mimetype.startsWith("text/")) return true;
-  if (mediaUrl) return isAudioLike(m, mimetype) || isImageLike(m, mimetype, mediaUrl) || isVideoLike(m, mimetype, mediaUrl) || isPdfLike(mimetype, mediaUrl);
-
-  const mt = (m.messageType ?? "").toLowerCase();
-  const t = (m.type ?? "").toLowerCase();
-  const mediaHints = [
-    "audio",
-    "document",
-    "file",
-    "image",
-    "media",
-    "ptt",
-    "sticker",
-    "video",
-  ];
-  return mediaHints.some((hint) => mt.includes(hint) || t.includes(hint));
-}
-
 function readableFileName(raw: string, fallback: string, requireExtension = false) {
   try {
     const decoded = decodeURIComponent(raw).trim();
@@ -268,6 +249,23 @@ function fileLabelFromMime(mimetype?: string, mediaUrl?: string | null) {
   if (mimetype?.includes("excel") || mimetype?.includes("spreadsheet") || ext === "xls" || ext === "xlsx") return "XLS";
   if (mimetype?.includes("presentation") || ext === "ppt" || ext === "pptx") return "PPT";
   return (ext || "arquivo").toUpperCase();
+}
+
+function isDownloadableMediaLike(m: MessageItem, mimetype?: string, mediaUrl?: string | null) {
+  if (mimetype && !mimetype.startsWith("text/")) return true;
+  if (mediaUrl) {
+    return (
+      isAudioLike(m, mimetype) ||
+      isImageLike(m, mimetype, mediaUrl) ||
+      isVideoLike(m, mimetype, mediaUrl) ||
+      isPdfLike(mimetype, mediaUrl)
+    );
+  }
+
+  const mt = (m.messageType ?? "").toLowerCase();
+  const t = (m.type ?? "").toLowerCase();
+  const mediaHints = ["audio", "document", "file", "image", "media", "ptt", "sticker", "video"];
+  return mediaHints.some((hint) => mt.includes(hint) || t.includes(hint));
 }
 
 type ParsedContact = {
