@@ -259,6 +259,23 @@ type ParsedContact = {
   vcard: string;
 };
 
+function isDownloadableMediaLike(m: MessageItem, mimetype?: string, mediaUrl?: string | null) {
+  if (mimetype && !mimetype.startsWith("text/")) return true;
+  if (mediaUrl) {
+    return (
+      isAudioLike(m, mimetype) ||
+      isImageLike(m, mimetype, mediaUrl) ||
+      isVideoLike(m, mimetype, mediaUrl) ||
+      isPdfLike(mimetype, mediaUrl)
+    );
+  }
+
+  const mt = (m.messageType ?? "").toLowerCase();
+  const t = (m.type ?? "").toLowerCase();
+  const mediaHints = ["audio", "document", "file", "image", "media", "ptt", "sticker", "video"];
+  return mediaHints.some((hint) => mt.includes(hint) || t.includes(hint));
+}
+
 function normalizePhone(input: string) {
   const s = input.trim();
   if (!s) return "";
@@ -491,6 +508,7 @@ export default function AppShell() {
   const [downloadByMessageId, setDownloadByMessageId] = useState<
     Record<string, { fileURL: string; mimetype?: string; unavailable?: boolean }>
   >({});
+  const [pinnedByChatId, setPinnedByChatId] = useState<Record<string, true>>({});
 
   const lastRefreshAtRef = useRef<number>(0);
   const selectedChatIdRef = useRef<string | null>(null);
@@ -566,11 +584,36 @@ export default function AppShell() {
 
   useEffect(() => {
     try {
+      const raw = window.localStorage.getItem("wa:pinnedByChatId");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== "object") return;
+      const obj = parsed as Record<string, unknown>;
+      const next: Record<string, true> = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (v === true) next[k] = true;
+      }
+      setPinnedByChatId(next);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
       window.localStorage.setItem("wa:readAtByChatId", JSON.stringify(readAtByChatId));
     } catch {
       // ignore
     }
   }, [readAtByChatId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("wa:pinnedByChatId", JSON.stringify(pinnedByChatId));
+    } catch {
+      // ignore
+    }
+  }, [pinnedByChatId]);
 
   useEffect(() => {
     if (!sidebarMenuOpen) return;
@@ -589,6 +632,47 @@ export default function AppShell() {
       window.removeEventListener("pointerdown", onPointerDown);
     };
   }, [sidebarMenuOpen]);
+
+  useEffect(() => {
+    if (!chatMenuChat || !chatMenuPosition) return;
+
+    const menuSelector = `div[role="menu"][aria-label="Opções do chat ${CSS.escape(chatMenuChat.name)}"]`;
+    const pinButtonIndex = 1;
+
+    function getPinButton() {
+      const menu = document.querySelector(menuSelector);
+      const items = menu ? Array.from(menu.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]')) : [];
+      return items[pinButtonIndex] ?? null;
+    }
+
+    const pinButton = getPinButton();
+    const label = pinButton?.querySelector<HTMLSpanElement>("span:last-child");
+    if (label) label.textContent = pinnedByChatId[chatMenuChat.chatId] ? "Desafixar conversa" : "Fixar conversa";
+
+    function onClick(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      const button = target?.closest<HTMLButtonElement>('button[role="menuitem"]');
+      if (!button || button !== getPinButton()) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      const pinned = Boolean(pinnedByChatId[chatMenuChat!.chatId]);
+      setPinnedByChatId((prev) => {
+        const next = { ...prev };
+        if (pinned) delete next[chatMenuChat!.chatId];
+        else next[chatMenuChat!.chatId] = true;
+        return next;
+      });
+      closeChatActionMenu();
+      setChatMenuChatId(null);
+      setToast(pinned ? "Conversa desafixada." : "Conversa fixada.");
+    }
+
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [chatMenuChat, chatMenuPosition, pinnedByChatId]);
 
   const filteredChats = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -609,6 +693,15 @@ export default function AppShell() {
     if (assignedFilter === "all") return tagFilteredChats;
     return tagFilteredChats.filter((c) => c.state?.assignedAgentId === assignedFilter);
   }, [assignedFilter, tagFilteredChats]);
+
+  const pinnedVisibleChats = useMemo(() => {
+    return [...visibleChats].sort((a, b) => {
+      const aPinned = pinnedByChatId[a.chatId] ? 1 : 0;
+      const bPinned = pinnedByChatId[b.chatId] ? 1 : 0;
+      if (aPinned !== bPinned) return bPinned - aPinned;
+      return toMs(b.lastMsgTimestamp) - toMs(a.lastMsgTimestamp);
+    });
+  }, [pinnedByChatId, visibleChats]);
 
   const searchMatchKeys = useMemo(() => {
     const q = searchQuery.trim();
@@ -1174,32 +1267,33 @@ export default function AppShell() {
     };
   }, [messages]);
 
-  // Áudios: pré-carrega automaticamente para já ficar pronto para dar play.
+  // Mídias: pré-carrega automaticamente para evitar bolhas vazias quando a API ainda não trouxe fileURL.
   useEffect(() => {
     if (!selectedChatId) return;
     if (messages.length === 0) return;
 
-    const audioToPrefetch: string[] = [];
+    const mediaToPrefetch: string[] = [];
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const m = messages[i]!;
       const id = m.messageid ?? m.id ?? "";
       if (!id) continue;
-      if (downloadByMessageId[id]?.fileURL) continue;
-      if (!isAudioLike(m, downloadByMessageId[id]?.mimetype)) continue;
-      // Só faz prefetch dos mais recentes para evitar flood.
-      audioToPrefetch.push(id);
-      if (audioToPrefetch.length >= 3) break;
+      const cached = downloadByMessageId[id];
+      if (cached?.fileURL || cached?.unavailable || m.fileURL) continue;
+      if (!isDownloadableMediaLike(m, cached?.mimetype, m.fileURL ?? null)) continue;
+      // Só faz prefetch das mais recentes para evitar flood.
+      mediaToPrefetch.push(id);
+      if (mediaToPrefetch.length >= 6) break;
     }
 
-    if (audioToPrefetch.length === 0) return;
+    if (mediaToPrefetch.length === 0) return;
     let cancelled = false;
     void (async () => {
-      for (const id of audioToPrefetch) {
+      for (const id of mediaToPrefetch) {
         if (cancelled) return;
         try {
           await ensureDownload(id);
         } catch {
-          // Silencioso: se falhar, o botão de "Carregar áudio" continua aparecendo.
+          // Silencioso: se falhar, a mensagem continua com a opção manual de carregar mídia.
         }
       }
     })();
@@ -1444,9 +1538,10 @@ export default function AppShell() {
           </div>
   
             <div className="overflow-y-auto h-[calc(100vh-64px-88px)]">
-              {visibleChats.map((chat) => {
+              {pinnedVisibleChats.map((chat) => {
                 const active = chat.chatId === selectedChatId;
                 const chatTags = chat.state?.tags ?? [];
+                const pinned = Boolean(pinnedByChatId[chat.chatId]);
                 const lastMs = toMs(chat.lastMsgTimestamp);
                 const readAt = readAtByChatId[chat.chatId] ?? 0;
                 const effectiveUnread = manualUnreadByChatId[chat.chatId]
@@ -1545,6 +1640,11 @@ export default function AppShell() {
                         </button>
                       </div>
                         <div className="flex items-center gap-2">
+                          {pinned ? (
+                            <span className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1" title="Conversa fixada">
+                              Fixada
+                            </span>
+                          ) : null}
                           {chat.isGroup ? (
                             <span className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_45%,transparent)] px-2 py-1">
                               Grupo
@@ -2109,6 +2209,28 @@ export default function AppShell() {
                           </div>
                           ) : null}
                         </div>
+                      ) : null}
+
+                      {!showMedia && id && !contact && isDownloadableMediaLike(m, mimetype, mediaUrl) && !cached?.unavailable ? (
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
+                            onClick={() => {
+                              void (async () => {
+                                try {
+                                  await ensureDownload(id);
+                                } catch (err) {
+                                  setToast(err instanceof Error ? err.message : "Falha ao carregar mídia");
+                                }
+                              })();
+                            }}
+                          >
+                            Carregar mídia
+                          </button>
+                        </div>
+                      ) : !showMedia && cached?.unavailable ? (
+                        <div className="mt-2 text-xs text-[var(--muted)]">Mídia indisponível.</div>
                       ) : null}
 
                       <div className="mt-2 text-[10px] text-[var(--muted)] text-right">
