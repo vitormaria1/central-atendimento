@@ -251,6 +251,14 @@ function fileLabelFromMime(mimetype?: string, mediaUrl?: string | null) {
   return (ext || "arquivo").toUpperCase();
 }
 
+type ParsedContact = {
+  caption?: string;
+  name: string;
+  subtitle?: string;
+  phones: string[];
+  vcard: string;
+};
+
 function isDownloadableMediaLike(m: MessageItem, mimetype?: string, mediaUrl?: string | null) {
   if (mimetype && !mimetype.startsWith("text/")) return true;
   if (mediaUrl) {
@@ -267,14 +275,6 @@ function isDownloadableMediaLike(m: MessageItem, mimetype?: string, mediaUrl?: s
   const mediaHints = ["audio", "document", "file", "image", "media", "ptt", "sticker", "video"];
   return mediaHints.some((hint) => mt.includes(hint) || t.includes(hint));
 }
-
-type ParsedContact = {
-  caption?: string;
-  name: string;
-  subtitle?: string;
-  phones: string[];
-  vcard: string;
-};
 
 function normalizePhone(input: string) {
   const s = input.trim();
