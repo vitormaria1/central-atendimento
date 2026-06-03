@@ -1923,7 +1923,6 @@ export default function AppShell() {
                 const showImage = showMedia && !showAudioPlayer && isImageLike(m, mimetype, mediaUrl);
                 const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
                 const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
-                const hasDownloadableMedia = !contact && isDownloadableMediaLike(m, mimetype, mediaUrl);
                 const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
                 return (
                   <div
@@ -2171,7 +2170,7 @@ export default function AppShell() {
                         </div>
                       ) : null}
 
-                      {!showMedia && id && hasDownloadableMedia && !cached?.unavailable ? (
+                      {!showMedia && id && !contact && isDownloadableMediaLike(m, mimetype, mediaUrl) && !cached?.unavailable ? (
                         <div className="mt-2">
                           <button
                             type="button"
