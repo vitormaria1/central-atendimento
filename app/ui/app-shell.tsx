@@ -478,6 +478,11 @@ type FileDragEvent = {
   dataTransfer: DataTransfer;
 };
 
+type ClipboardWithFiles = {
+  preventDefault: () => void;
+  clipboardData: DataTransfer;
+};
+
 function VoiceWave({ active }: { active: boolean }) {
   return (
     <div
@@ -1173,6 +1178,24 @@ export default function AppShell() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  function extractClipboardFiles(clipboardData: DataTransfer) {
+    const files = Array.from(clipboardData.files ?? []).filter(Boolean);
+    if (files.length > 0) return files;
+    const fromItems = Array.from(clipboardData.items ?? [])
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file));
+    return fromItems;
+  }
+
+  function handlePaste(event: ClipboardWithFiles) {
+    if (!selectedChatId) return;
+    const files = extractClipboardFiles(event.clipboardData);
+    if (files.length === 0) return;
+    event.preventDefault();
+    addPendingAttachments(files);
+  }
+
   function isFileDragEvent(event: { dataTransfer?: DataTransfer | null }) {
     const types = Array.from(event.dataTransfer?.types ?? []);
     return types.includes("Files");
@@ -1204,6 +1227,13 @@ export default function AppShell() {
     dragCounterRef.current = 0;
     setDragActive(false);
     handleAttachmentFiles(event.dataTransfer.files);
+  }
+
+  function attachmentPreviewLabel(attachment: PendingAttachment) {
+    if (attachment.kind === "image") return "Imagem";
+    if (attachment.kind === "video") return "Vídeo";
+    if (attachment.kind === "audio") return "Áudio";
+    return "Documento";
   }
 
   async function fileToBase64(file: File) {
@@ -1849,6 +1879,7 @@ export default function AppShell() {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
+          onPaste={handlePaste}
         >
             {dragActive ? (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-[color-mix(in_srgb,var(--background)_70%,black)]/80 backdrop-blur-sm pointer-events-none">
@@ -2612,25 +2643,45 @@ export default function AppShell() {
                       </button>
                     </div>
 
-                    <div className="mt-3 space-y-2 max-h-40 overflow-y-auto pr-1">
+                    <div className="mt-3 flex gap-3 overflow-x-auto pb-1 pr-1 snap-x snap-mandatory">
                       {pendingAttachments.map((attachment) => (
                         <div
                           key={attachment.id}
-                          className="flex items-center justify-between gap-3 rounded-2xl bg-black/10 ring-1 ring-white/10 px-3 py-2"
+                          className="min-w-[180px] max-w-[180px] shrink-0 snap-start overflow-hidden rounded-3xl bg-black/10 ring-1 ring-white/10"
                         >
-                          <div className="min-w-0">
-                            <div className="text-xs font-medium truncate">{attachment.file.name}</div>
-                            <div className="mt-0.5 text-[10px] text-[var(--muted)]">
-                              {attachment.kind.toUpperCase()} {attachment.recorded ? "• áudio gravado" : ""}
-                            </div>
+                          <div className="h-28 bg-[color-mix(in_srgb,var(--background)_55%,black)] flex items-center justify-center overflow-hidden">
+                            {attachment.kind === "image" ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={attachment.objectUrl} alt={attachment.file.name} className="h-full w-full object-cover" />
+                            ) : attachment.kind === "video" ? (
+                              <video src={attachment.objectUrl} className="h-full w-full object-cover" muted playsInline />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-center px-3">
+                                <div className="rounded-2xl bg-white/8 ring-1 ring-white/10 px-3 py-2 text-[10px] font-semibold">
+                                  {attachmentPreviewLabel(attachment)}
+                                </div>
+                                <div className="mt-2 text-[10px] text-[var(--muted)]">
+                                  {attachment.recorded ? "Gravação pronta" : "Pronto para envio"}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => removePendingAttachment(attachment.id)}
-                            className="shrink-0 rounded-2xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-                          >
-                            Remover
-                          </button>
+                          <div className="p-3 space-y-2">
+                            <div className="min-w-0">
+                              <div className="text-xs font-medium truncate">{attachment.file.name}</div>
+                              <div className="mt-0.5 text-[10px] text-[var(--muted)]">
+                                {attachmentPreviewLabel(attachment)}
+                                {attachment.recorded ? " • áudio gravado" : ""}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removePendingAttachment(attachment.id)}
+                              className="w-full rounded-2xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                            >
+                              Remover
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2654,6 +2705,7 @@ export default function AppShell() {
                   rows={1}
                   placeholder="Escreva sua mensagem..."
                   className="w-full resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
+                  onPaste={handlePaste}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
