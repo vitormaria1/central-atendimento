@@ -466,10 +466,16 @@ function capDownloadCache(
 }
 
 type PendingAttachment = {
+  id: string;
   file: File;
   objectUrl: string;
   kind: "image" | "video" | "audio" | "document";
   recorded?: boolean;
+};
+
+type FileDragEvent = {
+  preventDefault: () => void;
+  dataTransfer: DataTransfer;
 };
 
 function VoiceWave({ active }: { active: boolean }) {
@@ -514,7 +520,7 @@ export default function AppShell() {
   const [composer, setComposer] = useState("");
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [recording, setRecording] = useState(false);
   const [status, setStatus] = useState<"pendente" | "resolvido">("pendente");
   const [assignedAgentId, setAssignedAgentId] = useState<"vanderlei" | "gustavo" | null>(null);
@@ -546,6 +552,7 @@ export default function AppShell() {
     Record<string, { fileURL: string; mimetype?: string; unavailable?: boolean }>
   >({});
   const [pinnedByChatId, setPinnedByChatId] = useState<Record<string, true>>({});
+  const [dragActive, setDragActive] = useState(false);
 
   const lastRefreshAtRef = useRef<number>(0);
   const selectedChatIdRef = useRef<string | null>(null);
@@ -557,6 +564,8 @@ export default function AppShell() {
   const recordedChunksRef = useRef<BlobPart[]>([]);
   const messageRefByKey = useRef<Record<string, HTMLDivElement | null>>({});
   const sidebarMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const dragCounterRef = useRef(0);
+  const pendingAttachmentsRef = useRef<PendingAttachment[]>([]);
 
   const selectedChat = useMemo(
     () => chats.find((c) => c.chatId === selectedChatId) ?? null,
@@ -1130,6 +1139,11 @@ export default function AppShell() {
   async function sendMessage() {
     if (!selectedChatId) return;
     const text = composer.trim();
+    if (!text && pendingAttachments.length === 0) return;
+    if (pendingAttachments.length > 0) {
+      await sendPendingAttachments();
+      return;
+    }
     if (!text) return;
 
     setSending(true);
@@ -1152,6 +1166,46 @@ export default function AppShell() {
     }
   }
 
+  function handleAttachmentFiles(fileList: FileList | File[], opts?: { recorded?: boolean }) {
+    const files = Array.from(fileList).filter(Boolean);
+    if (files.length === 0) return;
+    addPendingAttachments(files, opts);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function isFileDragEvent(event: { dataTransfer?: DataTransfer | null }) {
+    const types = Array.from(event.dataTransfer?.types ?? []);
+    return types.includes("Files");
+  }
+
+  function handleDragEnter(event: FileDragEvent) {
+    if (!selectedChatId || !isFileDragEvent(event)) return;
+    event.preventDefault();
+    dragCounterRef.current += 1;
+    setDragActive(true);
+  }
+
+  function handleDragOver(event: FileDragEvent) {
+    if (!selectedChatId || !isFileDragEvent(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  }
+
+  function handleDragLeave(event: FileDragEvent) {
+    if (!selectedChatId || !isFileDragEvent(event)) return;
+    event.preventDefault();
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) setDragActive(false);
+  }
+
+  function handleDrop(event: FileDragEvent) {
+    if (!selectedChatId || !isFileDragEvent(event)) return;
+    event.preventDefault();
+    dragCounterRef.current = 0;
+    setDragActive(false);
+    handleAttachmentFiles(event.dataTransfer.files);
+  }
+
   async function fileToBase64(file: File) {
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -1171,75 +1225,54 @@ export default function AppShell() {
     return "document";
   }
 
-  function setAttachment(file: File, recorded?: boolean) {
+  function createPendingAttachment(file: File, recorded?: boolean): PendingAttachment {
     const kind = inferMediaType(file);
     const objectUrl = URL.createObjectURL(file);
-    setPendingAttachment({ file, objectUrl, kind, recorded: Boolean(recorded) });
+    return {
+      id: `${Date.now()}:${Math.random().toString(36).slice(2)}`,
+      file,
+      objectUrl,
+      kind,
+      recorded: Boolean(recorded),
+    };
   }
 
-  async function sendMediaFile(file: File, opts?: { recorded?: boolean }) {
-    if (!selectedChatId) return;
-    setUploading(true);
-    try {
-      const base64 = await fileToBase64(file);
-      const kind = inferMediaType(file);
-      const type = opts?.recorded ? "ptt" : kind;
-      const caption = composer.trim();
+  function addPendingAttachments(files: File[], opts?: { recorded?: boolean }) {
+    if (files.length === 0) return;
+    setPendingAttachments((prev) => [...prev, ...files.map((file) => createPendingAttachment(file, opts?.recorded))]);
+  }
 
-      const res = await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}/send-media`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          type,
-          base64,
-          fileName: file.name,
-          mimetype: file.type || undefined,
-          caption: caption.length > 0 ? caption : undefined,
-        }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string; details?: string } | null;
-        throw new Error(
-          data?.details ? `${data.error ?? "Erro"}: ${data.details}` : data?.error ?? "Falha ao enviar arquivo",
-        );
-      }
-      setComposer("");
-      await refreshAll("sent-media");
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+  async function uploadMediaFile(file: File, opts?: { recorded?: boolean; caption?: string }) {
+    if (!selectedChatId) return;
+    const base64 = await fileToBase64(file);
+    const kind = inferMediaType(file);
+    const type = opts?.recorded ? "ptt" : kind;
+    const caption = (opts?.caption ?? composer).trim();
+
+    const res = await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}/send-media`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type,
+        base64,
+        fileName: file.name,
+        mimetype: file.type || undefined,
+        caption: caption.length > 0 ? caption : undefined,
+      }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string; details?: string } | null;
+      throw new Error(data?.details ? `${data.error ?? "Erro"}: ${data.details}` : data?.error ?? "Falha ao enviar arquivo");
     }
   }
 
-  async function sendPendingAttachment() {
-    if (!selectedChatId || !pendingAttachment) return;
+  async function sendMediaFile(file: File, opts?: { recorded?: boolean; caption?: string }) {
+    if (!selectedChatId) return;
     setUploading(true);
     try {
-      const { file, kind, recorded } = pendingAttachment;
-      const base64 = await fileToBase64(file);
-      const type = recorded ? "ptt" : kind;
-      const caption = composer.trim();
-
-      const res = await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}/send-media`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          type,
-          base64,
-          fileName: file.name,
-          mimetype: file.type || undefined,
-          caption: caption.length > 0 ? caption : undefined,
-        }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string; details?: string } | null;
-        throw new Error(data?.details ? `${data.error ?? "Erro"}: ${data.details}` : data?.error ?? "Falha ao enviar arquivo");
-      }
-
-      setComposer("");
-      URL.revokeObjectURL(pendingAttachment.objectUrl);
-      setPendingAttachment(null);
+      await uploadMediaFile(file, opts);
       await refreshAll("sent-media");
+      if (opts?.caption === undefined) setComposer("");
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Falha ao enviar arquivo");
     } finally {
@@ -1248,9 +1281,44 @@ export default function AppShell() {
     }
   }
 
-  function cancelPendingAttachment() {
-    if (pendingAttachment) URL.revokeObjectURL(pendingAttachment.objectUrl);
-    setPendingAttachment(null);
+  async function sendPendingAttachments() {
+    if (!selectedChatId || pendingAttachments.length === 0) return;
+    setUploading(true);
+    const attachments = pendingAttachments;
+    const caption = composer.trim();
+    try {
+      for (let idx = 0; idx < attachments.length; idx += 1) {
+        const attachment = attachments[idx]!;
+        await uploadMediaFile(attachment.file, {
+          recorded: attachment.recorded,
+          caption: idx === 0 ? caption : "",
+        });
+      }
+      await refreshAll("sent-media");
+      for (const attachment of attachments) URL.revokeObjectURL(attachment.objectUrl);
+      setComposer("");
+      setPendingAttachments([]);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Falha ao enviar arquivos");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function removePendingAttachment(id: string) {
+    setPendingAttachments((prev) => {
+      const item = prev.find((a) => a.id === id);
+      if (item) URL.revokeObjectURL(item.objectUrl);
+      return prev.filter((a) => a.id !== id);
+    });
+  }
+
+  function clearPendingAttachments() {
+    setPendingAttachments((prev) => {
+      for (const item of prev) URL.revokeObjectURL(item.objectUrl);
+      return [];
+    });
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -1311,15 +1379,18 @@ export default function AppShell() {
   }
 
   useEffect(() => {
+    pendingAttachmentsRef.current = pendingAttachments;
+  }, [pendingAttachments]);
+
+  useEffect(() => {
     return () => {
-      if (pendingAttachment) URL.revokeObjectURL(pendingAttachment.objectUrl);
+      for (const attachment of pendingAttachmentsRef.current) URL.revokeObjectURL(attachment.objectUrl);
       try {
         mediaRecorderRef.current?.stop();
       } catch {
         // ignore
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const ensureDownload = useCallback(
@@ -1772,7 +1843,21 @@ export default function AppShell() {
           </div>
         </aside>
 
-        <main className="flex-1 flex flex-col relative">
+        <main
+          className="flex-1 flex flex-col relative"
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+            {dragActive ? (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-[color-mix(in_srgb,var(--background)_70%,black)]/80 backdrop-blur-sm pointer-events-none">
+                <div className="rounded-[32px] border-2 border-dashed border-[color-mix(in_srgb,var(--primary)_60%,white)] bg-[color-mix(in_srgb,var(--card)_70%,black)] px-8 py-10 text-center shadow-2xl">
+                  <div className="text-lg font-semibold">Solte os arquivos para anexar</div>
+                  <div className="mt-2 text-sm text-[var(--muted)]">Você pode soltar vários arquivos de uma vez.</div>
+                </div>
+              </div>
+            ) : null}
             <header className="h-16 border-b border-[var(--border)] bg-[var(--background)]/80 backdrop-blur px-5 flex items-center justify-between">
               <div className="min-w-0 flex items-center gap-3">
                 <div className="h-10 w-10 rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 shrink-0 flex items-center justify-center">
@@ -2505,36 +2590,59 @@ export default function AppShell() {
           <footer className="border-t border-[var(--border)] p-4 bg-[var(--background)]/80 backdrop-blur">
             <div className="flex items-end gap-3">
               <div className="flex-1 rounded-3xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
-                {pendingAttachment && pendingAttachment.kind === "document" ? (
+                {pendingAttachments.length > 0 ? (
                   <div className="mb-2 rounded-3xl bg-white/3 ring-1 ring-white/10 p-3">
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-xs font-semibold truncate">
-                          Anexo
+                          {pendingAttachments.length > 1 ? `${pendingAttachments.length} anexos prontos` : "Anexo pronto"}
                         </div>
-                        <div className="mt-0.5 text-[10px] text-[var(--muted)] truncate">{pendingAttachment.file.name}</div>
+                        <div className="mt-0.5 text-[10px] text-[var(--muted)] truncate">
+                          {pendingAttachments.length > 1
+                            ? "Revise os arquivos antes de enviar."
+                            : pendingAttachments[0]?.file.name ?? ""}
+                        </div>
                       </div>
                       <button
                         type="button"
-                        onClick={cancelPendingAttachment}
+                        onClick={clearPendingAttachments}
                         className="shrink-0 rounded-2xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
                       >
-                        Remover
+                        Limpar
                       </button>
                     </div>
 
-                    <div className="mt-3">
-                      <div className="text-xs text-[var(--muted)]">Documento pronto para envio.</div>
+                    <div className="mt-3 space-y-2 max-h-40 overflow-y-auto pr-1">
+                      {pendingAttachments.map((attachment) => (
+                        <div
+                          key={attachment.id}
+                          className="flex items-center justify-between gap-3 rounded-2xl bg-black/10 ring-1 ring-white/10 px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs font-medium truncate">{attachment.file.name}</div>
+                            <div className="mt-0.5 text-[10px] text-[var(--muted)]">
+                              {attachment.kind.toUpperCase()} {attachment.recorded ? "• áudio gravado" : ""}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removePendingAttachment(attachment.id)}
+                            className="shrink-0 rounded-2xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      ))}
                     </div>
 
                     <div className="mt-3 flex justify-end gap-2">
                       <button
                         type="button"
                         disabled={!selectedChatId || uploading}
-                        onClick={() => void sendPendingAttachment()}
+                        onClick={() => void sendPendingAttachments()}
                         className="rounded-2xl px-4 py-2 text-xs bg-[color-mix(in_srgb,var(--primary)_22%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--primary)_45%,transparent)] hover:bg-[color-mix(in_srgb,var(--primary)_28%,transparent)] disabled:opacity-60"
                       >
-                        {uploading ? "Enviando..." : "Enviar anexo"}
+                        {uploading ? "Enviando..." : pendingAttachments.length > 1 ? "Enviar anexos" : "Enviar anexo"}
                       </button>
                     </div>
                   </div>
@@ -2561,16 +2669,11 @@ export default function AppShell() {
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const kind = inferMediaType(file);
-                  if (kind === "document") {
-                    setAttachment(file, false);
-                  } else {
-                    void sendMediaFile(file).catch((err) => setToast(err instanceof Error ? err.message : "Falha ao enviar arquivo"));
-                  }
+                  if (!e.target.files?.length) return;
+                  handleAttachmentFiles(e.target.files);
                 }}
               />
               <button
@@ -2600,11 +2703,11 @@ export default function AppShell() {
               </button>
 
               <button
-                disabled={!selectedChatId || sending || uploading || composer.trim().length === 0}
+                disabled={!selectedChatId || sending || uploading || (composer.trim().length === 0 && pendingAttachments.length === 0)}
                 onClick={() => void sendMessage()}
                 className="h-12 rounded-2xl bg-[var(--primary)] px-5 text-sm font-medium text-white shadow-lg shadow-[color-mix(in_srgb,var(--primary)_35%,transparent)] disabled:opacity-60"
               >
-                {uploading ? "Enviando..." : sending ? "Enviando..." : "Enviar"}
+                {uploading ? "Enviando..." : sending ? "Enviando..." : pendingAttachments.length > 0 ? "Enviar anexos" : "Enviar"}
               </button>
             </div>
           </footer>
