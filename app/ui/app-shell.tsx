@@ -32,6 +32,7 @@ type MessageItem = {
   messageTimestamp?: number;
   messageType?: string;
   senderName?: string;
+  sender_pn?: string;
   text?: string;
   content?: string;
   type?: string;
@@ -283,6 +284,24 @@ function normalizePhone(input: string) {
   return cleaned && cleaned !== "+" ? cleaned : s;
 }
 
+function extractPhoneFromChatId(chatId: string) {
+  const raw = chatId.trim();
+  if (!raw) return "";
+  const base = raw.includes("@") ? raw.split("@")[0] ?? "" : raw;
+  const phone = normalizePhone(base);
+  return /\d/.test(phone) ? phone : "";
+}
+
+function formatDateTime(iso?: string) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("pt-BR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
 function parseVcard(vcard: string) {
   const lines = vcard
     .split(/\r?\n/g)
@@ -322,6 +341,22 @@ function buildVcard(name: string, phones: string[]) {
     .join("\n");
   return `BEGIN:VCARD\nVERSION:3.0\nFN:${name}\n${telLines}\nEND:VCARD\n`;
 }
+
+type ContactProfile = {
+  name: string;
+  avatarLabel: string;
+  avatarUrl?: string;
+  subtitle?: string;
+  phone?: string;
+  isGroup: boolean;
+  chatId: string;
+  status: "pendente" | "resolvido" | null;
+  assignedAgentId: "vanderlei" | "gustavo" | null;
+  tags: string[];
+  unreadCount: number;
+  lastMessageText: string;
+  lastActivityAt?: string;
+};
 
 function parseContactFromText(text: string): ParsedContact | null {
   const t = (text ?? "").trim();
@@ -498,6 +533,7 @@ export default function AppShell() {
   const sidebarMenuRef = useRef<HTMLDivElement | null>(null);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [headerAssignOpen, setHeaderAssignOpen] = useState(false);
+  const [contactProfileOpen, setContactProfileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchCursor, setSearchCursor] = useState(0);
@@ -548,6 +584,37 @@ export default function AppShell() {
   function closeChatActionMenu() {
     setChatMenuPosition(null);
   }
+  const contactProfile = useMemo<ContactProfile | null>(() => {
+    if (!selectedChat) return null;
+    const latestIncomingPhone = [...messages]
+      .reverse()
+      .find((m) => Boolean(m.sender_pn?.trim() && !m.fromMe))?.sender_pn?.trim();
+    const phone = normalizePhone(latestIncomingPhone ?? "") || extractPhoneFromChatId(selectedChat.chatId);
+    const subtitle = selectedChat.isGroup ? "Grupo" : phone ? "Conta do WhatsApp" : "Contato";
+    const lastActivityAt = selectedChat.lastMsgTimestamp
+      ? new Date(toMs(selectedChat.lastMsgTimestamp)).toLocaleString("pt-BR", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        })
+      : selectedChat.state?.updatedAt
+        ? formatDateTime(selectedChat.state.updatedAt)
+        : undefined;
+    return {
+      name: selectedChat.name,
+      avatarLabel: initialsFromName(selectedChat.name),
+      avatarUrl: selectedChat.avatarUrl || undefined,
+      subtitle,
+      phone: phone || undefined,
+      isGroup: selectedChat.isGroup,
+      chatId: selectedChat.chatId,
+      status: selectedChat.state?.status ?? null,
+      assignedAgentId: selectedChat.state?.assignedAgentId ?? null,
+      tags: selectedChat.state?.tags ?? [],
+      unreadCount: selectedChat.unreadCount,
+      lastMessageText: selectedChat.lastMessageText || "Sem mensagem recente",
+      lastActivityAt,
+    };
+  }, [messages, selectedChat]);
 
   useEffect(() => {
     setTags(selectedChat?.state?.tags ?? []);
@@ -557,6 +624,8 @@ export default function AppShell() {
     // ao trocar de chat, reseta modos
     setHeaderMenuOpen(false);
     setHeaderAssignOpen(false);
+    setChatMenuPosition(null);
+    setContactProfileOpen(false);
     setChatMenuPosition(null);
     setSearchOpen(false);
     setSearchQuery("");
@@ -673,6 +742,17 @@ export default function AppShell() {
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
   }, [chatMenuChat, chatMenuPosition, pinnedByChatId]);
+
+  useEffect(() => {
+    if (!contactProfileOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setContactProfileOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [contactProfileOpen]);
 
   const filteredChats = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1664,7 +1744,7 @@ export default function AppShell() {
           </div>
         </aside>
 
-        <main className="flex-1 flex flex-col">
+        <main className="flex-1 flex flex-col relative">
             <header className="h-16 border-b border-[var(--border)] bg-[var(--background)]/80 backdrop-blur px-5 flex items-center justify-between">
               <div className="min-w-0 flex items-center gap-3">
                 <div className="h-10 w-10 rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 shrink-0 flex items-center justify-center">
@@ -1796,7 +1876,7 @@ export default function AppShell() {
                           type="button"
                           onClick={() => {
                             setHeaderMenuOpen(false);
-                            setToast(`${selectedChat?.name ?? "Contato"} • ${selectedChatId}`);
+                            setContactProfileOpen(true);
                           }}
                           className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
                         >
@@ -1897,6 +1977,156 @@ export default function AppShell() {
                 ) : null}
               </div>
             </header>
+
+            {contactProfileOpen && contactProfile ? (
+              <div className="absolute inset-0 z-30">
+                <button
+                  type="button"
+                  aria-label="Fechar perfil do contato"
+                  onClick={() => setContactProfileOpen(false)}
+                  className="absolute inset-0 bg-black/45 backdrop-blur-sm"
+                />
+                <aside className="absolute right-0 top-0 h-full w-full max-w-[420px] overflow-y-auto border-l border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_92%,black)] shadow-2xl">
+                  <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_92%,black)]/95 backdrop-blur px-4 py-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold">Dados do contato</div>
+                      <div className="text-xs text-[var(--muted)]">Perfil da conversa</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setContactProfileOpen(false)}
+                      className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 flex items-center justify-center text-lg"
+                      aria-label="Fechar"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div className="p-4">
+                    <div className="overflow-hidden rounded-[32px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--accent)_8%,var(--card))] shadow-lg">
+                      <div className="relative px-5 pb-5 pt-8">
+                        <div className="absolute inset-x-0 top-0 h-28 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_26%,transparent),color-mix(in_srgb,var(--primary)_20%,transparent),transparent)]" />
+                        <div className="relative flex flex-col items-center text-center">
+                          <div className="h-28 w-28 rounded-[36px] overflow-hidden ring-4 ring-[color-mix(in_srgb,var(--background)_85%,transparent)] bg-white/8 flex items-center justify-center shadow-xl">
+                            {contactProfile.avatarUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={contactProfile.avatarUrl} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              <span className="text-3xl font-semibold text-[var(--muted)]">{contactProfile.avatarLabel}</span>
+                            )}
+                          </div>
+                          <div className="mt-4 space-y-1">
+                            <div className="text-xl font-semibold leading-tight">{contactProfile.name}</div>
+                            <div className="text-sm text-[var(--muted)]">{contactProfile.subtitle}</div>
+                          </div>
+                          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                            {contactProfile.isGroup ? (
+                              <span className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_40%,transparent)] px-3 py-1">
+                                Grupo
+                              </span>
+                            ) : (
+                              <span className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--primary)_16%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--primary)_35%,transparent)] px-3 py-1">
+                                Contato individual
+                              </span>
+                            )}
+                            <span className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1">
+                              {contactProfile.unreadCount > 0 ? `${contactProfile.unreadCount} não lida(s)` : "Em dia"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-[var(--border)] bg-[var(--background)]/40">
+                        <div className="grid grid-cols-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!contactProfile.phone) return;
+                              void navigator.clipboard.writeText(contactProfile.phone).catch(() => null);
+                              setToast("Número copiado.");
+                            }}
+                            className="px-4 py-3 text-sm text-left hover:bg-white/5"
+                          >
+                            <div className="text-xs text-[var(--muted)]">Número</div>
+                            <div className="mt-1 truncate font-medium">{contactProfile.phone ?? "Indisponível"}</div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setContactProfileOpen(false);
+                              void toggleLabelForSelected("Favoritos");
+                            }}
+                            className="px-4 py-3 text-sm text-left hover:bg-white/5 border-l border-[var(--border)]"
+                          >
+                            <div className="text-xs text-[var(--muted)]">Favoritos</div>
+                            <div className="mt-1 font-medium">
+                              {tags.includes("Favoritos") ? "Remover" : "Adicionar"}
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 space-y-4">
+                      <section className="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4">
+                        <div className="text-sm font-semibold">Sobre</div>
+                        <div className="mt-2 text-sm text-[var(--muted)] leading-relaxed whitespace-pre-wrap break-words">
+                          {contactProfile.lastMessageText}
+                        </div>
+                      </section>
+
+                      <section className="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4">
+                        <div className="text-sm font-semibold">Informações da conversa</div>
+                        <div className="mt-3 space-y-3 text-sm">
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-[var(--muted)]">Status</span>
+                            <span className="text-right font-medium">
+                              {contactProfile.status === "resolvido" ? "Resolvido" : "Pendente"}
+                            </span>
+                          </div>
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-[var(--muted)]">Responsável</span>
+                            <span className="text-right font-medium">
+                              {contactProfile.assignedAgentId === "vanderlei"
+                                ? "Vanderlei"
+                                : contactProfile.assignedAgentId === "gustavo"
+                                  ? "Gustavo"
+                                  : "Sem responsável"}
+                            </span>
+                          </div>
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-[var(--muted)]">Última atualização</span>
+                            <span className="text-right font-medium">{contactProfile.lastActivityAt ?? "Indisponível"}</span>
+                          </div>
+                          <div className="flex items-start justify-between gap-4">
+                            <span className="text-[var(--muted)]">ID do chat</span>
+                            <span className="text-right font-medium break-all">{contactProfile.chatId}</span>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section className="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4">
+                        <div className="text-sm font-semibold">Etiquetas</div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {contactProfile.tags.length > 0 ? (
+                            contactProfile.tags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="text-xs rounded-full bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] px-3 py-1"
+                              >
+                                {tag}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-sm text-[var(--muted)]">Sem etiquetas.</span>
+                          )}
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            ) : null}
 
             {searchOpen ? (
               <div className="border-b border-[var(--border)] bg-[var(--background)]/70 backdrop-blur px-5 py-3">
