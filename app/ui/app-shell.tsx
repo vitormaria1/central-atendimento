@@ -525,6 +525,7 @@ export default function AppShell() {
   const [chatMenuPosition, setChatMenuPosition] = useState<{ left: number; top: number } | null>(null);
   const [chatMenuTagInput, setChatMenuTagInput] = useState("");
   const [sidebarMenuOpen, setSidebarMenuOpen] = useState(false);
+  const [sidebarMenuPosition, setSidebarMenuPosition] = useState<{ left: number; top: number } | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [conversationSelectionMode, setConversationSelectionMode] = useState(false);
   const [selectedConversationIds, setSelectedConversationIds] = useState<Record<string, boolean>>({});
@@ -555,6 +556,7 @@ export default function AppShell() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
   const messageRefByKey = useRef<Record<string, HTMLDivElement | null>>({});
+  const sidebarMenuButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const selectedChat = useMemo(
     () => chats.find((c) => c.chatId === selectedChatId) ?? null,
@@ -687,12 +689,12 @@ export default function AppShell() {
   useEffect(() => {
     if (!sidebarMenuOpen) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setSidebarMenuOpen(false);
+      if (e.key === "Escape") closeSidebarMenu();
     }
     function onPointerDown(e: PointerEvent) {
       const el = sidebarMenuRef.current;
       if (!el) return;
-      if (!el.contains(e.target as Node)) setSidebarMenuOpen(false);
+      if (!el.contains(e.target as Node)) closeSidebarMenu();
     }
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("pointerdown", onPointerDown);
@@ -701,6 +703,22 @@ export default function AppShell() {
       window.removeEventListener("pointerdown", onPointerDown);
     };
   }, [sidebarMenuOpen]);
+
+  function openSidebarMenu() {
+    const rect = sidebarMenuButtonRef.current?.getBoundingClientRect();
+    const width = 288;
+    const margin = 8;
+    const estimatedHeight = 220;
+    const left = rect ? Math.min(Math.max(margin, rect.right - width), window.innerWidth - width - margin) : margin;
+    const top = rect ? Math.min(rect.bottom + 8, window.innerHeight - estimatedHeight - margin) : 72;
+    setSidebarMenuPosition({ left, top });
+    setSidebarMenuOpen(true);
+  }
+
+  function closeSidebarMenu() {
+    setSidebarMenuOpen(false);
+    setSidebarMenuPosition(null);
+  }
 
   useEffect(() => {
     if (!chatMenuChat || !chatMenuPosition) return;
@@ -1514,7 +1532,11 @@ export default function AppShell() {
               <div className="relative" ref={sidebarMenuRef}>
                 <button
                   type="button"
-                  onClick={() => setSidebarMenuOpen((v) => !v)}
+                  ref={sidebarMenuButtonRef}
+                  onClick={() => {
+                    if (sidebarMenuOpen) closeSidebarMenu();
+                    else openSidebarMenu();
+                  }}
                   className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 flex items-center justify-center text-lg"
                   aria-label="Mais opções"
                   title="Mais opções"
@@ -1522,11 +1544,17 @@ export default function AppShell() {
                   ⋯
                 </button>
                 {sidebarMenuOpen ? (
-                  <div className="absolute right-0 top-12 z-40 w-72 overflow-hidden rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] shadow-2xl">
+                  <div
+                    className="fixed z-40 w-72 overflow-hidden rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] shadow-2xl max-h-[calc(100vh-16px)] overflow-y-auto"
+                    style={{
+                      left: sidebarMenuPosition?.left ?? 8,
+                      top: sidebarMenuPosition?.top ?? 72,
+                    }}
+                  >
                     <button
                       type="button"
                       onClick={() => {
-                        setSidebarMenuOpen(false);
+                        closeSidebarMenu();
                         setToast("Em breve: novo grupo.");
                       }}
                       className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
@@ -1536,7 +1564,7 @@ export default function AppShell() {
                     <button
                       type="button"
                       onClick={() => {
-                        setSidebarMenuOpen(false);
+                        closeSidebarMenu();
                         setFavoritesOnly((v) => !v);
                       }}
                       className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
@@ -1546,7 +1574,7 @@ export default function AppShell() {
                     <button
                       type="button"
                       onClick={() => {
-                        setSidebarMenuOpen(false);
+                        closeSidebarMenu();
                         setConversationSelectionMode((v) => !v);
                         setSelectedConversationIds({});
                       }}
@@ -1562,7 +1590,7 @@ export default function AppShell() {
                         for (const c of chats) next[c.chatId] = now;
                         setReadAtByChatId(next);
                         setManualUnreadByChatId({});
-                        setSidebarMenuOpen(false);
+                        closeSidebarMenu();
                         setToast("Conversas marcadas como lidas.");
                       }}
                       className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
