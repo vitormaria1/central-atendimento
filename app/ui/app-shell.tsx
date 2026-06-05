@@ -245,10 +245,17 @@ function receiptClass(stage: ReceiptStage) {
   return "text-[var(--muted)]";
 }
 
-function ReceiptTicks({ stage }: { stage: ReceiptStage }) {
+function ReceiptTicks({ stage, animate }: { stage: ReceiptStage; animate?: boolean }) {
   const label = stage === "sent" ? "Enviada" : stage === "delivered" ? "Recebida" : "Visualizada";
   return (
-    <span className={["inline-flex items-center text-[11px] leading-none", receiptClass(stage)].join(" ")} aria-label={label}>
+    <span
+      className={[
+        "inline-flex items-center text-[11px] leading-none transition-all duration-200",
+        receiptClass(stage),
+        animate ? "scale-110 -translate-y-0.5" : "",
+      ].join(" ")}
+      aria-label={label}
+    >
       {stage === "sent" ? "✓" : "✓✓"}
     </span>
   );
@@ -2379,6 +2386,9 @@ export default function AppShell() {
                 const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
                 const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
                 const receiptStage = normalizeReceiptStage(m);
+                const previousReceiptStage =
+                  idx > 0 ? normalizeReceiptStage(messages[idx - 1]!) : null;
+                const receiptAnimate = receiptStage !== previousReceiptStage;
                 const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
                 return (
                   <div
@@ -2648,10 +2658,21 @@ export default function AppShell() {
                         <div className="mt-2 text-xs text-[var(--muted)]">Mídia indisponível.</div>
                       ) : null}
 
-                      <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-[var(--muted)] text-right">
+                      <div className="mt-2 flex items-end justify-end gap-1 text-[10px] text-[var(--muted)] text-right">
                         <span>{formatTime(m.messageTimestamp)}</span>
-                        {mine && receiptStage ? <ReceiptTicks stage={receiptStage} /> : null}
                       </div>
+                      {mine && receiptStage ? (
+                        <div className="mt-1 flex justify-end">
+                          <div
+                            className={[
+                              "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5",
+                              receiptStage === "read" ? "bg-[color-mix(in_srgb,#53bdeb_16%,transparent)]" : "bg-transparent",
+                            ].join(" ")}
+                          >
+                            <ReceiptTicks key={`${stableKey}:${receiptStage}`} stage={receiptStage} animate={receiptAnimate} />
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                     </div>
                   </div>
