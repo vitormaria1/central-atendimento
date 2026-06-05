@@ -19,6 +19,9 @@ type ChatStateRow = {
   status: "pendente" | "resolvido";
   assigned_agent_id: string | null;
   tags: string[];
+  presence_status: string | null;
+  last_seen_at: string | null;
+  typing_until_at: string | null;
   updated_at: string;
 };
 
@@ -44,7 +47,7 @@ export const GET = withApi(async (req: Request) => {
           ? []
           : (
               await dbQuery<ChatStateRow>(
-                "select chat_id, status, assigned_agent_id, tags, updated_at from chat_state where chat_id = any($1::text[])",
+                "select chat_id, status, assigned_agent_id, tags, presence_status, last_seen_at, typing_until_at, updated_at from chat_state where chat_id = any($1::text[])",
                 [chatIds],
               )
             ).rows;
@@ -70,6 +73,9 @@ export const GET = withApi(async (req: Request) => {
               status: state.status,
               assignedAgentId: state.assigned_agent_id,
               tags: state.tags ?? [],
+              presenceStatus: state.presence_status,
+              lastSeenAt: state.last_seen_at,
+              typingUntilAt: state.typing_until_at,
               updatedAt: state.updated_at,
             }
           : null,

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { resolvePresenceLabel, type ChatPresenceState } from "@/lib/chat-presence";
 import { clearWhatsappBadge } from "./whatsapp-notify-store";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
@@ -18,6 +19,9 @@ type ChatListItem = {
     status: "pendente" | "resolvido";
     assignedAgentId: "vanderlei" | "gustavo" | null;
     tags: string[];
+    presenceStatus?: string | null;
+    lastSeenAt?: string | null;
+    typingUntilAt?: string | null;
     updatedAt: string;
   } | null;
 };
@@ -349,6 +353,13 @@ function formatDateTime(iso?: string) {
   });
 }
 
+function presenceToneClass(tone?: "online" | "offline" | "typing" | "unknown") {
+  if (tone === "online") return "bg-emerald-400";
+  if (tone === "typing") return "bg-amber-400";
+  if (tone === "offline") return "bg-[var(--muted)]";
+  return "bg-white/20";
+}
+
 function parseVcard(vcard: string) {
   const lines = vcard
     .split(/\r?\n/g)
@@ -394,6 +405,8 @@ type ContactProfile = {
   avatarLabel: string;
   avatarUrl?: string;
   subtitle?: string;
+  presenceText?: string | null;
+  presenceTone?: "online" | "offline" | "typing" | "unknown";
   phone?: string;
   isGroup: boolean;
   chatId: string;
@@ -577,6 +590,7 @@ export default function AppShell() {
   const [status, setStatus] = useState<"pendente" | "resolvido">("pendente");
   const [assignedAgentId, setAssignedAgentId] = useState<"vanderlei" | "gustavo" | null>(null);
   const [tags, setTags] = useState<string[]>([]);
+  const [presenceNow, setPresenceNow] = useState(() => Date.now());
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [chatMenuChatId, setChatMenuChatId] = useState<string | null>(null);
@@ -654,6 +668,9 @@ export default function AppShell() {
       .find((m) => Boolean(m.sender_pn?.trim() && !m.fromMe))?.sender_pn?.trim();
     const phone = normalizePhone(latestIncomingPhone ?? "") || extractPhoneFromChatId(selectedChat.chatId);
     const subtitle = selectedChat.isGroup ? "Grupo" : phone ? "Conta do WhatsApp" : "Contato";
+    const presence = selectedChat.isGroup
+      ? { text: null, tone: "unknown" as const }
+      : resolvePresenceLabel(selectedChat.state as ChatPresenceState | null | undefined, presenceNow);
     const lastActivityAt = selectedChat.lastMsgTimestamp
       ? new Date(toMs(selectedChat.lastMsgTimestamp)).toLocaleString("pt-BR", {
           dateStyle: "medium",
@@ -667,6 +684,8 @@ export default function AppShell() {
       avatarLabel: initialsFromName(selectedChat.name),
       avatarUrl: selectedChat.avatarUrl || undefined,
       subtitle,
+      presenceText: presence.text,
+      presenceTone: presence.tone,
       phone: phone || undefined,
       isGroup: selectedChat.isGroup,
       chatId: selectedChat.chatId,
@@ -677,7 +696,7 @@ export default function AppShell() {
       lastMessageText: selectedChat.lastMessageText || "Sem mensagem recente",
       lastActivityAt,
     };
-  }, [messages, selectedChat]);
+  }, [messages, presenceNow, selectedChat]);
 
   useEffect(() => {
     setTags(selectedChat?.state?.tags ?? []);
@@ -696,6 +715,16 @@ export default function AppShell() {
     setSelectedMessageKeys({});
     setSearchCursor(0);
   }, [selectedChatId]);
+
+  useEffect(() => {
+    const state = selectedChat?.state;
+    const needsClock = Boolean(state?.typingUntilAt) || state?.presenceStatus === "typing";
+    if (!needsClock) return;
+
+    setPresenceNow(Date.now());
+    const timer = window.setInterval(() => setPresenceNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [selectedChat?.state]);
 
   useEffect(() => {
     try {
@@ -1006,6 +1035,10 @@ export default function AppShell() {
         status: "pendente" | "resolvido";
         assignedAgentId: "vanderlei" | "gustavo" | null;
         tags?: string[];
+        presenceStatus?: string | null;
+        lastSeenAt?: string | null;
+        typingUntilAt?: string | null;
+        updatedAt?: string;
       }>;
     };
     const state = data.items[0];
@@ -1014,6 +1047,24 @@ export default function AppShell() {
     setAssignedAgentId(state.assignedAgentId);
     const normalizedTags = (state.tags ?? []).map(normalizeLabelName).filter(Boolean);
     setTags(Array.from(new Set(normalizedTags)).slice(0, 12));
+    setChats((prev) =>
+      prev.map((chat) =>
+        chat.chatId === chatId
+          ? {
+              ...chat,
+              state: {
+                status: state.status,
+                assignedAgentId: state.assignedAgentId,
+                tags: Array.from(new Set(normalizedTags)).slice(0, 12),
+                presenceStatus: state.presenceStatus ?? null,
+                lastSeenAt: state.lastSeenAt ?? null,
+                typingUntilAt: state.typingUntilAt ?? null,
+                updatedAt: state.updatedAt ?? new Date().toISOString(),
+              },
+            }
+          : chat,
+      ),
+    );
   }, []);
 
   const refreshAll = useCallback(async (reason: string) => {
@@ -1948,23 +1999,29 @@ export default function AppShell() {
                   <span className="text-xs font-semibold text-[var(--muted)]">•</span>
                 )}
                 </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold truncate">{selectedChat?.name ?? "Selecione um chat"}</div>
-                  {tags.length > 0 ? (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {tags.slice(0, 3).map((t) => (
-                        <span
-                          key={t}
-                          className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-2 py-0.5"
-                        >
-                          {t}
-                        </span>
-                      ))}
-                      {tags.length > 3 ? <span className="text-[10px] text-[var(--muted)]">+{tags.length - 3}</span> : null}
-                    </div>
-                  ) : (
-                    <div className="text-xs text-[var(--muted)] truncate">{selectedChatId ?? ""}</div>
-                  )}
+              <div className="min-w-0">
+                <div className="text-sm font-semibold truncate">{selectedChat?.name ?? "Selecione um chat"}</div>
+                {contactProfile?.presenceText ? (
+                  <div className="mt-1 flex items-center gap-2 text-xs text-[var(--muted)] truncate">
+                    <span className={["h-2 w-2 rounded-full shrink-0", presenceToneClass(contactProfile.presenceTone)].join(" ")} />
+                    <span className="truncate">{contactProfile.presenceText}</span>
+                  </div>
+                ) : null}
+                {tags.length > 0 ? (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {tags.slice(0, 3).map((t) => (
+                      <span
+                        key={t}
+                        className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-2 py-0.5"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                    {tags.length > 3 ? <span className="text-[10px] text-[var(--muted)]">+{tags.length - 3}</span> : null}
+                  </div>
+                ) : !contactProfile?.presenceText ? (
+                  <div className="text-xs text-[var(--muted)] truncate">{selectedChatId ?? ""}</div>
+                ) : null}
                 </div>
               </div>
               <div className="flex items-center gap-2 relative">
@@ -2208,6 +2265,14 @@ export default function AppShell() {
                           </div>
                           <div className="mt-4 space-y-1">
                             <div className="text-xl font-semibold leading-tight">{contactProfile.name}</div>
+                            {contactProfile.presenceText ? (
+                              <div className="flex items-center justify-center gap-2 text-sm text-[var(--muted)]">
+                                <span
+                                  className={["h-2.5 w-2.5 rounded-full shrink-0", presenceToneClass(contactProfile.presenceTone)].join(" ")}
+                                />
+                                <span>{contactProfile.presenceText}</span>
+                              </div>
+                            ) : null}
                             <div className="text-sm text-[var(--muted)]">{contactProfile.subtitle}</div>
                           </div>
                           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">

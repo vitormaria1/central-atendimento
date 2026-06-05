@@ -4,6 +4,7 @@ import { withApi } from "@/lib/api";
 import { getEnv } from "@/lib/env";
 import { dbQuery } from "@/lib/db";
 import { publish, recordWebhookDebug } from "@/lib/stream";
+import { parsePresenceUpdate } from "@/lib/chat-presence";
 
 export const dynamic = "force-dynamic";
 
@@ -133,6 +134,22 @@ export const POST = withApi(async (req: Request) => {
           );
         }
       }
+    }
+
+    const presenceUpdate = parsePresenceUpdate(parsed.data, eventType);
+    if (chatId && presenceUpdate) {
+      await dbQuery(
+        `
+          insert into chat_state (chat_id, status, assigned_agent_id, tags, presence_status, last_seen_at, typing_until_at)
+          values ($1, 'pendente', null, '{}'::text[], $2, $3, $4)
+          on conflict (chat_id) do update set
+            presence_status = coalesce(excluded.presence_status, chat_state.presence_status),
+            last_seen_at = coalesce(excluded.last_seen_at, chat_state.last_seen_at),
+            typing_until_at = excluded.typing_until_at,
+            updated_at = now()
+        `,
+        [chatId, presenceUpdate.presenceStatus ?? null, presenceUpdate.lastSeenAt ?? null, presenceUpdate.typingUntilAt ?? null],
+      );
     }
 
     if (chatId) {
