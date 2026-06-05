@@ -29,6 +29,13 @@ export type UazapiMessage = {
   content?: string;
   type?: string;
   fileURL?: string;
+  messageStatus?: string;
+  status?: string;
+  ack?: number;
+  deliveredAt?: number;
+  receivedAt?: number;
+  readAt?: number;
+  seenAt?: number;
 };
 
 type PathKind = "chatFind" | "messageFind" | "sendText" | "labelsList" | "chatLabelsGet";

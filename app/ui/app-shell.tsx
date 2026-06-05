@@ -37,6 +37,13 @@ type MessageItem = {
   content?: string;
   type?: string;
   fileURL?: string;
+  messageStatus?: string;
+  status?: string;
+  ack?: number;
+  deliveredAt?: number;
+  receivedAt?: number;
+  readAt?: number;
+  seenAt?: number;
 };
 
 const MAX_DOWNLOAD_CACHE = 300;
@@ -212,6 +219,39 @@ function isPdfLike(mimetype?: string, mediaUrl?: string | null) {
   if (mimetype === "application/pdf") return true;
   const ext = mediaUrl ? extFromUrl(mediaUrl) : "";
   return ext === "pdf";
+}
+
+type ReceiptStage = "sent" | "delivered" | "read";
+
+function normalizeReceiptStage(m: MessageItem): ReceiptStage | null {
+  if (!m.fromMe) return null;
+
+  const raw = `${m.messageStatus ?? ""} ${m.status ?? ""}`.toLowerCase().trim();
+  if (raw.includes("read") || raw.includes("seen") || m.readAt || m.seenAt) return "read";
+  if (raw.includes("delivered") || raw.includes("received") || m.deliveredAt || m.receivedAt) return "delivered";
+  if (raw.includes("sent") || raw.includes("server") || raw.includes("pending") || raw.includes("sending")) return "sent";
+
+  if (typeof m.ack === "number") {
+    if (m.ack >= 3) return "read";
+    if (m.ack >= 2) return "delivered";
+    return "sent";
+  }
+
+  return "sent";
+}
+
+function receiptClass(stage: ReceiptStage) {
+  if (stage === "read") return "text-[#53bdeb]";
+  return "text-[var(--muted)]";
+}
+
+function ReceiptTicks({ stage }: { stage: ReceiptStage }) {
+  const label = stage === "sent" ? "Enviada" : stage === "delivered" ? "Recebida" : "Visualizada";
+  return (
+    <span className={["inline-flex items-center text-[11px] leading-none", receiptClass(stage)].join(" ")} aria-label={label}>
+      {stage === "sent" ? "✓" : "✓✓"}
+    </span>
+  );
 }
 
 function readableFileName(raw: string, fallback: string, requireExtension = false) {
@@ -2338,6 +2378,7 @@ export default function AppShell() {
                 const showImage = showMedia && !showAudioPlayer && isImageLike(m, mimetype, mediaUrl);
                 const showVideo = showMedia && !showAudioPlayer && !showImage && isVideoLike(m, mimetype, mediaUrl);
                 const showPdf = showMedia && !showAudioPlayer && !showImage && !showVideo && isPdfLike(mimetype, mediaUrl);
+                const receiptStage = normalizeReceiptStage(m);
                 const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
                 return (
                   <div
@@ -2607,8 +2648,9 @@ export default function AppShell() {
                         <div className="mt-2 text-xs text-[var(--muted)]">Mídia indisponível.</div>
                       ) : null}
 
-                      <div className="mt-2 text-[10px] text-[var(--muted)] text-right">
-                        {formatTime(m.messageTimestamp)}
+                      <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-[var(--muted)] text-right">
+                        <span>{formatTime(m.messageTimestamp)}</span>
+                        {mine && receiptStage ? <ReceiptTicks stage={receiptStage} /> : null}
                       </div>
                     </div>
                     </div>
