@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { getSession } from "./lib/auth";
+import { NextResponse, type NextRequest } from "next/server";
+import { SESSION_COOKIE_NAME, verifySessionToken } from "./lib/auth";
 
 const PUBLIC_PATHS = new Set([
   "/login",
@@ -20,11 +19,12 @@ function isPublicPath(pathname: string) {
   return false;
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (isPublicPath(pathname)) return NextResponse.next();
 
-  const session = await getSession();
+  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const session = token ? await verifySessionToken(token) : null;
   if (session) return NextResponse.next();
 
   if (pathname.startsWith("/api/")) {

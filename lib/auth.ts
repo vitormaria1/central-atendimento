@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { getEnv } from "./env";
 
-const COOKIE_NAME = "ca_session";
+export const SESSION_COOKIE_NAME = "ca_session";
 
 export type Session = {
   agentId: "vanderlei" | "gustavo";
@@ -24,10 +24,7 @@ export async function createSessionCookie(session: Session) {
   return token;
 }
 
-export async function getSession(): Promise<Session | null> {
-  const store = await cookies();
-  const token = store.get(COOKIE_NAME)?.value;
-  if (!token) return null;
+export async function verifySessionToken(token: string): Promise<Session | null> {
   try {
     const { payload } = await jwtVerify(token, getKey());
     const agentId = payload.agentId;
@@ -40,9 +37,16 @@ export async function getSession(): Promise<Session | null> {
   }
 }
 
+export async function getSession(): Promise<Session | null> {
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE_NAME)?.value;
+  if (!token) return null;
+  return verifySessionToken(token);
+}
+
 export async function setSessionCookie(token: string) {
   const store = await cookies();
-  store.set(COOKIE_NAME, token, {
+  store.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -53,7 +57,7 @@ export async function setSessionCookie(token: string) {
 
 export async function clearSessionCookie() {
   const store = await cookies();
-  store.set(COOKIE_NAME, "", {
+  store.set(SESSION_COOKIE_NAME, "", {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

@@ -6,7 +6,13 @@ let pool: pg.Pool | null = null;
 export function getDbPool() {
   if (pool) return pool;
   const { DATABASE_URL } = getEnv();
-  pool = new pg.Pool({ connectionString: DATABASE_URL });
+  const url = new URL(DATABASE_URL);
+  const usesSupabase =
+    url.hostname.includes("supabase.co") || url.hostname.includes("pooler.supabase.com") || DATABASE_URL.includes("sslmode=require");
+  pool = new pg.Pool({
+    connectionString: DATABASE_URL,
+    ssl: usesSupabase ? { rejectUnauthorized: false } : undefined,
+  });
   return pool;
 }
 
