@@ -168,7 +168,7 @@ export default function TasksShell() {
 
   const [toast, setToast] = useState<string | null>(null);
 
-  const [viewType, setViewType] = useState<ViewType>("list");
+  const viewType: ViewType = "list";
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [selectedSavedViewId, setSelectedSavedViewId] = useState<string>("builtin:minhas");
   const [creatingView, setCreatingView] = useState(false);
@@ -917,40 +917,6 @@ export default function TasksShell() {
     return () => window.clearTimeout(t);
   }, [toast]);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const isTyping =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        Boolean(target?.isContentEditable);
-      if (isTyping) return;
-
-      if (e.altKey && !e.metaKey && !e.ctrlKey) {
-        const key = e.key.toLowerCase();
-        if (key === "n") {
-          e.preventDefault();
-          setShowCreateForm(true);
-        }
-        if (key === "1") {
-          e.preventDefault();
-          setViewType("list");
-        }
-        if (key === "2") {
-          e.preventDefault();
-          setViewType("board");
-        }
-        if (key === "3") {
-          e.preventDefault();
-          setViewType("calendar");
-        }
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
   const visibleTasks = department === "all" ? tasks : tasks.filter((task) => task.department === department);
   const taskStats = {
     total: visibleTasks.length,
@@ -1119,22 +1085,6 @@ export default function TasksShell() {
               </div>
             </div>
 
-            <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4 space-y-3">
-              <div className="text-sm font-semibold">Atalhos</div>
-              <div className="grid grid-cols-2 gap-2 text-[11px] text-[var(--muted)]">
-                <div className="rounded-2xl bg-black/10 px-3 py-2">Alt+N nova tarefa</div>
-                <div className="rounded-2xl bg-black/10 px-3 py-2">Alt+A acessibilidade</div>
-                <div className="rounded-2xl bg-black/10 px-3 py-2">Alt+1 lista</div>
-                <div className="rounded-2xl bg-black/10 px-3 py-2">Alt+2 quadro</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(true)}
-                className="w-full rounded-2xl bg-[var(--primary)] px-3 py-2 text-sm font-medium text-white"
-              >
-                Nova tarefa
-              </button>
-            </div>
           </div>
 
           <div className="flex-1" />
