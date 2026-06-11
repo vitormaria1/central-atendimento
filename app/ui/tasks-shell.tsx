@@ -136,7 +136,7 @@ export default function TasksShell() {
   const [departmentMeta, setDepartmentMeta] = useState<DepartmentMeta[]>([]);
 
   const [q, setQ] = useState("");
-  const [department, setDepartment] = useState<DepartmentFilter>("fiscal");
+  const [department, setDepartment] = useState<DepartmentFilter>("all");
   const [status, setStatus] = useState<TaskStatus | "all">("all");
   const [assignee, setAssignee] = useState<"all" | "vanderlei" | "gustavo">("all");
   const [tasks, setTasks] = useState<TaskListItem[]>([]);
@@ -157,8 +157,6 @@ export default function TasksShell() {
   const [newViewName, setNewViewName] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
-  const [boardDraggingTaskId, setBoardDraggingTaskId] = useState<string | null>(null);
-  const [calendarAnchor, setCalendarAnchor] = useState<Date>(() => new Date());
   const [openDepartments, setOpenDepartments] = useState<Record<string, boolean>>({});
 
   // create task
@@ -524,6 +522,10 @@ export default function TasksShell() {
     else router.push("/");
   }
 
+  function openAccessibilityPreferences() {
+    window.dispatchEvent(new Event("codex:open-a11y-preferences"));
+  }
+
   function applyBuiltInView(id: string) {
     setSelectedSavedViewId(id);
     if (id === "builtin:minhas") {
@@ -660,7 +662,6 @@ export default function TasksShell() {
 
   async function loadSavedViews() {
     const url = new URL("/api/task-views", window.location.origin);
-    if (department !== "all") url.searchParams.set("department", department);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return;
     const data = (await res.json()) as { items: SavedView[] };
@@ -669,7 +670,6 @@ export default function TasksShell() {
 
   async function loadTasks() {
     const url = new URL("/api/tasks", window.location.origin);
-    if (department !== "all") url.searchParams.set("department", department);
     if (q.trim()) url.searchParams.set("q", q.trim());
     if (status !== "all") url.searchParams.set("status", status);
     if (assignee !== "all") url.searchParams.set("assigneeAgentId", assignee);
@@ -873,9 +873,12 @@ export default function TasksShell() {
 
   useEffect(() => {
     void loadTasks();
-    if (department !== "all") setNewDepartment(department);
     void loadSavedViews();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, status, assignee]);
+
+  useEffect(() => {
+    if (department !== "all") setNewDepartment(department);
   }, [department]);
 
   useEffect(() => {
@@ -895,6 +898,65 @@ export default function TasksShell() {
     const t = window.setTimeout(() => setToast(null), 3500);
     return () => window.clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        Boolean(target?.isContentEditable);
+      if (isTyping) return;
+
+      if (e.altKey && !e.metaKey && !e.ctrlKey) {
+        const key = e.key.toLowerCase();
+        if (key === "n") {
+          e.preventDefault();
+          setShowCreateForm(true);
+        }
+        if (key === "1") {
+          e.preventDefault();
+          setViewType("list");
+        }
+        if (key === "2") {
+          e.preventDefault();
+          setViewType("board");
+        }
+        if (key === "3") {
+          e.preventDefault();
+          setViewType("calendar");
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const visibleTasks = department === "all" ? tasks : tasks.filter((task) => task.department === department);
+  const taskStats = {
+    total: visibleTasks.length,
+    open: visibleTasks.filter((task) => task.status !== "done").length,
+    overdue: visibleTasks.filter((task) => isTaskOverdue(task)).length,
+    today: visibleTasks.filter((task) => isTaskDueToday(task)).length,
+  };
+  const selectedDepartment = department === "all" ? null : department;
+  const selectedDepartmentTasks = selectedDepartment ? tasks.filter((task) => task.department === selectedDepartment) : [];
+  const recentDepartmentTasks = (selectedDepartment ? selectedDepartmentTasks : tasks)
+    .slice()
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 6);
+
+  useEffect(() => {
+    if (visibleTasks.length === 0) {
+      if (selectedTaskId !== null) setSelectedTaskId(null);
+      return;
+    }
+    if (!selectedTaskId || !visibleTasks.some((task) => task.id === selectedTaskId)) {
+      setSelectedTaskId(visibleTasks[0]!.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [department, q, status, assignee, visibleTasks.length, selectedTaskId]);
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -934,63 +996,39 @@ export default function TasksShell() {
           </div>
 
           <div className="p-4 space-y-3 border-b border-[var(--border)]">
-            <div className="grid gap-2">
-              <select
-                value={selectedSavedViewId}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  if (id.startsWith("builtin:")) {
-                    applyBuiltInView(id);
-                    return;
-                  }
-                  setSelectedSavedViewId(id);
-                  const v = savedViews.find((x) => x.id === id);
-                  if (!v) return;
-                  const cfg = v.config ?? {};
-                  const cfgQ = typeof cfg.q === "string" ? cfg.q : "";
-                  const cfgStatus = (cfg.status as TaskStatus | "all") ?? "all";
-                  const cfgAssignee = (cfg.assignee as typeof assignee) ?? "all";
-                  setQ(cfgQ);
-                  setStatus(cfgStatus);
-                  setAssignee(cfgAssignee);
-                }}
-                className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-              >
-                <option value="builtin:minhas">Minhas tarefas</option>
-                <option value="builtin:urgentes_hoje">Urgentes hoje</option>
-                <option value="builtin:atrasadas">Atrasadas</option>
-                {savedViews.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name}
-                  </option>
-                ))}
-              </select>
-
-              <div className="flex gap-2">
-                <input
-                  value={newViewName}
-                  onChange={(e) => setNewViewName(e.target.value)}
-                  placeholder="Salvar filtro como..."
-                  className="flex-1 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                />
+            <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">Espaços</div>
+                  <div className="text-xs text-[var(--muted)]">Navegue por departamento.</div>
+                </div>
                 <button
                   type="button"
-                  onClick={() => void createSavedView()}
-                  disabled={creatingView || !newViewName.trim()}
-                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm hover:bg-white/8 disabled:opacity-60"
+                  onClick={openAccessibilityPreferences}
+                  className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs hover:bg-white/8"
                 >
-                  Salvar
+                  A11y
                 </button>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <select
-                value={department}
-                onChange={(e) => setDepartment(e.target.value as DepartmentFilter)}
-                className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+              <button
+                type="button"
+                onClick={() => setDepartment("all")}
+                className={[
+                  "w-full rounded-2xl px-3 py-3 text-left ring-1 transition",
+                  department === "all"
+                    ? "bg-[color-mix(in_srgb,var(--primary)_16%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
+                    : "bg-white/5 ring-white/10 hover:bg-white/8",
+                ].join(" ")}
               >
-                <option value="all">Geral</option>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium">Visão geral</span>
+                  <span className="text-xs text-[var(--muted)]">{tasks.length}</span>
+                </div>
+                <div className="mt-1 text-xs text-[var(--muted)]">Mini dashboard central</div>
+              </button>
+
+              <div className="space-y-1">
                 {(departmentMeta.length
                   ? departmentMeta
                   : [
@@ -1000,60 +1038,85 @@ export default function TasksShell() {
                       { id: "societario_paralegal", name: "Societário/Paralegal" },
                       { id: "administrativo", name: "Administrativo" },
                     ]
-                ).map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as TaskStatus | "all")}
-                className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-              >
-                <option value="all">Status</option>
-                {(statusMeta.length
-                  ? statusMeta
-                  : [
-                      { id: "to_do", name: "A Fazer" },
-                      { id: "in_progress", name: "Em Andamento" },
-                      { id: "blocked", name: "Pendente" },
-                      { id: "done", name: "Concluído" },
-                    ]
-                ).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={assignee}
-                onChange={(e) => setAssignee(e.target.value as typeof assignee)}
-                className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none col-span-2"
-              >
-                <option value="all">Responsável</option>
-                <option value="vanderlei">Vanderlei</option>
-                <option value="gustavo">Gustavo</option>
-              </select>
+                ).map((d) => {
+                  const deptTasks = tasks.filter((task) => task.department === d.id);
+                  const deptCounts = {
+                    total: deptTasks.length,
+                    open: deptTasks.filter((task) => task.status !== "done").length,
+                    overdue: deptTasks.filter((task) => isTaskOverdue(task)).length,
+                  };
+                  const active = department === d.id;
+                  const expanded = openDepartments[d.id] ?? true;
+                  return (
+                    <div key={d.id} className="rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDepartment(d.id);
+                          setOpenDepartments((prev) => ({ ...prev, [d.id]: !expanded }));
+                        }}
+                        className={[
+                          "w-full px-3 py-3 text-left transition",
+                          active ? "bg-[color-mix(in_srgb,var(--primary)_16%,transparent)]" : "hover:bg-white/8",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium truncate">{d.name}</span>
+                          <span className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                            <span>{deptCounts.total}</span>
+                            <span>{expanded ? "▾" : "▸"}</span>
+                          </span>
+                        </div>
+                        <div className="mt-1 text-[11px] text-[var(--muted)]">
+                          {deptCounts.open} abertas • {deptCounts.overdue} atrasadas
+                        </div>
+                      </button>
+                      {expanded ? (
+                        <div className="border-t border-white/10 p-2 space-y-1">
+                          {[
+                            { label: "Todas", status: "all" as const, count: deptCounts.total },
+                            { label: "A fazer", status: "to_do" as const, count: deptTasks.filter((task) => task.status === "to_do").length },
+                            { label: "Em andamento", status: "in_progress" as const, count: deptTasks.filter((task) => task.status === "in_progress").length },
+                            { label: "Bloqueadas", status: "blocked" as const, count: deptTasks.filter((task) => task.status === "blocked").length },
+                            { label: "Concluídas", status: "done" as const, count: deptTasks.filter((task) => task.status === "done").length },
+                          ].map((item) => (
+                            <button
+                              key={item.label}
+                              type="button"
+                              onClick={() => {
+                                setDepartment(d.id);
+                                setStatus(item.status);
+                              }}
+                              className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs text-[var(--muted)] hover:bg-white/8"
+                            >
+                              <span>{item.label}</span>
+                              <span>{item.count}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscar tarefas..."
-              className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void loadTasks();
-              }}
-            />
-
-            <button
-              type="button"
-              onClick={() => void loadTasks()}
-              className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm hover:bg-white/8"
-            >
-              Atualizar lista
-            </button>
+            <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4 space-y-3">
+              <div className="text-sm font-semibold">Atalhos</div>
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-[var(--muted)]">
+                <div className="rounded-2xl bg-black/10 px-3 py-2">Alt+N nova tarefa</div>
+                <div className="rounded-2xl bg-black/10 px-3 py-2">Alt+A acessibilidade</div>
+                <div className="rounded-2xl bg-black/10 px-3 py-2">Alt+1 lista</div>
+                <div className="rounded-2xl bg-black/10 px-3 py-2">Alt+2 quadro</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateForm(true)}
+                className="w-full rounded-2xl bg-[var(--primary)] px-3 py-2 text-sm font-medium text-white"
+              >
+                Nova tarefa
+              </button>
+            </div>
           </div>
 
           <div className="flex-1" />
@@ -1063,49 +1126,16 @@ export default function TasksShell() {
           <header className="h-16 border-b border-[var(--border)] px-6 flex items-center justify-between bg-[var(--background)]/80 backdrop-blur">
             <div className="min-w-0 w-[260px]">
               <div className="text-sm font-semibold truncate">
-                {viewType === "list" ? "Lista" : viewType === "board" ? "Quadro" : "Calendário"}
+                {department === "all" ? "Visão geral" : deptLabel(department, departmentMeta)}
               </div>
               <div className="text-xs text-[var(--muted)] truncate">
-                {department === "all" ? "Geral" : deptLabel(department, departmentMeta)}
+                {department === "all" ? "Escolha um departamento na lateral" : `${taskStats.total} tarefas visíveis`}
                 {assignee !== "all" ? ` • ${assignee === "vanderlei" ? "Vanderlei" : "Gustavo"}` : ""}
                 {status !== "all" ? ` • ${statusLabel(status, statusMeta)}` : ""}
               </div>
             </div>
 
-            <div className="flex-1 flex items-center justify-center">
-              <div className="flex items-center gap-2 rounded-2xl bg-white/3 ring-1 ring-white/10 p-1">
-                <button
-                  type="button"
-                  onClick={() => setViewType("list")}
-                  className={[
-                    "rounded-xl px-3 py-2 text-sm transition",
-                    viewType === "list" ? "bg-white/8 ring-1 ring-white/10" : "hover:bg-white/5",
-                  ].join(" ")}
-                >
-                  Lista
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewType("board")}
-                  className={[
-                    "rounded-xl px-3 py-2 text-sm transition",
-                    viewType === "board" ? "bg-white/8 ring-1 ring-white/10" : "hover:bg-white/5",
-                  ].join(" ")}
-                >
-                  Quadro
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewType("calendar")}
-                  className={[
-                    "rounded-xl px-3 py-2 text-sm transition",
-                    viewType === "calendar" ? "bg-white/8 ring-1 ring-white/10" : "hover:bg-white/5",
-                  ].join(" ")}
-                >
-                  Calendário
-                </button>
-              </div>
-            </div>
+            <div className="flex-1" />
 
             <div className="flex items-center gap-2 w-[260px] justify-end">
               <button
@@ -1115,26 +1145,13 @@ export default function TasksShell() {
               >
                 ← Voltar
               </button>
-              {me?.agentId === "vanderlei" && viewType === "board" ? (
-                <button
-                  type="button"
-                  onClick={() => setShowNewStatusForm(true)}
-                  className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-                  title="Criar nova coluna do quadro"
-                >
-                  Nova coluna
-                </button>
-              ) : null}
-              {me?.agentId === "vanderlei" && viewType === "list" ? (
-                <button
-                  type="button"
-                  onClick={() => setShowNewDeptForm(true)}
-                  className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-                  title="Criar novo departamento"
-                >
-                  Novo departamento
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={openAccessibilityPreferences}
+                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+              >
+                A11y
+              </button>
               <button
                 type="button"
                 onClick={() => setShowCreateForm(true)}
@@ -1146,296 +1163,262 @@ export default function TasksShell() {
           </header>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {viewType === "board" ? (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                {(statusMeta.length ? statusMeta.map((x) => x.id) : (["to_do", "in_progress", "blocked", "done"] as TaskStatus[])).map((s) => {
-                  const columnTasks = tasks.filter((t) => t.status === s).slice(0, 200);
-                  return (
-                    <div
-                      key={s}
-                      className={[
-                        "rounded-3xl ring-1 p-4 min-h-[220px] transition",
-                        boardDraggingTaskId ? "bg-[color-mix(in_srgb,var(--primary)_6%,transparent)] ring-[color-mix(in_srgb,var(--primary)_20%,var(--border))]" : "bg-white/5 ring-white/10",
-                      ].join(" ")}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const id = e.dataTransfer.getData("text/taskId") || boardDraggingTaskId;
-                        if (!id) return;
-                        const task = tasks.find((t) => t.id === id);
-                        if (!task || task.status === s) return;
-                        setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: s } : t)));
-                        void (async () => {
-                          try {
-                            await patchTask(id, { status: s });
-                            await refreshTask(id);
-                          } catch (err) {
-                            setToast(err instanceof Error ? err.message : "Falha ao mover tarefa");
-                            await loadTasks();
-                          }
-                        })();
-                        setBoardDraggingTaskId(null);
-                      }}
+            <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm font-semibold">
+                    {department === "all" ? "Visão geral" : deptLabel(department, departmentMeta)}
+                  </div>
+                  <div className="mt-1 text-xs text-[var(--muted)]">
+                    {department === "all"
+                      ? "Escolha um departamento na lateral para abrir suas tarefas no centro."
+                      : "Resumo rápido do departamento selecionado e suas tarefas recentes."}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateForm(true)}
+                    className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white"
+                  >
+                    Nova tarefa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openAccessibilityPreferences}
+                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm hover:bg-white/8"
+                  >
+                    Acessibilidade
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                {[
+                  { label: "Total", value: taskStats.total, hint: "tarefas visíveis" },
+                  { label: "Em aberto", value: taskStats.open, hint: "status != concluído" },
+                  { label: "Hoje", value: taskStats.today, hint: "prazo hoje" },
+                  { label: "Atrasadas", value: taskStats.overdue, hint: "prazo vencido" },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-3xl bg-black/10 ring-1 ring-white/10 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">{item.label}</div>
+                    <div className="mt-2 text-2xl font-semibold">{item.value}</div>
+                    <div className="mt-1 text-xs text-[var(--muted)]">{item.hint}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid gap-2 xl:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr]">
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Buscar tarefas..."
+                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                />
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as TaskStatus | "all")}
+                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                >
+                  <option value="all">Status</option>
+                  {(statusMeta.length
+                    ? statusMeta
+                    : [
+                        { id: "to_do", name: "A Fazer" },
+                        { id: "in_progress", name: "Em Andamento" },
+                        { id: "blocked", name: "Pendente" },
+                        { id: "done", name: "Concluído" },
+                      ]
+                  ).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={assignee}
+                  onChange={(e) => setAssignee(e.target.value as typeof assignee)}
+                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                >
+                  <option value="all">Responsável</option>
+                  <option value="vanderlei">Vanderlei</option>
+                  <option value="gustavo">Gustavo</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void loadTasks()}
+                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm hover:bg-white/8"
+                >
+                  Atualizar
+                </button>
+              </div>
+
+              <div className="grid gap-2 xl:grid-cols-[1.2fr_0.9fr]">
+                <select
+                  value={selectedSavedViewId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    if (id.startsWith("builtin:")) {
+                      applyBuiltInView(id);
+                      return;
+                    }
+                    setSelectedSavedViewId(id);
+                    const v = savedViews.find((x) => x.id === id);
+                    if (!v) return;
+                    const cfg = v.config ?? {};
+                    const cfgQ = typeof cfg.q === "string" ? cfg.q : "";
+                    const cfgStatus = (cfg.status as TaskStatus | "all") ?? "all";
+                    const cfgAssignee = (cfg.assignee as typeof assignee) ?? "all";
+                    setQ(cfgQ);
+                    setStatus(cfgStatus);
+                    setAssignee(cfgAssignee);
+                  }}
+                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                >
+                  <option value="builtin:minhas">Minhas tarefas</option>
+                  <option value="builtin:urgentes_hoje">Urgentes hoje</option>
+                  <option value="builtin:atrasadas">Atrasadas</option>
+                  {savedViews.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <input
+                    value={newViewName}
+                    onChange={(e) => setNewViewName(e.target.value)}
+                    placeholder="Salvar filtro como..."
+                    className="flex-1 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void createSavedView()}
+                    disabled={creatingView || !newViewName.trim()}
+                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm hover:bg-white/8 disabled:opacity-60"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-4">
+              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">
+                      {selectedDepartment ? `Tarefas de ${deptLabel(selectedDepartment, departmentMeta)}` : "Selecione um departamento"}
+                    </div>
+                    <div className="text-xs text-[var(--muted)]">
+                      {selectedDepartment
+                        ? "Lista de tarefas do departamento selecionado"
+                        : "Clique em um departamento na lateral para carregar seu painel"}
+                    </div>
+                  </div>
+                  {selectedDepartment ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateForm(true)}
+                      className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white"
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-semibold flex items-center gap-2">
-                          <span
-                            className="inline-block h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: statusMeta.find((x) => x.id === s)?.color ?? "#64748b" }}
-                          />
-                          {statusLabel(s, statusMeta)}
-                        </div>
-                        <div className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">{columnTasks.length}</div>
-                      </div>
-                      <div className="mt-3 space-y-2">
-                        {columnTasks.map((t) => (
-                          <div
-                            key={t.id}
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData("text/taskId", t.id);
-                              setBoardDraggingTaskId(t.id);
-                            }}
-                            onDragEnd={() => setBoardDraggingTaskId(null)}
-                            className={[
-                              "w-full text-left rounded-2xl bg-[color-mix(in_srgb,var(--background)_70%,black)] ring-1 ring-white/10 px-3 py-2 hover:bg-white/8 cursor-grab active:cursor-grabbing",
-                              t.id === selectedTaskId ? "ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]" : "",
-                            ].join(" ")}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedTaskId(t.id);
-                                setShowTaskModal(true);
-                              }}
-                              className="w-full text-left"
-                            >
-                              <div className="text-sm font-medium truncate">
+                      Nova tarefa
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  {selectedDepartmentTasks.length > 0 ? (
+                    selectedDepartmentTasks.slice(0, 250).map((t) => {
+                      const isSelected = t.id === selectedTaskId;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedTaskId(t.id);
+                            setShowTaskModal(true);
+                          }}
+                          className={[
+                            "w-full rounded-2xl px-4 py-3 text-left ring-1 transition",
+                            isSelected
+                              ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
+                              : "bg-white/5 ring-white/10 hover:bg-white/8",
+                          ].join(" ")}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold truncate">
+                                <span className="text-[var(--muted)] mr-2">#{t.taskNumber}</span>
                                 {t.title}
                               </div>
                               <div className="mt-1 text-xs text-[var(--muted)] truncate">
-                                {t.taskType ? `${t.taskType.name} • ` : ""}
-                                {t.client ? t.client.name : "Sem cliente"} • {priorityLabel(t.priority)}
-                                {t.assignee ? ` • ${t.assignee.name}` : ""}
-                                {t.dueAt ? ` • ${formatDateOnly(t.dueAt)}` : ""}
-                              </div>
-                            </button>
-                          </div>
-                        ))}
-                        {columnTasks.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem tarefas.</div> : null}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {viewType === "calendar" ? (
-              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold">Calendário</div>
-                    <div className="text-xs text-[var(--muted)]">Arraste no quadro para mudar status; aqui você se organiza por prazo.</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCalendarAnchor(new Date())}
-                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-                    >
-                      Hoje
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCalendarAnchor((d) => addMonths(d, -1))}
-                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-                    >
-                      ←
-                    </button>
-                    <div className="text-sm font-semibold min-w-[140px] text-center">
-                      {startOfMonth(calendarAnchor).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setCalendarAnchor((d) => addMonths(d, 1))}
-                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-                    >
-                      →
-                    </button>
-                  </div>
-                </div>
-
-                {(() => {
-                  const monthStart = startOfMonth(calendarAnchor);
-                  const gridStart = new Date(monthStart.getTime());
-                  gridStart.setDate(gridStart.getDate() - gridStart.getDay()); // Sunday
-                  const days: Date[] = [];
-                  for (let i = 0; i < 42; i += 1) {
-                    const d = new Date(gridStart.getTime());
-                    d.setDate(gridStart.getDate() + i);
-                    days.push(d);
-                  }
-                  const byDay = new Map<string, TaskListItem[]>();
-                  for (const t of tasks) {
-                    const d = new Date(t.dueAt ?? t.createdAt);
-                    const key = dayKeyLocal(d);
-                    const prev = byDay.get(key) ?? [];
-                    prev.push(t);
-                    byDay.set(key, prev);
-                  }
-                  for (const [, list] of byDay) list.sort((a, b) => (a.priority > b.priority ? -1 : 1));
-                  const today = new Date();
-                  const dayNames = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
-                  return (
-                    <div className="mt-4">
-                      <div className="grid grid-cols-7 gap-2 text-xs text-[var(--muted)] px-1">
-                        {dayNames.map((n) => (
-                          <div key={n} className="text-center uppercase tracking-wide">
-                            {n}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-2 grid grid-cols-7 gap-2">
-                        {days.map((d) => {
-                          const inMonth = d.getMonth() === monthStart.getMonth();
-                          const key = dayKeyLocal(d);
-                          const list = byDay.get(key) ?? [];
-                          const isToday = sameDay(d, today);
-                          return (
-                            <div
-                              key={key}
-                              className={[
-                                "rounded-3xl ring-1 p-2 min-h-[108px] overflow-hidden",
-                                inMonth ? "bg-white/5 ring-white/10" : "bg-white/3 ring-white/5 opacity-70",
-                                isToday ? "ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]" : "",
-                              ].join(" ")}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className={["text-xs font-semibold", isToday ? "text-white" : "text-[var(--muted)]"].join(" ")}>
-                                  {d.getDate()}
-                                </div>
-                                <div className="text-[10px] text-[var(--muted)]">{list.length ? list.length : ""}</div>
-                              </div>
-                              <div className="mt-2 space-y-1">
-                                {list.slice(0, 4).map((t) => (
-                                  <button
-                                    key={t.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedTaskId(t.id);
-                                      setShowTaskModal(true);
-                                    }}
-                                    className={[
-                                      "w-full text-left rounded-2xl px-2 py-1 text-xs ring-1 hover:bg-white/8",
-                                      t.id === selectedTaskId
-                                        ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
-                                        : "bg-white/5 ring-white/10",
-                                    ].join(" ")}
-                                  >
-                                    <div className="truncate">
-                                      <span className="text-[var(--muted)] mr-1">#{t.taskNumber}</span>
-                                      {t.title}
-                                    </div>
-                                  </button>
-                                ))}
-                                {list.length > 4 ? <div className="text-[10px] text-[var(--muted)] px-1">+{list.length - 4}…</div> : null}
+                                {statusLabel(t.status, statusMeta)}
+                                {t.assignee ? ` • ${t.assignee.name}` : " • Sem responsável"}
+                                {t.client ? ` • ${t.client.name}` : ""}
+                                {t.dueAt ? ` • Vence ${formatDateOnly(t.dueAt)}` : " • Sem prazo"}
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            ) : null}
-
-            {viewType === "list" ? (
-              <div className="grid grid-cols-1 gap-4 items-start">
-                <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-                  <div className="text-sm font-semibold">Lista • por departamento</div>
-                <div className="mt-4 space-y-4">
-                  {(departmentMeta.length
-                    ? departmentMeta.map((d) => d.id)
-                    : (["fiscal", "contabil", "pessoal", "societario_paralegal", "administrativo"] as Department[])).map((dept) => {
-                    const deptTasks = tasks.filter((t) => t.department === dept);
-                    const open = openDepartments[dept] ?? true;
-                    const deptColor = departmentMeta.find((d) => d.id === dept)?.color ?? "#64748b";
-                    return (
-                      <div key={dept} className="rounded-3xl bg-white/3 ring-1 ring-white/10 overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => setOpenDepartments((p) => ({ ...p, [dept]: !open }))}
-                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/3"
-                        >
-                          <div className="text-sm font-semibold">
-                            <span className="inline-flex items-center gap-2">
-                              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: deptColor }} />
-                              {deptLabel(dept, departmentMeta)}{" "}
-                            </span>
-                            <span className="text-[10px] text-[var(--muted)] font-normal">({deptTasks.length})</span>
+                            <div className="shrink-0 text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">
+                              {priorityLabel(t.priority)}
+                            </div>
                           </div>
-                          <div className="text-xs text-[var(--muted)]">{open ? "—" : "+"}</div>
                         </button>
-                        {open ? (
-                          <div className="px-4 pb-4">
-                            <div className="space-y-2">
-                              {deptTasks.slice(0, 250).map((t) => {
-                                const selected = t.id === selectedTaskId;
-                                return (
-                                  <div key={t.id} className="space-y-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => setSelectedTaskId(selected ? null : t.id)}
-                                      className={[
-                                        "w-full text-left rounded-2xl px-4 py-3 ring-1 hover:bg-white/8",
-                                        selected
-                                          ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
-                                          : "bg-white/5 ring-white/10",
-                                      ].join(" ")}
-                                    >
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                          <div className="text-sm font-semibold truncate">
-                                            <span className="text-[var(--muted)] mr-2">#{t.taskNumber}</span>
-                                            {t.title}
-                                          </div>
-                                          <div className="mt-1 text-xs text-[var(--muted)] truncate">
-                                            {statusLabel(t.status, statusMeta)}
-                                            {t.assignee ? ` • ${t.assignee.name}` : " • Sem responsável"}
-                                            {t.client ? ` • ${t.client.name}` : ""}
-                                          </div>
-                                          <div className="mt-1 text-xs text-[var(--muted)] truncate">
-                                            {t.taskType ? `${t.taskType.name} • ` : ""}
-                                            {t.dueAt ? `Vence ${formatDateOnly(t.dueAt)}` : "Sem prazo"}
-                                          </div>
-                                        </div>
-                                        <div className="shrink-0 text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">
-                                          {priorityLabel(t.priority)}
-                                        </div>
-                                      </div>
-                                    </button>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-5 text-sm text-[var(--muted)]">
+                      Nenhuma tarefa neste departamento.
+                    </div>
+                  )}
+                </div>
+              </div>
 
-                                    {selected && details?.id === t.id ? (
-                                      <div className="pl-3 pr-0">
-                                        {renderInlineDetails()}
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                );
-                              })}
-                              {deptTasks.length === 0 ? <div className="text-xs text-[var(--muted)] px-2 py-3">Sem tarefas.</div> : null}
-                            </div>
-                          </div>
-                        ) : null}
+              <div className="space-y-4">
+                <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
+                  <div className="text-sm font-semibold">Atividade recente</div>
+                  <div className="mt-4 space-y-2">
+                    {recentDepartmentTasks.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTaskId(t.id);
+                          setShowTaskModal(true);
+                        }}
+                        className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-3 text-left hover:bg-white/8"
+                      >
+                        <div className="text-sm font-medium truncate">{t.title}</div>
+                        <div className="mt-1 text-xs text-[var(--muted)] truncate">
+                          {statusLabel(t.status, statusMeta)} • {formatTime(t.updatedAt)}
+                        </div>
+                      </button>
+                    ))}
+                    {recentDepartmentTasks.length === 0 ? (
+                      <div className="text-sm text-[var(--muted)]">Sem atividade recente.</div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
+                  <div className="text-sm font-semibold">Detalhes rápidos</div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {[
+                      { label: "A fazer", value: visibleTasks.filter((task) => task.status === "to_do").length },
+                      { label: "Em andamento", value: visibleTasks.filter((task) => task.status === "in_progress").length },
+                      { label: "Bloqueadas", value: visibleTasks.filter((task) => task.status === "blocked").length },
+                      { label: "Concluídas", value: visibleTasks.filter((task) => task.status === "done").length },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-2xl bg-black/10 ring-1 ring-white/10 p-3">
+                        <div className="text-[11px] text-[var(--muted)]">{item.label}</div>
+                        <div className="mt-1 text-lg font-semibold">{item.value}</div>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-                </div>
-                <div className="hidden">
+              </div>
+            </div>
+
                 {showCreateForm ? (
                   <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
                     <div className="flex items-center justify-between gap-3">
@@ -2151,8 +2134,6 @@ export default function TasksShell() {
                 </div>
               </div>
             ) : null}
-          </div>
-
           {toast ? (
             <div className="border-t border-[var(--border)] p-4 bg-[var(--background)]/80 backdrop-blur">
               <div

@@ -56,8 +56,13 @@ export default function A11yPreferences() {
         setOpen((v) => !v);
       }
     };
+    const onOpen = () => setOpen(true);
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("codex:open-a11y-preferences", onOpen as EventListener);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("codex:open-a11y-preferences", onOpen as EventListener);
+    };
   }, []);
 
   return (
