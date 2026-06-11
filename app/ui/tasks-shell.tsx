@@ -96,6 +96,24 @@ function dayKeyLocal(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
+function startOfDayLocal(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+
+function isTaskOverdue(task: { dueAt: string | null; status: TaskStatus }) {
+  if (!task.dueAt || task.status === "done") return false;
+  const due = new Date(task.dueAt);
+  if (Number.isNaN(due.getTime())) return false;
+  return due < startOfDayLocal(new Date());
+}
+
+function isTaskDueToday(task: { dueAt: string | null; status: TaskStatus }) {
+  if (!task.dueAt || task.status === "done") return false;
+  const due = new Date(task.dueAt);
+  if (Number.isNaN(due.getTime())) return false;
+  return sameDay(due, new Date());
+}
+
 function renderWithMentions(text: string) {
   const parts: Array<{ t: string; mention?: boolean }> = [];
   const re = /@([a-z0-9_]+)/gi;
