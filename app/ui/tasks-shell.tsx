@@ -1854,8 +1854,6 @@ export default function TasksShell() {
                   <div className="text-sm text-[var(--muted)]">Selecione uma tarefa na lista.</div>
                 )}
               </div>
-              </div>
-            ) : null}
 
             {showCreateForm ? (
               <div
