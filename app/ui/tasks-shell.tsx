@@ -168,7 +168,7 @@ export default function TasksShell() {
 
   const [toast, setToast] = useState<string | null>(null);
 
-  const viewType: ViewType = "list";
+  const [viewType, setViewType] = useState<ViewType>("list");
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [selectedSavedViewId, setSelectedSavedViewId] = useState<string>("builtin:minhas");
   const [creatingView, setCreatingView] = useState(false);
@@ -176,6 +176,8 @@ export default function TasksShell() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [openDepartments, setOpenDepartments] = useState<Record<string, boolean>>({});
+  const [boardDraggingTaskId, setBoardDraggingTaskId] = useState<string | null>(null);
+  const [calendarAnchor, setCalendarAnchor] = useState<Date>(() => new Date());
 
   // create task
   const [creating, setCreating] = useState(false);
@@ -1130,6 +1132,26 @@ export default function TasksShell() {
               >
                 A11y
               </button>
+              {me?.agentId === "vanderlei" && viewType === "board" ? (
+                <button
+                  type="button"
+                  onClick={() => setShowNewStatusForm(true)}
+                  className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                  title="Criar nova coluna do quadro"
+                >
+                  Nova coluna
+                </button>
+              ) : null}
+              {me?.agentId === "vanderlei" && viewType === "list" ? (
+                <button
+                  type="button"
+                  onClick={() => setShowNewDeptForm(true)}
+                  className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                  title="Criar novo departamento"
+                >
+                  Novo departamento
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => setShowCreateForm(true)}
@@ -1169,6 +1191,26 @@ export default function TasksShell() {
                     Acessibilidade
                   </button>
                 </div>
+              </div>
+
+              <div className="inline-flex rounded-2xl bg-black/10 ring-1 ring-white/10 p-1">
+                {[
+                  { id: "list" as const, label: "Lista" },
+                  { id: "board" as const, label: "Quadro" },
+                  { id: "calendar" as const, label: "Calendário" },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setViewType(item.id)}
+                    className={[
+                      "rounded-xl px-3 py-2 text-sm transition",
+                      viewType === item.id ? "bg-white/8 ring-1 ring-white/10" : "hover:bg-white/5",
+                    ].join(" ")}
+                  >
+                    {item.label}
+                  </button>
+                ))}
               </div>
 
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
@@ -1281,7 +1323,8 @@ export default function TasksShell() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-4">
+            {viewType === "list" ? (
+              <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-4">
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -1395,8 +1438,210 @@ export default function TasksShell() {
                   </div>
                 </div>
               </div>
-            </div>
+              </div>
+            ) : viewType === "board" ? (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                {(statusMeta.length ? statusMeta.map((x) => x.id) : (["to_do", "in_progress", "blocked", "done"] as TaskStatus[])).map((s) => {
+                  const columnTasks = visibleTasks.filter((t) => t.status === s).slice(0, 200);
+                  return (
+                    <div
+                      key={s}
+                      className={[
+                        "rounded-3xl ring-1 p-4 min-h-[220px] transition",
+                        boardDraggingTaskId
+                          ? "bg-[color-mix(in_srgb,var(--primary)_6%,transparent)] ring-[color-mix(in_srgb,var(--primary)_20%,var(--border))]"
+                          : "bg-white/5 ring-white/10",
+                      ].join(" ")}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const id = e.dataTransfer.getData("text/taskId") || boardDraggingTaskId;
+                        if (!id) return;
+                        const task = tasks.find((t) => t.id === id);
+                        if (!task || task.status === s) return;
+                        setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: s } : t)));
+                        void (async () => {
+                          try {
+                            await patchTask(id, { status: s });
+                            await refreshTask(id);
+                          } catch (err) {
+                            setToast(err instanceof Error ? err.message : "Falha ao mover tarefa");
+                            await loadTasks();
+                          }
+                        })();
+                        setBoardDraggingTaskId(null);
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold flex items-center gap-2">
+                          <span
+                            className="inline-block h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: statusMeta.find((x) => x.id === s)?.color ?? "#64748b" }}
+                          />
+                          {statusLabel(s, statusMeta)}
+                        </div>
+                        <div className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">{columnTasks.length}</div>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {columnTasks.map((t) => (
+                          <div
+                            key={t.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData("text/taskId", t.id);
+                              setBoardDraggingTaskId(t.id);
+                            }}
+                            onDragEnd={() => setBoardDraggingTaskId(null)}
+                            className={[
+                              "w-full text-left rounded-2xl bg-[color-mix(in_srgb,var(--background)_70%,black)] ring-1 ring-white/10 px-3 py-2 hover:bg-white/8 cursor-grab active:cursor-grabbing",
+                              t.id === selectedTaskId ? "ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]" : "",
+                            ].join(" ")}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedTaskId(t.id);
+                                setShowTaskModal(true);
+                              }}
+                              className="w-full text-left"
+                            >
+                              <div className="text-sm font-medium truncate">{t.title}</div>
+                              <div className="mt-1 text-xs text-[var(--muted)] truncate">
+                                {t.taskType ? `${t.taskType.name} • ` : ""}
+                                {t.client ? t.client.name : "Sem cliente"} • {priorityLabel(t.priority)}
+                                {t.assignee ? ` • ${t.assignee.name}` : ""}
+                                {t.dueAt ? ` • ${formatDateOnly(t.dueAt)}` : ""}
+                              </div>
+                            </button>
+                          </div>
+                        ))}
+                        {columnTasks.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem tarefas.</div> : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">Calendário</div>
+                    <div className="text-xs text-[var(--muted)]">Organize tarefas por prazo.</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCalendarAnchor(new Date())}
+                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                    >
+                      Hoje
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarAnchor((d) => addMonths(d, -1))}
+                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                    >
+                      ←
+                    </button>
+                    <div className="text-sm font-semibold min-w-[140px] text-center">
+                      {startOfMonth(calendarAnchor).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarAnchor((d) => addMonths(d, 1))}
+                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                    >
+                      →
+                    </button>
+                  </div>
+                </div>
 
+                {(() => {
+                  const monthStart = startOfMonth(calendarAnchor);
+                  const gridStart = new Date(monthStart.getTime());
+                  gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+                  const days: Date[] = [];
+                  for (let i = 0; i < 42; i += 1) {
+                    const d = new Date(gridStart.getTime());
+                    d.setDate(gridStart.getDate() + i);
+                    days.push(d);
+                  }
+                  const byDay = new Map<string, TaskListItem[]>();
+                  for (const t of visibleTasks) {
+                    const d = new Date(t.dueAt ?? t.createdAt);
+                    const key = dayKeyLocal(d);
+                    const prev = byDay.get(key) ?? [];
+                    prev.push(t);
+                    byDay.set(key, prev);
+                  }
+                  for (const [, list] of byDay) list.sort((a, b) => (a.priority > b.priority ? -1 : 1));
+                  const today = new Date();
+                  const dayNames = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+                  return (
+                    <div className="mt-4">
+                      <div className="grid grid-cols-7 gap-2 text-xs text-[var(--muted)] px-1">
+                        {dayNames.map((n) => (
+                          <div key={n} className="text-center uppercase tracking-wide">
+                            {n}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-2 grid grid-cols-7 gap-2">
+                        {days.map((d) => {
+                          const inMonth = d.getMonth() === monthStart.getMonth();
+                          const key = dayKeyLocal(d);
+                          const list = byDay.get(key) ?? [];
+                          const isToday = sameDay(d, today);
+                          return (
+                            <div
+                              key={key}
+                              className={[
+                                "rounded-3xl ring-1 p-2 min-h-[108px] overflow-hidden",
+                                inMonth ? "bg-white/5 ring-white/10" : "bg-white/3 ring-white/5 opacity-70",
+                                isToday ? "ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]" : "",
+                              ].join(" ")}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className={["text-xs font-semibold", isToday ? "text-white" : "text-[var(--muted)]"].join(" ")}>
+                                  {d.getDate()}
+                                </div>
+                                <div className="text-[10px] text-[var(--muted)]">{list.length ? list.length : ""}</div>
+                              </div>
+                              <div className="mt-2 space-y-1">
+                                {list.slice(0, 4).map((t) => (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedTaskId(t.id);
+                                      setShowTaskModal(true);
+                                    }}
+                                    className={[
+                                      "w-full text-left rounded-2xl px-2 py-1 text-xs ring-1 hover:bg-white/8",
+                                      t.id === selectedTaskId
+                                        ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
+                                        : "bg-white/5 ring-white/10",
+                                    ].join(" ")}
+                                  >
+                                    <div className="truncate">
+                                      <span className="text-[var(--muted)] mr-1">#{t.taskNumber}</span>
+                                      {t.title}
+                                    </div>
+                                  </button>
+                                ))}
+                                {list.length > 4 ? <div className="text-[10px] text-[var(--muted)] px-1">+{list.length - 4}…</div> : null}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
                 {showCreateForm ? (
                   <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
                     <div className="flex items-center justify-between gap-3">
