@@ -1570,7 +1570,7 @@ export default function TasksShell() {
                                   {task.assignee ? ` • ${task.assignee.name}` : ""}
                                 </div>
                               </div>
-                              <div className="shrink-0 text-sm font-semibold">{formatDateOnly(task.dueAt)}</div>
+                              <div className="shrink-0 text-sm font-semibold">{formatDateOnly(task.dueAt!)}</div>
                             </button>
                           ))
                         ) : (
