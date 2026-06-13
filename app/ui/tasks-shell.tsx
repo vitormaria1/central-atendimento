@@ -16,6 +16,7 @@ type StatusMeta = { id: string; name: string; color: string; sortOrder: number }
 type DepartmentMeta = { id: string; name: string; color: string; sortOrder: number };
 
 type ViewType = "list" | "board" | "calendar";
+type TimeRange = "all" | "7d" | "30d" | "90d" | "365d";
 type SavedView = { id: string; name: string; viewType: ViewType; department: Department | null; config: Record<string, unknown> };
 
 type TaskListItem = {
@@ -114,6 +115,19 @@ function isTaskDueToday(task: { dueAt: string | null; status: TaskStatus }) {
   return sameDay(due, new Date());
 }
 
+function taskMatchesTimeRange(task: { createdAt: string }, range: TimeRange) {
+  if (range === "all") return true;
+  const createdAt = new Date(task.createdAt);
+  if (Number.isNaN(createdAt.getTime())) return false;
+  const now = new Date();
+  const start = new Date(now.getTime());
+  if (range === "7d") start.setDate(now.getDate() - 7);
+  if (range === "30d") start.setDate(now.getDate() - 30);
+  if (range === "90d") start.setDate(now.getDate() - 90);
+  if (range === "365d") start.setFullYear(now.getFullYear() - 1);
+  return createdAt >= start && createdAt <= now;
+}
+
 function renderWithMentions(text: string) {
   const parts: Array<{ t: string; mention?: boolean }> = [];
   const re = /@([a-z0-9_]+)/gi;
@@ -195,6 +209,7 @@ export default function TasksShell() {
   const [department, setDepartment] = useState<DepartmentFilter>("all");
   const [status, setStatus] = useState<TaskStatus | "all">("all");
   const [assignee, setAssignee] = useState<"all" | "vanderlei" | "gustavo">("all");
+  const [timeRange, setTimeRange] = useState<TimeRange>("all");
   const [tasks, setTasks] = useState<TaskListItem[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
@@ -590,17 +605,20 @@ export default function TasksShell() {
       setAssignee(me?.agentId ?? "all");
       setStatus("all");
       setQ("");
+      setTimeRange("all");
     }
     if (id === "builtin:urgentes_hoje") {
       setAssignee(me?.agentId ?? "all");
       setStatus("all");
       setQ("");
+      setTimeRange("7d");
       // nothing else; backend will filter in UI by due date when rendering calendar/list
     }
     if (id === "builtin:atrasadas") {
       setAssignee(me?.agentId ?? "all");
       setStatus("all");
       setQ("");
+      setTimeRange("all");
     }
   }
 
@@ -898,6 +916,7 @@ export default function TasksShell() {
         q: q.trim() || null,
         status,
         assignee,
+        timeRange,
       };
       const res = await fetch("/api/task-views", {
         method: "POST",
@@ -957,7 +976,9 @@ export default function TasksShell() {
     return () => window.clearTimeout(t);
   }, [toast]);
 
-  const visibleTasks = department === "all" ? tasks : tasks.filter((task) => task.department === department);
+  const filteredByTimeTasks = tasks.filter((task) => taskMatchesTimeRange(task, timeRange));
+  const visibleTasks =
+    department === "all" ? filteredByTimeTasks : filteredByTimeTasks.filter((task) => task.department === department);
   const taskStats = {
     total: visibleTasks.length,
     open: visibleTasks.filter((task) => task.status !== "done").length,
@@ -977,7 +998,7 @@ export default function TasksShell() {
       ];
   const overviewDepartmentStats = sidebarDepartments
     .map((item) => {
-      const deptTasks = tasks.filter((task) => task.department === item.id);
+      const deptTasks = filteredByTimeTasks.filter((task) => task.department === item.id);
       return {
         id: item.id,
         label: item.name,
@@ -1076,8 +1097,9 @@ export default function TasksShell() {
             low: "#22c55e",
           } as Record<string, string>
         )[item.id] ?? "#64748b",
-    })),
+      })),
   );
+  const visibleTaskIdsKey = visibleTasks.map((task) => task.id).join(",");
 
   useEffect(() => {
     if (visibleTasks.length === 0) {
@@ -1088,7 +1110,7 @@ export default function TasksShell() {
       setSelectedTaskId(visibleTasks[0]!.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [department, q, status, assignee, visibleTasks.length, selectedTaskId]);
+  }, [department, q, status, assignee, timeRange, visibleTaskIdsKey, selectedTaskId]);
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -1161,14 +1183,14 @@ export default function TasksShell() {
                   <div className="mt-1 text-[11px] text-[var(--muted)]">Painel consolidado da operação</div>
                 </div>
                 <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] px-2 py-1 text-[10px] text-[var(--muted)]">
-                  {tasks.length}
+                  {filteredByTimeTasks.length}
                 </span>
               </div>
             </button>
 
             <div className="space-y-1.5">
               {sidebarDepartments.map((d) => {
-                const deptTasks = tasks.filter((task) => task.department === d.id);
+                const deptTasks = filteredByTimeTasks.filter((task) => task.department === d.id);
                 const deptCounts = {
                   total: deptTasks.length,
                   open: deptTasks.filter((task) => task.status !== "done").length,
@@ -1323,15 +1345,6 @@ export default function TasksShell() {
                     Leia a operação por volume, prazos e distribuição entre departamentos.
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={openAccessibilityPreferences}
-                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-sm hover:bg-[var(--surface-2)]"
-                  >
-                    Acessibilidade
-                  </button>
-                </div>
               </div>
 
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
@@ -1349,7 +1362,7 @@ export default function TasksShell() {
                 ))}
               </div>
 
-              <div className="grid gap-2 xl:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr]">
+              <div className="grid gap-2 xl:grid-cols-[1.35fr_0.8fr_0.8fr_0.8fr_0.8fr]">
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
@@ -1385,6 +1398,17 @@ export default function TasksShell() {
                   <option value="vanderlei">Vanderlei</option>
                   <option value="gustavo">Gustavo</option>
                 </select>
+                <select
+                  value={timeRange}
+                  onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm outline-none"
+                >
+                  <option value="all">Período</option>
+                  <option value="7d">7 dias</option>
+                  <option value="30d">30 dias</option>
+                  <option value="90d">3 meses</option>
+                  <option value="365d">12 meses</option>
+                </select>
                 <button
                   type="button"
                   onClick={() => void loadTasks()}
@@ -1410,9 +1434,11 @@ export default function TasksShell() {
                     const cfgQ = typeof cfg.q === "string" ? cfg.q : "";
                     const cfgStatus = (cfg.status as TaskStatus | "all") ?? "all";
                     const cfgAssignee = (cfg.assignee as typeof assignee) ?? "all";
+                    const cfgTimeRange = (cfg.timeRange as TimeRange | undefined) ?? "all";
                     setQ(cfgQ);
                     setStatus(cfgStatus);
                     setAssignee(cfgAssignee);
+                    setTimeRange(cfgTimeRange);
                   }}
                   className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm outline-none"
                 >
@@ -1479,6 +1505,17 @@ export default function TasksShell() {
                   <option value="all">Responsável</option>
                   <option value="vanderlei">Vanderlei</option>
                   <option value="gustavo">Gustavo</option>
+                </select>
+                <select
+                  value={timeRange}
+                  onChange={(e) => setTimeRange(e.target.value as TimeRange)}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm outline-none"
+                >
+                  <option value="all">Período</option>
+                  <option value="7d">7 dias</option>
+                  <option value="30d">30 dias</option>
+                  <option value="90d">3 meses</option>
+                  <option value="365d">12 meses</option>
                 </select>
                 <button
                   type="button"
@@ -2044,6 +2081,17 @@ export default function TasksShell() {
                 })()}
               </div>
             )}
+
+            {department === "all" ? (
+              <button
+                type="button"
+                onClick={openAccessibilityPreferences}
+                className="fixed bottom-14 left-3 z-40 inline-flex h-10 items-center rounded-2xl border border-[var(--border)] bg-[var(--card)]/92 px-3 text-xs font-medium backdrop-blur hover:bg-[color-mix(in_srgb,var(--card)_96%,white)]"
+                title="Acessibilidade"
+              >
+                A11y
+              </button>
+            ) : null}
 
             {showCreateForm ? (
               <div
