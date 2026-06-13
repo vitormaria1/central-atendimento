@@ -147,6 +147,15 @@ function renderWithMentions(text: string) {
   );
 }
 
+function departmentTone(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash * 33 + id.charCodeAt(i)) >>> 0;
+  }
+  const hue = hash % 360;
+  return `hsl(${hue} 55% 60%)`;
+}
+
 export default function TasksShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
@@ -588,7 +597,7 @@ export default function TasksShell() {
       setDepartmentMeta(items);
       setOpenDepartments((prev) => {
         const next = { ...prev };
-        for (const d of items) if (next[d.id] === undefined) next[d.id] = true;
+        for (const d of items) if (next[d.id] === undefined) next[d.id] = false;
         return next;
       });
       setDepartment((prev) => {
@@ -932,6 +941,15 @@ export default function TasksShell() {
     .slice()
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     .slice(0, 6);
+  const sidebarDepartments = departmentMeta.length
+    ? departmentMeta
+    : [
+        { id: "fiscal", name: "Fiscal" },
+        { id: "contabil", name: "Contábil" },
+        { id: "pessoal", name: "Pessoal" },
+        { id: "societario_paralegal", name: "Societário/Paralegal" },
+        { id: "administrativo", name: "Administrativo" },
+      ];
 
   useEffect(() => {
     if (visibleTasks.length === 0) {
@@ -981,94 +999,116 @@ export default function TasksShell() {
             </div>
           </div>
 
-          <div className="p-4 space-y-3 border-b border-[var(--border)]">
-            <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold">Espaços</div>
-                  <div className="text-xs text-[var(--muted)]">Navegue por departamento.</div>
+          <div className="p-4 border-b border-[var(--border)]">
+            <div className="rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--background)_78%,white)_0%,color-mix(in_srgb,var(--background)_90%,black)_100%)] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-[0.26em] text-[var(--muted)]">Workspace</div>
+                  <div className="mt-1 text-base font-semibold leading-tight">Gestão de Tarefas</div>
+                  <div className="mt-1 text-xs text-[var(--muted)]">Acompanhe departamentos, prioridades e prazos.</div>
                 </div>
                 <button
                   type="button"
                   onClick={openAccessibilityPreferences}
-                  className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs hover:bg-white/8"
+                  className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-xs text-[var(--foreground)] hover:bg-white/8"
                 >
                   A11y
                 </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {[
+                  { label: "Total", value: tasks.length },
+                  { label: "Hoje", value: taskStats.today },
+                  { label: "Atraso", value: taskStats.overdue },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-white/8 bg-white/4 px-3 py-2">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">{item.label}</div>
+                    <div className="mt-1 text-sm font-semibold">{item.value}</div>
+                  </div>
+                ))}
               </div>
 
               <button
                 type="button"
                 onClick={() => setDepartment("all")}
                 className={[
-                  "w-full rounded-2xl px-3 py-2.5 text-left ring-1 transition",
+                  "mt-3 w-full rounded-2xl border px-3 py-3 text-left transition",
                   department === "all"
-                    ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
-                    : "bg-white/5 ring-white/10 hover:bg-white/8",
+                    ? "border-[color-mix(in_srgb,var(--primary)_35%,white)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
+                    : "border-white/8 bg-white/4 hover:bg-white/6",
                 ].join(" ")}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">Visão geral</span>
-                  <span className="text-xs text-[var(--muted)]">{tasks.length}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">Visão geral</div>
+                    <div className="mt-1 text-[11px] text-[var(--muted)]">Tudo em uma única lista</div>
+                  </div>
+                  <span className="rounded-full border border-white/8 bg-black/10 px-2 py-1 text-[10px] text-[var(--muted)]">
+                    {tasks.length}
+                  </span>
                 </div>
-                <div className="mt-1 text-[11px] text-[var(--muted)]">Resumo do workspace</div>
               </button>
+            </div>
+          </div>
 
-              <div className="space-y-2">
-                {(departmentMeta.length
-                  ? departmentMeta
-                  : [
-                      { id: "fiscal", name: "Fiscal" },
-                      { id: "contabil", name: "Contábil" },
-                      { id: "pessoal", name: "Pessoal" },
-                      { id: "societario_paralegal", name: "Societário/Paralegal" },
-                      { id: "administrativo", name: "Administrativo" },
-                    ]
-                ).map((d) => {
-                  const deptTasks = tasks.filter((task) => task.department === d.id);
-                  const deptCounts = {
-                    total: deptTasks.length,
-                    open: deptTasks.filter((task) => task.status !== "done").length,
-                    overdue: deptTasks.filter((task) => isTaskOverdue(task)).length,
-                  };
-                  const active = department === d.id;
-                  const expanded = openDepartments[d.id] ?? true;
-                  return (
-                    <div
-                      key={d.id}
-                      className={[
-                        "rounded-2xl overflow-hidden ring-1 transition",
-                        active
-                          ? "bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] ring-[color-mix(in_srgb,var(--primary)_28%,transparent)]"
-                          : "bg-white/4 ring-white/10",
-                      ].join(" ")}
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+            <div className="mb-2 flex items-center justify-between px-2">
+              <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">Departamentos</div>
+              <div className="text-[11px] text-[var(--muted)]">{sidebarDepartments.length} pastas</div>
+            </div>
+
+            <div className="space-y-1.5">
+              {sidebarDepartments.map((d) => {
+                const deptTasks = tasks.filter((task) => task.department === d.id);
+                const deptCounts = {
+                  total: deptTasks.length,
+                  open: deptTasks.filter((task) => task.status !== "done").length,
+                  overdue: deptTasks.filter((task) => isTaskOverdue(task)).length,
+                };
+                const active = department === d.id;
+                const expanded = openDepartments[d.id] ?? false;
+                const tone = departmentTone(d.id);
+
+                return (
+                  <div
+                    key={d.id}
+                    className={[
+                      "rounded-3xl border transition",
+                      active
+                        ? "border-[color-mix(in_srgb,var(--primary)_28%,white)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
+                        : "border-white/8 bg-white/[0.03] hover:bg-white/[0.05]",
+                    ].join(" ")}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDepartment(d.id);
+                        setOpenDepartments((prev) => ({ ...prev, [d.id]: !expanded }));
+                      }}
+                      className="group flex w-full items-center gap-3 px-3 py-3 text-left"
                     >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDepartment(d.id);
-                          setOpenDepartments((prev) => ({ ...prev, [d.id]: !expanded }));
-                        }}
-                        className="w-full px-3 py-2.5 text-left hover:bg-white/5 transition"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium truncate">{d.name}</span>
-                              {active ? <span className="h-2 w-2 rounded-full bg-[var(--primary)]" /> : null}
-                            </div>
-                            <div className="mt-1 text-[11px] text-[var(--muted)]">
-                              {deptCounts.open} abertas • {deptCounts.overdue} atrasadas
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-[var(--muted)] shrink-0">
-                            <span>{deptCounts.total}</span>
-                            <span>{expanded ? "▾" : "▸"}</span>
-                          </div>
-                        </div>
-                      </button>
-                      {expanded ? (
-                        <div className="border-t border-white/8 p-2 space-y-1.5">
+                      <span
+                        className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-black/20"
+                        style={{ backgroundColor: active ? "var(--primary)" : tone }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-sm font-medium">{d.name}</span>
+                          {active ? <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]" /> : null}
+                        </span>
+                        <span className="mt-1 block text-[11px] text-[var(--muted)]">
+                          {deptCounts.open} abertas · {deptCounts.overdue} atrasadas
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2 text-[11px] text-[var(--muted)]">
+                        <span className="rounded-full border border-white/8 bg-black/10 px-2 py-1">{deptCounts.total}</span>
+                        <span className="transition group-hover:text-[var(--foreground)]">{expanded ? "▾" : "▸"}</span>
+                      </span>
+                    </button>
+                    {expanded ? (
+                      <div className="border-t border-white/8 px-3 py-2">
+                        <div className="ml-3 border-l border-white/8 pl-3 space-y-1.5">
                           {[
                             { label: "Todas", status: "all" as const, count: deptCounts.total },
                             { label: "A fazer", status: "to_do" as const, count: deptTasks.filter((task) => task.status === "to_do").length },
@@ -1083,23 +1123,20 @@ export default function TasksShell() {
                                 setDepartment(d.id);
                                 setStatus(item.status);
                               }}
-                              className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left text-[11px] text-[var(--muted)] hover:bg-white/6"
+                              className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-[11px] text-[var(--muted)] transition hover:bg-white/6 hover:text-[var(--foreground)]"
                             >
                               <span>{item.label}</span>
-                              <span>{item.count}</span>
+                              <span className="rounded-full border border-white/8 bg-black/10 px-2 py-0.5">{item.count}</span>
                             </button>
                           ))}
                         </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
-
           </div>
-
-          <div className="flex-1" />
         </aside>
 
         <main className="flex-1 flex flex-col min-w-0">

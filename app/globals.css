@@ -1,17 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0b1220;
-  --foreground: #e8eefc;
-  --card: #0f1a2f;
-  --muted: #8aa0c7;
-  --border: rgba(255, 255, 255, 0.10);
-  --primary: #434cf1;
+  --background: #f4f6fb;
+  --foreground: #111827;
+  --card: #ffffff;
+  --muted: #5b6478;
+  --border: rgba(15, 23, 42, 0.10);
+  --primary: #2342f4;
   --primary-foreground: #ffffff;
-  --accent: #16c2a5; /* teal */
+  --accent: #0f9a83;
   --accent-foreground: #041512;
-  --warning: #f59e0b; /* amber */
+  --warning: #d97706;
   --warning-foreground: #140a00;
+  --page-background:
+    radial-gradient(circle at top left, rgba(35, 66, 244, 0.06), transparent 28%),
+    radial-gradient(circle at top right, rgba(15, 154, 131, 0.06), transparent 24%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
 }
 
 @theme inline {
@@ -21,18 +25,40 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b1220;
-    --foreground: #e8eefc;
-  }
+html[data-theme="night"] {
+  color-scheme: dark;
+  --background: #0b1220;
+  --foreground: #e8eefc;
+  --card: #101c33;
+  --muted: #8b9fc3;
+  --border: rgba(255, 255, 255, 0.10);
+  --primary: #5b72ff;
+  --primary-foreground: #ffffff;
+  --accent: #18c8a8;
+  --accent-foreground: #041512;
+  --warning: #f59e0b;
+  --warning-foreground: #140a00;
+  --page-background:
+    radial-gradient(circle at top left, rgba(91, 114, 255, 0.16), transparent 26%),
+    radial-gradient(circle at top right, rgba(24, 200, 168, 0.10), transparent 20%),
+    linear-gradient(180deg, #0b1220 0%, #0b1220 55%, #0f172a 100%);
+}
+
+html[data-theme="day"] {
+  color-scheme: light;
+}
+
+html {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
+  background: var(--page-background);
+  background-attachment: fixed;
   color: var(--foreground);
-  font-size: calc(16px * var(--font-scale, 1));
-  line-height: 1.35;
+  font-size: calc(17px * var(--font-scale, 1));
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
 }
 
 /* A11y preferences via <html data-*> */
@@ -45,8 +71,8 @@ html[data-font-scale="1.2"] {
 }
 
 html[data-high-contrast="1"] {
-  --muted: #b9c7e7;
-  --border: rgba(255, 255, 255, 0.18);
+  --muted: color-mix(in srgb, var(--foreground) 58%, var(--background));
+  --border: color-mix(in srgb, var(--foreground) 22%, var(--background));
 }
 
 html[data-reduce-motion="1"] {
@@ -67,7 +93,7 @@ html[data-reduce-motion="1"] {
   z-index: 50;
   padding: 10px 12px;
   border-radius: 14px;
-  background: color-mix(in srgb, var(--background) 70%, black);
+  background: color-mix(in srgb, var(--card) 80%, var(--background));
   color: var(--foreground);
   border: 1px solid var(--border);
   transform: translateY(-200%);
