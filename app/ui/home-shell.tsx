@@ -12,10 +12,10 @@ type AiMsgWithFiles = AiMsg & { files?: AiFile[]; attachments?: Array<{ name: st
 
 function itemClass(disabled: boolean) {
   return [
-    "w-full rounded-2xl px-4 py-3 text-left ring-1 transition",
+    "w-full rounded-2xl px-4 py-3 text-left border transition",
     disabled
-      ? "bg-white/3 ring-white/10 opacity-60 cursor-not-allowed"
-      : "bg-white/5 ring-white/10 hover:bg-white/8",
+      ? "border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] opacity-70 cursor-not-allowed"
+      : "border-[var(--border)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)]",
   ].join(" ");
 }
 
@@ -203,10 +203,10 @@ export default function HomeShell() {
         {aiAnnounce}
       </div>
       <div className="flex h-screen">
-        <aside className="w-[360px] shrink-0 border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_80%,black)]">
+        <aside className="w-[360px] shrink-0 border-r border-[var(--border)] bg-[var(--surface-1)]">
           <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--border)]">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 flex items-center justify-center">
+              <div className="h-10 w-10 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/logo-mark.png" alt="Logo" className="h-7 w-7" />
               </div>
@@ -221,7 +221,7 @@ export default function HomeShell() {
             <button
               type="button"
               onClick={() => void logout()}
-              className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+              className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-xs hover:bg-[var(--surface-2)]"
             >
               Sair
             </button>
@@ -272,7 +272,7 @@ export default function HomeShell() {
                 <button className={itemClass(true)} disabled>
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-medium">Instagram</div>
-                    <div className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">
+                    <div className="text-[10px] rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-2 py-1">
                       Bloqueado
                     </div>
                   </div>
@@ -281,7 +281,7 @@ export default function HomeShell() {
                 <button className={itemClass(true)} disabled>
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-medium">E-mail</div>
-                    <div className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">
+                    <div className="text-[10px] rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-2 py-1">
                       Bloqueado
                     </div>
                   </div>
