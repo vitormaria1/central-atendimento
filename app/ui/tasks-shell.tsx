@@ -1186,7 +1186,19 @@ export default function TasksShell() {
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
             <div className="mb-3 flex items-center justify-between rounded-2xl border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_88%,var(--background))] px-3 py-2">
               <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">Departamentos</div>
-              <div className="text-[11px] text-[var(--muted)]">{sidebarDepartments.length} pastas</div>
+              <div className="flex items-center gap-2">
+                <div className="text-[11px] text-[var(--muted)]">{sidebarDepartments.length} pastas</div>
+                {me?.agentId === "vanderlei" ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowNewDeptForm(true)}
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-2.5 py-1.5 text-[11px] hover:bg-[var(--surface-2)]"
+                    title="Criar novo departamento"
+                  >
+                    + Pasta
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             <div className="space-y-1.5">
@@ -1286,27 +1298,29 @@ export default function TasksShell() {
             <div className="flex-1" />
 
             <div className="flex items-center gap-2 justify-end">
-              <div className="inline-flex rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
-                {[
-                  { id: "list" as const, label: "Lista" },
-                  { id: "board" as const, label: "Quadro" },
-                  { id: "calendar" as const, label: "Calendário" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setViewType(item.id)}
-                    className={[
-                      "rounded-xl px-3 py-2 text-xs transition",
-                      viewType === item.id
-                        ? "border border-[var(--border)] bg-[var(--surface-1)]"
-                        : "hover:bg-[var(--surface-1)]",
-                    ].join(" ")}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+              {selectedDepartment ? (
+                <div className="inline-flex rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
+                  {[
+                    { id: "list" as const, label: "Lista" },
+                    { id: "board" as const, label: "Quadro" },
+                    { id: "calendar" as const, label: "Calendário" },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setViewType(item.id)}
+                      className={[
+                        "rounded-xl px-3 py-2 text-xs transition",
+                        viewType === item.id
+                          ? "border border-[var(--border)] bg-[var(--surface-1)]"
+                          : "hover:bg-[var(--surface-1)]",
+                      ].join(" ")}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <button
                 type="button"
                 onClick={goBack}
@@ -1321,7 +1335,7 @@ export default function TasksShell() {
               >
                 A11y
               </button>
-              {me?.agentId === "vanderlei" && viewType === "board" ? (
+              {me?.agentId === "vanderlei" && selectedDepartment && viewType === "board" ? (
                 <button
                   type="button"
                   onClick={() => setShowNewStatusForm(true)}
@@ -1329,16 +1343,6 @@ export default function TasksShell() {
                   title="Criar nova coluna do quadro"
                 >
                   Nova coluna
-                </button>
-              ) : null}
-              {me?.agentId === "vanderlei" && viewType === "list" ? (
-                <button
-                  type="button"
-                  onClick={() => setShowNewDeptForm(true)}
-                  className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-                  title="Criar novo departamento"
-                >
-                  Novo departamento
                 </button>
               ) : null}
               <button
@@ -1678,11 +1682,11 @@ export default function TasksShell() {
 
                   <div className="space-y-4">
                     <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
-                      <div className="grid gap-4 xl:grid-cols-2">
+                      <div className="grid gap-4">
                         <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-2)] p-4">
                           <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Status</div>
                           <div className="mt-1 text-base font-semibold">Pizza operacional</div>
-                          <div className="mt-4 flex items-center gap-4">
+                          <div className="mt-4 flex flex-col items-center gap-4">
                             <div
                               className="relative h-36 w-36 shrink-0 rounded-full"
                               style={{ background: statusDonut }}
@@ -1693,12 +1697,15 @@ export default function TasksShell() {
                                 <div className="mt-1 text-2xl font-semibold">{taskStats.total}</div>
                               </div>
                             </div>
-                            <div className="min-w-0 flex-1 space-y-2">
+                            <div className="grid w-full gap-2 sm:grid-cols-2">
                               {overviewStatusStats.map((item) => (
-                                <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
-                                  <span className="flex items-center gap-2">
+                                <div
+                                  key={item.id}
+                                  className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm"
+                                >
+                                  <span className="flex min-w-0 items-center gap-2">
                                     <span
-                                      className="inline-block h-2.5 w-2.5 rounded-full"
+                                      className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
                                       style={{
                                         backgroundColor:
                                           statusMeta.find((statusItem) => statusItem.id === item.id)?.color ??
@@ -1713,7 +1720,7 @@ export default function TasksShell() {
                                           "#64748b",
                                       }}
                                     />
-                                    {item.label}
+                                    <span className="truncate">{item.label}</span>
                                   </span>
                                   <span className="font-semibold">{item.value}</span>
                                 </div>
@@ -1725,7 +1732,7 @@ export default function TasksShell() {
                         <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-2)] p-4">
                           <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Prioridade</div>
                           <div className="mt-1 text-base font-semibold">Pizza de pressão</div>
-                          <div className="mt-4 flex items-center gap-4">
+                          <div className="mt-4 flex flex-col items-center gap-4">
                             <div
                               className="relative h-36 w-36 shrink-0 rounded-full"
                               style={{ background: priorityDonut }}
@@ -1736,10 +1743,13 @@ export default function TasksShell() {
                                 <div className="mt-1 text-2xl font-semibold">{overviewPriorityStats[0]?.value ?? 0}</div>
                               </div>
                             </div>
-                            <div className="min-w-0 flex-1 space-y-2">
+                            <div className="grid w-full gap-2 sm:grid-cols-2">
                               {overviewPriorityStats.map((item) => (
-                                <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
-                                  <span>{item.label}</span>
+                                <div
+                                  key={item.id}
+                                  className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm"
+                                >
+                                  <span className="truncate">{item.label}</span>
                                   <span className="font-semibold">{item.value}</span>
                                 </div>
                               ))}
