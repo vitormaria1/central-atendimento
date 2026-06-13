@@ -77,15 +77,13 @@ export default function ThemePreferences() {
     <button
       type="button"
       onClick={() => setMode((current) => cycleMode(current))}
-      className="fixed bottom-4 left-4 z-50 rounded-2xl border border-[var(--border)] bg-[var(--card)]/90 px-4 py-3 text-left shadow-lg shadow-black/10 backdrop-blur transition hover:bg-[color-mix(in_srgb,var(--card)_92%,white)]"
+      className="fixed bottom-3 left-3 z-50 inline-flex h-10 items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card)]/92 px-3 text-xs font-medium shadow-lg shadow-black/10 backdrop-blur transition hover:bg-[color-mix(in_srgb,var(--card)_96%,white)]"
       aria-label="Alternar tema"
       title="Tema"
     >
-      <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Tema</div>
-      <div className="mt-0.5 text-sm font-semibold leading-tight">{label}</div>
-      <div className="mt-0.5 text-[11px] text-[var(--muted)]">
-        {resolved === "day" ? "Modo claro" : "Modo escuro"}
-      </div>
+      <span className="text-[var(--muted)]">Tema</span>
+      <span className="font-semibold">{label}</span>
+      <span className="text-[10px] text-[var(--muted)]">{resolved === "day" ? "claro" : "escuro"}</span>
     </button>
   );
 }

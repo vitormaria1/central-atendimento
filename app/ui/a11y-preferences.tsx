@@ -70,11 +70,11 @@ export default function A11yPreferences() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-20 left-4 z-50 rounded-2xl border border-[var(--border)] bg-[var(--card)]/90 px-4 py-3 text-sm backdrop-blur hover:bg-[color-mix(in_srgb,var(--card)_92%,white)]"
+        className="fixed bottom-14 left-3 z-50 inline-flex h-10 items-center rounded-2xl border border-[var(--border)] bg-[var(--card)]/92 px-3 text-xs font-medium backdrop-blur hover:bg-[color-mix(in_srgb,var(--card)_96%,white)]"
         aria-label="Abrir preferências de acessibilidade"
         title="Acessibilidade (Alt+A)"
       >
-        Acessibilidade
+        A11y
       </button>
 
       {open ? (
