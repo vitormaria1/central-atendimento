@@ -1127,62 +1127,6 @@ export default function TasksShell() {
             </div>
           </div>
 
-          <div className="p-4 border-b border-[var(--border)]">
-            <div className="rounded-[28px] border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--card)_96%,var(--background))_0%,color-mix(in_srgb,var(--card)_88%,var(--background))_100%)] p-4 shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-[10px] uppercase tracking-[0.26em] text-[var(--muted)]">Workspace</div>
-                  <div className="mt-1 text-base font-semibold leading-tight">Gestão de Tarefas</div>
-                  <div className="mt-1 text-xs text-[var(--muted)]">Acompanhe departamentos, prioridades e prazos.</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={openAccessibilityPreferences}
-                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-xs text-[var(--foreground)] hover:bg-[var(--surface-2)]"
-                >
-                  A11y
-                </button>
-              </div>
-
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {[
-                  { label: "Total", value: tasks.length },
-                  { label: "Hoje", value: taskStats.today },
-                  { label: "Atraso", value: taskStats.overdue },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-2xl border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_90%,var(--background))] px-3 py-2"
-                  >
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">{item.label}</div>
-                    <div className="mt-1 text-sm font-semibold">{item.value}</div>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setDepartment("all")}
-                className={[
-                  "mt-3 w-full rounded-2xl border px-3 py-3 text-left transition",
-                  department === "all"
-                    ? "border-[color-mix(in_srgb,var(--primary)_35%,white)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
-                    : "border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_88%,var(--background))] hover:bg-[color-mix(in_srgb,var(--card)_96%,var(--background))]",
-                ].join(" ")}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium">Visão geral</div>
-                    <div className="mt-1 text-[11px] text-[var(--muted)]">Tudo em uma única lista</div>
-                  </div>
-                  <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] px-2 py-1 text-[10px] text-[var(--muted)]">
-                    {tasks.length}
-                  </span>
-                </div>
-              </button>
-            </div>
-          </div>
-
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
             <div className="mb-3 flex items-center justify-between rounded-2xl border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_88%,var(--background))] px-3 py-2">
               <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">Departamentos</div>
@@ -1200,6 +1144,27 @@ export default function TasksShell() {
                 ) : null}
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setDepartment("all")}
+              className={[
+                "mb-3 w-full rounded-3xl border px-3 py-3 text-left transition",
+                department === "all"
+                  ? "border-[color-mix(in_srgb,var(--primary)_35%,white)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
+                  : "border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_88%,var(--background))] hover:bg-[color-mix(in_srgb,var(--card)_96%,var(--background))]",
+              ].join(" ")}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">Visão geral</div>
+                  <div className="mt-1 text-[11px] text-[var(--muted)]">Painel consolidado da operação</div>
+                </div>
+                <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] px-2 py-1 text-[10px] text-[var(--muted)]">
+                  {tasks.length}
+                </span>
+              </div>
+            </button>
 
             <div className="space-y-1.5">
               {sidebarDepartments.map((d) => {
@@ -1328,13 +1293,6 @@ export default function TasksShell() {
               >
                 ← Voltar
               </button>
-              <button
-                type="button"
-                onClick={openAccessibilityPreferences}
-                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-              >
-                A11y
-              </button>
               {me?.agentId === "vanderlei" && selectedDepartment && viewType === "board" ? (
                 <button
                   type="button"
@@ -1366,13 +1324,6 @@ export default function TasksShell() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateForm(true)}
-                    className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white"
-                  >
-                    Nova tarefa
-                  </button>
                   <button
                     type="button"
                     onClick={openAccessibilityPreferences}
@@ -1685,7 +1636,7 @@ export default function TasksShell() {
                       <div className="grid gap-4">
                         <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-2)] p-4">
                           <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Status</div>
-                          <div className="mt-1 text-base font-semibold">Pizza operacional</div>
+                          <div className="mt-1 text-base font-semibold">Distribuição operacional</div>
                           <div className="mt-4 flex flex-col items-center gap-4">
                             <div
                               className="relative h-36 w-36 shrink-0 rounded-full"
@@ -1731,7 +1682,7 @@ export default function TasksShell() {
 
                         <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-2)] p-4">
                           <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Prioridade</div>
-                          <div className="mt-1 text-base font-semibold">Pizza de pressão</div>
+                          <div className="mt-1 text-base font-semibold">Distribuição de prioridade</div>
                           <div className="mt-4 flex flex-col items-center gap-4">
                             <div
                               className="relative h-36 w-36 shrink-0 rounded-full"
