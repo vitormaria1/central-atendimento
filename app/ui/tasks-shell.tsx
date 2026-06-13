@@ -1129,8 +1129,9 @@ export default function TasksShell() {
       if (!res.ok || !data?.id) throw new Error(data?.error ?? "Falha ao criar subtarefa");
       setNewSubtaskTitle("");
       await refreshTask(parent.id);
-      setSelectedTaskId(data.id);
+      setSelectedTaskId(parent.id);
       setShowTaskModal(true);
+      setToast("Subtarefa criada");
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Falha ao criar subtarefa");
     } finally {
