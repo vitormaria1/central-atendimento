@@ -493,6 +493,61 @@ export default function TasksShell() {
               </div>
             </div>
           </div>
+
+          <div className="mt-10 border-t border-[var(--border)] pt-8">
+            <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+              <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-2)] p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-2xl font-semibold">Subtarefas</div>
+                    <div className="mt-1 text-sm text-[var(--muted)]">
+                      Área preparada para subtarefas persistentes assim que o vínculo pai-filho existir no backend.
+                    </div>
+                  </div>
+                  <div className="rounded-full border border-dashed border-[var(--border)] px-3 py-1 text-xs text-[var(--muted)]">
+                    Em preparação
+                  </div>
+                </div>
+                <div className="mt-5 rounded-[24px] border border-dashed border-[var(--border)] bg-[var(--surface-1)] px-5 py-6 text-sm text-[var(--muted)]">
+                  Hoje a base de dados não tem relação nativa de subtarefa. Preferi não salvar isso em descrição, tag ou comentário para não corromper a estrutura atual.
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-2)] p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-2xl font-semibold">Anexos</div>
+                    <div className="mt-1 text-sm text-[var(--muted)]">Envie e consulte arquivos sem sair da leitura da tarefa.</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-sm hover:bg-[var(--surface-2)]"
+                  >
+                    Enviar arquivo
+                  </button>
+                </div>
+                <div className="mt-5 space-y-2">
+                  {attachments.length > 0 ? (
+                    attachments.map((a) => (
+                      <a
+                        key={a.id}
+                        href={`/api/tasks/attachments/download?id=${encodeURIComponent(a.id)}`}
+                        className="flex items-center justify-between gap-3 rounded-[22px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm hover:bg-[var(--surface-2)]"
+                      >
+                        <span className="min-w-0 truncate">{a.filename}</span>
+                        <span className="shrink-0 text-xs text-[var(--muted)]">{formatTime(a.createdAt)}</span>
+                      </a>
+                    ))
+                  ) : (
+                    <div className="rounded-[22px] border border-dashed border-[var(--border)] bg-[var(--surface-1)] px-4 py-6 text-sm text-[var(--muted)]">
+                      Sem anexos nesta tarefa.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <aside className="border-t border-[var(--border)] bg-[var(--surface-2)] xl:border-l xl:border-t-0">
@@ -511,50 +566,26 @@ export default function TasksShell() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold">Arquivos</div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files ?? []);
-                      if (files.length === 0) return;
-                      void (async () => {
-                        try {
-                          await uploadAttachments(details.id, files.slice(0, 5));
-                          await refreshTask(details.id);
-                        } catch (err) {
-                          setToast(err instanceof Error ? err.message : "Falha ao enviar arquivo");
-                        } finally {
-                          if (fileInputRef.current) fileInputRef.current.value = "";
-                        }
-                      })();
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs hover:bg-[var(--surface-1)]"
-                  >
-                    Enviar
-                  </button>
-                </div>
-                <div className="mt-3 space-y-2">
-                  {attachments.map((a) => (
-                    <a
-                      key={a.id}
-                      href={`/api/tasks/attachments/download?id=${encodeURIComponent(a.id)}`}
-                      className="block rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3 text-sm hover:bg-[var(--surface-1)]"
-                    >
-                      {a.filename}
-                    </a>
-                  ))}
-                  {attachments.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem anexos.</div> : null}
-                </div>
-              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length === 0) return;
+                  void (async () => {
+                    try {
+                      await uploadAttachments(details.id, files.slice(0, 5));
+                      await refreshTask(details.id);
+                    } catch (err) {
+                      setToast(err instanceof Error ? err.message : "Falha ao enviar arquivo");
+                    } finally {
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }
+                  })();
+                }}
+              />
 
               <div className="space-y-3">
                 {comments.map((c) => (
@@ -2317,14 +2348,14 @@ export default function TasksShell() {
 
             {showTaskModal ? (
               <div
-                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm"
+                className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 md:p-6 bg-black/55 backdrop-blur-sm"
                 role="dialog"
                 aria-modal="true"
                 onMouseDown={(e) => {
                   if (e.target === e.currentTarget) setShowTaskModal(false);
                 }}
               >
-                <div className="w-full max-w-[92vw] xl:max-w-[1500px] max-h-[90vh] overflow-hidden rounded-[36px] bg-[color-mix(in_srgb,var(--background)_95%,black)] ring-1 ring-white/10 p-5">
+                <div className="my-4 w-full max-w-[92vw] xl:max-w-[1500px] max-h-none overflow-visible rounded-[36px] bg-[color-mix(in_srgb,var(--background)_95%,black)] ring-1 ring-white/10 p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-semibold">Editar tarefa</div>
                     <button
