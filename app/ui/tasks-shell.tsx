@@ -1467,9 +1467,17 @@ export default function TasksShell() {
               </div>
 
               <div className="space-y-4">
-                <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-                  <div className="text-sm font-semibold">Atividade recente</div>
-                  <div className="mt-4 space-y-2">
+                <div className="rounded-[30px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
+                  <div className="flex items-center justify-between gap-3 rounded-[22px] border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Timeline</div>
+                      <div className="mt-1 text-sm font-semibold">Atividade recente</div>
+                    </div>
+                    <div className="rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-2 py-1 text-[10px] text-[var(--muted)]">
+                      {recentDepartmentTasks.length}
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-3">
                     {recentDepartmentTasks.map((t) => (
                       <button
                         key={t.id}
@@ -1478,21 +1486,27 @@ export default function TasksShell() {
                           setSelectedTaskId(t.id);
                           setShowTaskModal(true);
                         }}
-                        className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-3 text-left hover:bg-white/8"
+                        className="w-full rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-left transition hover:bg-[var(--surface-2)]"
                       >
-                        <div className="text-sm font-medium truncate">{t.title}</div>
-                        <div className="mt-1 text-xs text-[var(--muted)] truncate">
-                          {statusLabel(t.status, statusMeta)} • {formatTime(t.updatedAt)}
+                        <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
+                          {statusLabel(t.status, statusMeta)}
+                        </div>
+                        <div className="mt-1 text-sm font-medium truncate">{t.title}</div>
+                        <div className="mt-2 flex items-center justify-between gap-3 text-xs text-[var(--muted)]">
+                          <span className="truncate">{t.assignee ? t.assignee.name : "Sem responsável"}</span>
+                          <span className="shrink-0">{formatTime(t.updatedAt)}</span>
                         </div>
                       </button>
                     ))}
                     {recentDepartmentTasks.length === 0 ? (
-                      <div className="text-sm text-[var(--muted)]">Sem atividade recente.</div>
+                      <div className="rounded-[24px] border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-5 text-sm text-[var(--muted)]">
+                        Sem atividade recente.
+                      </div>
                     ) : null}
                   </div>
                 </div>
 
-                <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
+                <div className="rounded-[30px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
                   <div className="text-sm font-semibold">Detalhes rápidos</div>
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     {[
@@ -1501,7 +1515,7 @@ export default function TasksShell() {
                       { label: "Bloqueadas", value: visibleTasks.filter((task) => task.status === "blocked").length },
                       { label: "Concluídas", value: visibleTasks.filter((task) => task.status === "done").length },
                     ].map((item) => (
-                      <div key={item.label} className="rounded-2xl bg-black/10 ring-1 ring-white/10 p-3">
+                      <div key={item.label} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
                         <div className="text-[11px] text-[var(--muted)]">{item.label}</div>
                         <div className="mt-1 text-lg font-semibold">{item.value}</div>
                       </div>
@@ -1783,441 +1797,6 @@ export default function TasksShell() {
                 })()}
               </div>
             )}
-                {showCreateForm ? (
-                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold">Criar tarefa</div>
-                      <button
-                        type="button"
-                        onClick={() => setShowCreateForm(false)}
-                        className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-                      >
-                        Fechar
-                      </button>
-                    </div>
-                    <div className="mt-4 grid gap-3">
-                    <select
-                      value={newDepartment}
-                      onChange={(e) => setNewDepartment(e.target.value as Department)}
-                      className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                    >
-                      {(departmentMeta.length
-                        ? departmentMeta
-                        : [
-                            { id: "fiscal", name: "Fiscal" },
-                            { id: "contabil", name: "Contábil" },
-                            { id: "pessoal", name: "Pessoal" },
-                            { id: "societario_paralegal", name: "Societário/Paralegal" },
-                            { id: "administrativo", name: "Administrativo" },
-                          ]
-                      ).map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                    </select>
-                      <div className="grid grid-cols-3 gap-2">
-                        <select
-                          value={newTaskTypeId}
-                          onChange={(e) => setNewTaskTypeId(e.target.value)}
-                          className="col-span-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                          title="Tipo de tarefa"
-                        >
-                          {taskTypes.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name}
-                            </option>
-                          ))}
-                          {taskTypes.length === 0 ? <option value="outros">Outros</option> : null}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const v = (newTaskTypeName || "").trim();
-                            if (!v) return;
-                            void createTaskType();
-                          }}
-                          disabled={creatingTaskType || newTaskTypeName.trim().length < 2}
-                          className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8 disabled:opacity-60"
-                          title="Criar novo tipo"
-                        >
-                          {creatingTaskType ? "..." : "Novo"}
-                        </button>
-                      </div>
-                      <input
-                        value={newTaskTypeName}
-                        onChange={(e) => setNewTaskTypeName(e.target.value)}
-                        placeholder="Novo tipo (ex.: Regularização)"
-                        className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                      />
-                      <input
-                        value={newTitle}
-                        onChange={(e) => setNewTitle(e.target.value)}
-                        placeholder="Título"
-                        className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                      />
-                      <textarea
-                        value={newDescription}
-                        onChange={(e) => setNewDescription(e.target.value)}
-                        rows={3}
-                        placeholder="Descrição (opcional)"
-                        className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none resize-none"
-                      />
-                      <div className="grid grid-cols-2 gap-2">
-                        <input
-                          value={newClientName}
-                          onChange={(e) => setNewClientName(e.target.value)}
-                          placeholder="Cliente (nome)"
-                          className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                        />
-                        <select
-                          value={newAssignee}
-                          onChange={(e) => setNewAssignee(e.target.value as typeof newAssignee)}
-                          className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                        >
-                          <option value="none">Sem responsável</option>
-                          <option value="vanderlei">Vanderlei</option>
-                          <option value="gustavo">Gustavo</option>
-                        </select>
-                        <select
-                          value={newPriority}
-                          onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
-                          className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                        >
-                          <option value="low">Baixa</option>
-                          <option value="normal">Normal</option>
-                          <option value="high">Alta</option>
-                          <option value="urgent">Urgente</option>
-                        </select>
-                        <input
-                          type="datetime-local"
-                          value={newDueAt}
-                          onChange={(e) => setNewDueAt(e.target.value)}
-                          className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                        />
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => void createTask()}
-                        disabled={creating || newTitle.trim().length === 0}
-                        className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                      >
-                        {creating ? "Criando..." : "Criar tarefa"}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                {details ? (
-                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 space-y-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-lg font-semibold truncate">
-                      <span className="text-[var(--muted)] mr-2">#{details.taskNumber}</span>
-                      {details.title}
-                    </div>
-                    <div className="mt-1 text-xs text-[var(--muted)]">
-                      Criado em {formatTime(details.createdAt)}{details.createdBy ? ` • por ${details.createdBy.name}` : ""}
-                    </div>
-                    {details.taskType ? (
-                      <div className="mt-2 inline-flex items-center gap-2 text-xs rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-1">
-                        Tipo: <span className="text-[var(--foreground)] font-medium">{details.taskType.name}</span>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-
-                {details.description ? <div className="text-sm whitespace-pre-wrap">{details.description}</div> : null}
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  <select
-                    value={details.taskType?.id ?? ""}
-                    disabled={me?.agentId !== "vanderlei"}
-                    onChange={(e) => {
-                      const v = e.target.value || null;
-                      void (async () => {
-                        try {
-                          await patchTask(details.id, { taskTypeId: v });
-                          await refreshTask(details.id);
-                        } catch (err) {
-                          setToast(err instanceof Error ? err.message : "Falha ao atualizar");
-                        }
-                      })();
-                    }}
-                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none disabled:opacity-60"
-                    title={me?.agentId === "vanderlei" ? "Tipo de tarefa" : "Somente Vanderlei pode alterar"}
-                  >
-                    <option value="">Sem tipo</option>
-                    {taskTypes.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={details.status}
-                    onChange={(e) => {
-                      const v = e.target.value as TaskStatus;
-                      void (async () => {
-                        try {
-                          await patchTask(details.id, { status: v });
-                          await refreshTask(details.id);
-                        } catch (err) {
-                          setToast(err instanceof Error ? err.message : "Falha ao atualizar");
-                        }
-                      })();
-                    }}
-                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                  >
-                    <option value="to_do">A Fazer</option>
-                    <option value="in_progress">Em Andamento</option>
-                    <option value="blocked">Bloqueado</option>
-                    <option value="done">Concluído</option>
-                  </select>
-
-                  <select
-                    value={details.assignee?.agentId ?? "none"}
-                    disabled={me?.agentId !== "vanderlei"}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      void (async () => {
-                        try {
-                          await patchTask(details.id, { assigneeAgentId: v === "none" ? null : v });
-                          await refreshTask(details.id);
-                        } catch (err) {
-                          setToast(err instanceof Error ? err.message : "Falha ao atualizar");
-                        }
-                      })();
-                    }}
-                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none disabled:opacity-60"
-                    title={me?.agentId === "vanderlei" ? "Responsável" : "Somente Vanderlei pode alterar"}
-                  >
-                    <option value="none">Sem responsável</option>
-                    <option value="vanderlei">Vanderlei</option>
-                    <option value="gustavo">Gustavo</option>
-                  </select>
-
-                  <select
-                    value={details.priority}
-                    onChange={(e) => {
-                      const v = e.target.value as TaskPriority;
-                      void (async () => {
-                        try {
-                          await patchTask(details.id, { priority: v });
-                          await refreshTask(details.id);
-                        } catch (err) {
-                          setToast(err instanceof Error ? err.message : "Falha ao atualizar");
-                        }
-                      })();
-                    }}
-                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                  >
-                    <option value="low">Baixa</option>
-                    <option value="normal">Normal</option>
-                    <option value="high">Alta</option>
-                    <option value="urgent">Urgente</option>
-                  </select>
-
-                  <select
-                    value={details.department}
-                    onChange={(e) => {
-                      const v = e.target.value as Department;
-                      void (async () => {
-                        try {
-                          await patchTask(details.id, { department: v });
-                          await refreshTask(details.id);
-                        } catch (err) {
-                          setToast(err instanceof Error ? err.message : "Falha ao atualizar");
-                        }
-                      })();
-                    }}
-                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                  >
-                    <option value="fiscal">Fiscal</option>
-                    <option value="contabil">Contábil</option>
-                    <option value="pessoal">Pessoal</option>
-                    <option value="societario_paralegal">Societário</option>
-                    <option value="administrativo">Administrativo</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
-                    <div className="text-sm font-semibold">Comentários</div>
-                    <div className="mt-3 space-y-3">
-                      {comments.map((c) => (
-                        <div key={c.id} className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="text-xs font-semibold">{c.authorName}</div>
-                            <div className="text-[10px] text-[var(--muted)]">{formatTime(c.createdAt)}</div>
-                          </div>
-                          <div className="mt-1 text-sm whitespace-pre-wrap">{renderWithMentions(c.body)}</div>
-
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            {(reactionsByCommentId[c.id] ?? []).map((r) => (
-                              <button
-                                key={r.emoji}
-                                type="button"
-                                onClick={() => void toggleReaction(c.id, r.emoji, r.mine)}
-                                className={[
-                                  "text-xs rounded-full px-3 py-1 ring-1 transition",
-                                  r.mine
-                                    ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
-                                    : "bg-white/5 ring-white/10 hover:bg-white/8",
-                                ].join(" ")}
-                              >
-                                {r.emoji} {r.count}
-                              </button>
-                            ))}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                void loadReactions(c.id);
-                              }}
-                              className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
-                            >
-                              Atualizar reações
-                            </button>
-                            {["👍", "✅", "🔥"].map((e) => (
-                              <button
-                                key={e}
-                                type="button"
-                                onClick={() => void toggleReaction(c.id, e, Boolean((reactionsByCommentId[c.id] ?? []).find((x) => x.emoji === e)?.mine))}
-                                className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
-                              >
-                                {e}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                      <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
-                        <textarea
-                          value={commentBody}
-                          onChange={(e) => setCommentBody(e.target.value)}
-                          rows={3}
-                          placeholder="Escreva um comentário... (use @vanderlei / @gustavo)"
-                          className="w-full resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
-                        />
-                        <div className="mt-2 flex items-center justify-between gap-3">
-                          <label className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8 cursor-pointer">
-                            Anexar
-                            <input
-                              ref={commentFileRef}
-                              type="file"
-                              multiple
-                              className="hidden"
-                              onChange={(e) => {
-                                const files = Array.from(e.target.files ?? []);
-                                setCommentFiles(files.slice(0, 5));
-                              }}
-                            />
-                          </label>
-                          <div className="text-xs text-[var(--muted)] truncate">
-                            {commentFiles.length > 0 ? commentFiles.map((f) => f.name).join(", ") : "Até 5 arquivos"}
-                          </div>
-                          <button
-                            type="button"
-                            disabled={commentSending || commentBody.trim().length === 0}
-                            onClick={() => {
-                              void (async () => {
-                                setCommentSending(true);
-                                try {
-                                  await addComment(details.id, commentBody.trim());
-                                  setCommentBody("");
-                                  await refreshTask(details.id);
-                                  // upload after comment exists: fetch latest to get last id
-                                  if (commentFiles.length > 0) {
-                                    const latest = await fetch(`/api/tasks/${encodeURIComponent(details.id)}/comments`, { cache: "no-store" });
-                                    const latestData = (await latest.json()) as { items: CommentItem[] };
-                                    const last = latestData.items[latestData.items.length - 1];
-                                    if (last?.id) await uploadCommentAttachments(last.id, commentFiles);
-                                    setCommentFiles([]);
-                                  }
-                                  await refreshTask(details.id);
-                                } catch (err) {
-                                  setToast(err instanceof Error ? err.message : "Falha ao comentar");
-                                } finally {
-                                  setCommentSending(false);
-                                }
-                              })();
-                            }}
-                            className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                          >
-                            {commentSending ? "Enviando..." : "Comentar"}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">Arquivos</div>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => {
-                          const files = Array.from(e.target.files ?? []);
-                          if (files.length === 0) return;
-                          void (async () => {
-                            try {
-                              await uploadAttachments(details.id, files.slice(0, 5));
-                              await refreshTask(details.id);
-                            } catch (err) {
-                              setToast(err instanceof Error ? err.message : "Falha ao enviar arquivo");
-                            } finally {
-                              if (fileInputRef.current) fileInputRef.current.value = "";
-                            }
-                          })();
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-                      >
-                        Enviar
-                      </button>
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      {attachments.map((a) => (
-                        <a
-                          key={a.id}
-                          href={`/api/tasks/attachments/download?id=${encodeURIComponent(a.id)}`}
-                          className="block text-sm rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
-                        >
-                          {a.filename}
-                        </a>
-                      ))}
-                      {attachments.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem anexos.</div> : null}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
-                  <div className="text-sm font-semibold">Histórico</div>
-                  <div className="mt-3 space-y-2">
-                    {audit.map((a) => (
-                      <div key={a.id} className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-xs font-semibold">{a.actorName}</div>
-                          <div className="text-[10px] text-[var(--muted)]">{formatTime(a.createdAt)}</div>
-                        </div>
-                        <div className="mt-1 text-xs text-[var(--muted)]">{a.eventType}</div>
-                      </div>
-                    ))}
-                    {audit.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem alterações registradas.</div> : null}
-                  </div>
-                </div>
-                  </div>
-                ) : (
-                  <div className="text-sm text-[var(--muted)]">Selecione uma tarefa na lista.</div>
-                )}
-              </div>
 
             {showCreateForm ? (
               <div
@@ -2496,6 +2075,7 @@ export default function TasksShell() {
                 </div>
               </div>
             ) : null}
+          </div>
           {toast ? (
             <div className="border-t border-[var(--border)] p-4 bg-[var(--background)]/80 backdrop-blur">
               <div
