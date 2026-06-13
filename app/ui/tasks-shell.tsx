@@ -1023,9 +1023,61 @@ export default function TasksShell() {
     .sort((a, b) => String(a.dueAt).localeCompare(String(b.dueAt)))
     .slice(0, 5);
   const departmentMax = Math.max(1, ...overviewDepartmentStats.map((item) => item.total));
-  const statusMax = Math.max(1, ...overviewStatusStats.map((item) => item.value));
-  const priorityMax = Math.max(1, ...overviewPriorityStats.map((item) => item.value));
   const assigneeMax = Math.max(1, ...overviewAssigneeStats.map((item) => item.value));
+  const doneCount = overviewStatusStats.find((item) => item.id === "done")?.value ?? 0;
+  const assignedCount = overviewAssigneeStats.find((item) => item.id === "vanderlei")?.value ?? 0
+    + (overviewAssigneeStats.find((item) => item.id === "gustavo")?.value ?? 0);
+  const completionPct = taskStats.total ? Math.round((doneCount / taskStats.total) * 100) : 0;
+  const assignmentPct = taskStats.total ? Math.round((assignedCount / taskStats.total) * 100) : 0;
+  const overdueRiskPct = taskStats.open ? Math.round((taskStats.overdue / taskStats.open) * 100) : 0;
+  const weekProjectionPct = Math.max(
+    0,
+    Math.min(100, Math.round(completionPct * 0.5 + assignmentPct * 0.25 + (100 - overdueRiskPct) * 0.25)),
+  );
+  const buildConicGradient = (items: Array<{ value: number; color: string }>) => {
+    const total = items.reduce((sum, item) => sum + item.value, 0);
+    if (total <= 0) return "conic-gradient(var(--surface-2) 0 100%)";
+    let offset = 0;
+    const segments = items
+      .filter((item) => item.value > 0)
+      .map((item) => {
+        const start = offset;
+        const end = offset + (item.value / total) * 100;
+        offset = end;
+        return `${item.color} ${start}% ${end}%`;
+      });
+    return `conic-gradient(${segments.join(", ")})`;
+  };
+  const statusDonut = buildConicGradient(
+    overviewStatusStats.map((item) => ({
+      value: item.value,
+      color:
+        statusMeta.find((statusItem) => statusItem.id === item.id)?.color ??
+        (
+          {
+            to_do: "#94a3b8",
+            in_progress: "#3b82f6",
+            blocked: "#f97316",
+            done: "#22c55e",
+          } as Record<string, string>
+        )[item.id] ??
+        "#64748b",
+    })),
+  );
+  const priorityDonut = buildConicGradient(
+    overviewPriorityStats.map((item) => ({
+      value: item.value,
+      color:
+        (
+          {
+            urgent: "#ef4444",
+            high: "#f59e0b",
+            normal: "#3b82f6",
+            low: "#22c55e",
+          } as Record<string, string>
+        )[item.id] ?? "#64748b",
+    })),
+  );
 
   useEffect(() => {
     if (visibleTasks.length === 0) {
@@ -1233,7 +1285,28 @@ export default function TasksShell() {
 
             <div className="flex-1" />
 
-            <div className="flex items-center gap-2 w-[260px] justify-end">
+            <div className="flex items-center gap-2 justify-end">
+              <div className="inline-flex rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
+                {[
+                  { id: "list" as const, label: "Lista" },
+                  { id: "board" as const, label: "Quadro" },
+                  { id: "calendar" as const, label: "Calendário" },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setViewType(item.id)}
+                    className={[
+                      "rounded-xl px-3 py-2 text-xs transition",
+                      viewType === item.id
+                        ? "border border-[var(--border)] bg-[var(--surface-1)]"
+                        : "hover:bg-[var(--surface-1)]",
+                    ].join(" ")}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
                 onClick={goBack}
@@ -1279,16 +1352,13 @@ export default function TasksShell() {
           </header>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {department === "all" ? (
             <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-1)] p-5 space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <div className="text-sm font-semibold">
-                    {department === "all" ? "Visão geral" : deptLabel(department, departmentMeta)}
-                  </div>
+                  <div className="text-sm font-semibold">Visão geral</div>
                   <div className="mt-1 text-xs text-[var(--muted)]">
-                    {department === "all"
-                      ? "Leia a operação por volume, prazos e distribuição entre departamentos."
-                      : "Tarefas filtradas do departamento selecionado."}
+                    Leia a operação por volume, prazos e distribuição entre departamentos.
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1307,28 +1377,6 @@ export default function TasksShell() {
                     Acessibilidade
                   </button>
                 </div>
-              </div>
-
-              <div className="inline-flex rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
-                {[
-                  { id: "list" as const, label: "Lista" },
-                  { id: "board" as const, label: "Quadro" },
-                  { id: "calendar" as const, label: "Calendário" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setViewType(item.id)}
-                    className={[
-                      "rounded-xl px-3 py-2 text-sm transition",
-                      viewType === item.id
-                        ? "border border-[var(--border)] bg-[var(--surface-1)]"
-                        : "hover:bg-[var(--surface-1)]",
-                    ].join(" ")}
-                  >
-                    {item.label}
-                  </button>
-                ))}
               </div>
 
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
@@ -1440,6 +1488,52 @@ export default function TasksShell() {
                 </div>
               </div>
             </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3">
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Buscar tarefas..."
+                  className="min-w-[220px] flex-1 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm outline-none"
+                />
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as TaskStatus | "all")}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm outline-none"
+                >
+                  <option value="all">Status</option>
+                  {(statusMeta.length
+                    ? statusMeta
+                    : [
+                        { id: "to_do", name: "A Fazer" },
+                        { id: "in_progress", name: "Em Andamento" },
+                        { id: "blocked", name: "Pendente" },
+                        { id: "done", name: "Concluído" },
+                      ]
+                  ).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={assignee}
+                  onChange={(e) => setAssignee(e.target.value as typeof assignee)}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm outline-none"
+                >
+                  <option value="all">Responsável</option>
+                  <option value="vanderlei">Vanderlei</option>
+                  <option value="gustavo">Gustavo</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void loadTasks()}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-sm hover:bg-[var(--surface-2)]"
+                >
+                  Atualizar
+                </button>
+              </div>
+            )}
 
             {viewType === "list" ? (
               selectedDepartment ? (
@@ -1505,7 +1599,7 @@ export default function TasksShell() {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
                   <div className="space-y-4">
                     <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
                       <div className="flex items-center justify-between gap-3">
@@ -1584,41 +1678,109 @@ export default function TasksShell() {
 
                   <div className="space-y-4">
                     <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
-                      <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Status</div>
-                      <div className="mt-1 text-base font-semibold">Distribuição atual</div>
-                      <div className="mt-4 space-y-3">
-                        {overviewStatusStats.map((item) => (
-                          <div key={item.id} className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-sm font-medium">{item.label}</span>
-                              <span className="text-sm font-semibold">{item.value}</span>
+                      <div className="grid gap-4 xl:grid-cols-2">
+                        <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                          <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Status</div>
+                          <div className="mt-1 text-base font-semibold">Pizza operacional</div>
+                          <div className="mt-4 flex items-center gap-4">
+                            <div
+                              className="relative h-36 w-36 shrink-0 rounded-full"
+                              style={{ background: statusDonut }}
+                            >
+                              <div className="absolute inset-[18%] rounded-full bg-[var(--surface-1)]" />
+                              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Fila</div>
+                                <div className="mt-1 text-2xl font-semibold">{taskStats.total}</div>
+                              </div>
                             </div>
-                            <div className="mt-3 h-2 rounded-full bg-[var(--surface-2)]">
-                              <div
-                                className="h-2 rounded-full bg-[var(--primary)]"
-                                style={{ width: `${(item.value / statusMax) * 100}%` }}
-                              />
+                            <div className="min-w-0 flex-1 space-y-2">
+                              {overviewStatusStats.map((item) => (
+                                <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
+                                  <span className="flex items-center gap-2">
+                                    <span
+                                      className="inline-block h-2.5 w-2.5 rounded-full"
+                                      style={{
+                                        backgroundColor:
+                                          statusMeta.find((statusItem) => statusItem.id === item.id)?.color ??
+                                          (
+                                            {
+                                              to_do: "#94a3b8",
+                                              in_progress: "#3b82f6",
+                                              blocked: "#f97316",
+                                              done: "#22c55e",
+                                            } as Record<string, string>
+                                          )[item.id] ??
+                                          "#64748b",
+                                      }}
+                                    />
+                                    {item.label}
+                                  </span>
+                                  <span className="font-semibold">{item.value}</span>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                        ))}
+                        </div>
+
+                        <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                          <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Prioridade</div>
+                          <div className="mt-1 text-base font-semibold">Pizza de pressão</div>
+                          <div className="mt-4 flex items-center gap-4">
+                            <div
+                              className="relative h-36 w-36 shrink-0 rounded-full"
+                              style={{ background: priorityDonut }}
+                            >
+                              <div className="absolute inset-[18%] rounded-full bg-[var(--surface-1)]" />
+                              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Urgência</div>
+                                <div className="mt-1 text-2xl font-semibold">{overviewPriorityStats[0]?.value ?? 0}</div>
+                              </div>
+                            </div>
+                            <div className="min-w-0 flex-1 space-y-2">
+                              {overviewPriorityStats.map((item) => (
+                                <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
+                                  <span>{item.label}</span>
+                                  <span className="font-semibold">{item.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
                     <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
-                      <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Prioridade</div>
-                      <div className="mt-1 text-base font-semibold">Peso da fila</div>
+                      <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Projeção</div>
+                      <div className="mt-1 text-base font-semibold">Projeção operacional</div>
                       <div className="mt-4 space-y-3">
-                        {overviewPriorityStats.map((item) => (
-                          <div key={item.id} className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3">
+                        <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                          <div className="flex items-end justify-between gap-3">
+                            <div>
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Fechamento estimado</div>
+                              <div className="mt-1 text-3xl font-semibold">{weekProjectionPct}%</div>
+                            </div>
+                            <div className="text-right text-xs text-[var(--muted)]">
+                              estimado pela mistura de
+                              <br />
+                              conclusão, atraso e atribuição
+                            </div>
+                          </div>
+                          <div className="mt-4 h-3 rounded-full bg-[var(--surface-1)]">
+                            <div className="h-3 rounded-full bg-[var(--primary)]" style={{ width: `${weekProjectionPct}%` }} />
+                          </div>
+                        </div>
+                        {[
+                          { label: "Concluídas", value: completionPct },
+                          { label: "Atribuídas", value: assignmentPct },
+                          { label: "Risco de atraso", value: overdueRiskPct },
+                        ].map((item) => (
+                          <div key={item.label} className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3">
                             <div className="flex items-center justify-between gap-3">
                               <span className="text-sm font-medium">{item.label}</span>
-                              <span className="text-sm font-semibold">{item.value}</span>
+                              <span className="text-sm font-semibold">{item.value}%</span>
                             </div>
                             <div className="mt-3 h-2 rounded-full bg-[var(--surface-2)]">
-                              <div
-                                className="h-2 rounded-full bg-[var(--primary)]"
-                                style={{ width: `${(item.value / priorityMax) * 100}%` }}
-                              />
+                              <div className="h-2 rounded-full bg-[var(--primary)]" style={{ width: `${item.value}%` }} />
                             </div>
                           </div>
                         ))}
