@@ -1756,7 +1756,7 @@ export default function AppShell() {
                         closeSidebarMenu();
                         setToast("Em breve: novo grupo.");
                       }}
-                      className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm"
+                  className="w-full px-4 py-3 text-left text-sm hover:bg-[var(--surface-2)]"
                     >
                       Novo grupo
                     </button>
@@ -1807,7 +1807,7 @@ export default function AppShell() {
                     "rounded-xl px-3 py-2 text-xs transition",
                     assignedFilter === "vanderlei"
                       ? "bg-[color-mix(in_srgb,var(--primary)_20%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
-                      : "hover:bg-white/5",
+                      : "hover:bg-[var(--surface-2)]",
                   ].join(" ")}
                 >
                   Vanderlei
@@ -1819,7 +1819,7 @@ export default function AppShell() {
                     "rounded-xl px-3 py-2 text-xs transition",
                     assignedFilter === "gustavo"
                       ? "bg-[color-mix(in_srgb,var(--primary)_20%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
-                      : "hover:bg-white/5",
+                      : "hover:bg-[var(--surface-2)]",
                   ].join(" ")}
                 >
                   Gustavo
@@ -1828,7 +1828,7 @@ export default function AppShell() {
               <button
                 type="button"
                 onClick={goBack}
-                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,var(--border))] hover:bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
+                className="rounded-xl border px-3 py-2 text-xs border-[color-mix(in_srgb,var(--accent)_30%,var(--border))] bg-[var(--surface-1)] hover:bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
               >
                 ← Voltar
               </button>
@@ -1911,7 +1911,7 @@ export default function AppShell() {
                               aria-hidden="true"
                             />
                           ) : null}
-                          <div className="h-11 w-11 rounded-2xl overflow-hidden ring-1 ring-white/10 bg-white/5 shrink-0 flex items-center justify-center">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-1)]">
                             {chat.avatarUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={chat.avatarUrl} alt="" className="h-full w-full object-cover" />
@@ -1950,7 +1950,7 @@ export default function AppShell() {
                             e.stopPropagation();
                             openChatActionMenu(chat.chatId, e.clientX, e.clientY);
                           }}
-                          className="h-8 w-8 rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 flex items-center justify-center text-lg"
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-1)] text-lg hover:bg-[var(--surface-2)]"
                           aria-label={`Mais opções do chat: ${chat.name}`}
                           title="Mais opções"
                         >
@@ -1959,7 +1959,7 @@ export default function AppShell() {
                       </div>
                         <div className="flex items-center gap-2">
                           {pinned ? (
-                            <span className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1" title="Conversa fixada">
+                            <span className="rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-2 py-1 text-[10px]" title="Conversa fixada">
                               Fixada
                             </span>
                           ) : null}

@@ -999,9 +999,9 @@ export default function TasksShell() {
             <button
               type="button"
               onClick={() => router.push("/")}
-              className="flex items-center gap-3 rounded-2xl px-2 py-2 hover:bg-white/3"
+              className="flex items-center gap-3 rounded-2xl px-2 py-2 hover:bg-[var(--surface-2)]"
             >
-              <div className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 flex items-center justify-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-1)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/logo-mark.png" alt="Logo" className="h-7 w-7" />
               </div>
@@ -1012,16 +1012,16 @@ export default function TasksShell() {
             </button>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={goBack}
-                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,var(--border))] hover:bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
+                <button
+                  type="button"
+                  onClick={goBack}
+                className="rounded-xl border px-3 py-2 text-xs border-[color-mix(in_srgb,var(--accent)_30%,var(--border))] bg-[var(--surface-1)] hover:bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
               >
                 ← Voltar
               </button>
               <button
                 onClick={() => void logout()}
-                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-xs hover:bg-[var(--surface-2)]"
               >
                 Sair
               </button>
@@ -1039,7 +1039,7 @@ export default function TasksShell() {
                 <button
                   type="button"
                   onClick={openAccessibilityPreferences}
-                  className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-xs text-[var(--foreground)] hover:bg-white/8"
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-xs text-[var(--foreground)] hover:bg-[var(--surface-2)]"
                 >
                   A11y
                 </button>
@@ -1232,7 +1232,7 @@ export default function TasksShell() {
           </header>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 space-y-4">
+            <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-1)] p-5 space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="text-sm font-semibold">
@@ -1255,14 +1255,14 @@ export default function TasksShell() {
                   <button
                     type="button"
                     onClick={openAccessibilityPreferences}
-                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm hover:bg-white/8"
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-sm hover:bg-[var(--surface-2)]"
                   >
                     Acessibilidade
                   </button>
                 </div>
               </div>
 
-              <div className="inline-flex rounded-2xl bg-black/10 ring-1 ring-white/10 p-1">
+              <div className="inline-flex rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
                 {[
                   { id: "list" as const, label: "Lista" },
                   { id: "board" as const, label: "Quadro" },
@@ -1274,7 +1274,9 @@ export default function TasksShell() {
                     onClick={() => setViewType(item.id)}
                     className={[
                       "rounded-xl px-3 py-2 text-sm transition",
-                      viewType === item.id ? "bg-white/8 ring-1 ring-white/10" : "hover:bg-white/5",
+                      viewType === item.id
+                        ? "border border-[var(--border)] bg-[var(--surface-1)]"
+                        : "hover:bg-[var(--surface-1)]",
                     ].join(" ")}
                   >
                     {item.label}
@@ -1289,7 +1291,7 @@ export default function TasksShell() {
                   { label: "Hoje", value: taskStats.today, hint: "prazo hoje" },
                   { label: "Atrasadas", value: taskStats.overdue, hint: "prazo vencido" },
                 ].map((item) => (
-                  <div key={item.label} className="rounded-3xl bg-black/10 ring-1 ring-white/10 p-4">
+                  <div key={item.label} className="rounded-3xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
                     <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">{item.label}</div>
                     <div className="mt-2 text-2xl font-semibold">{item.value}</div>
                     <div className="mt-1 text-xs text-[var(--muted)]">{item.hint}</div>
@@ -1302,12 +1304,12 @@ export default function TasksShell() {
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="Buscar tarefas..."
-                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm outline-none"
                 />
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as TaskStatus | "all")}
-                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm outline-none"
                 >
                   <option value="all">Status</option>
                   {(statusMeta.length
@@ -1327,7 +1329,7 @@ export default function TasksShell() {
                 <select
                   value={assignee}
                   onChange={(e) => setAssignee(e.target.value as typeof assignee)}
-                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm outline-none"
                 >
                   <option value="all">Responsável</option>
                   <option value="vanderlei">Vanderlei</option>
@@ -1336,7 +1338,7 @@ export default function TasksShell() {
                 <button
                   type="button"
                   onClick={() => void loadTasks()}
-                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm hover:bg-white/8"
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-sm hover:bg-[var(--surface-2)]"
                 >
                   Atualizar
                 </button>
@@ -1362,7 +1364,7 @@ export default function TasksShell() {
                     setStatus(cfgStatus);
                     setAssignee(cfgAssignee);
                   }}
-                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm outline-none"
                 >
                   <option value="builtin:minhas">Minhas tarefas</option>
                   <option value="builtin:urgentes_hoje">Urgentes hoje</option>
@@ -1378,13 +1380,13 @@ export default function TasksShell() {
                     value={newViewName}
                     onChange={(e) => setNewViewName(e.target.value)}
                     placeholder="Salvar filtro como..."
-                    className="flex-1 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
+                    className="flex-1 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => void createSavedView()}
                     disabled={creatingView || !newViewName.trim()}
-                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm hover:bg-white/8 disabled:opacity-60"
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-sm hover:bg-[var(--surface-2)] disabled:opacity-60"
                   >
                     Salvar
                   </button>
