@@ -965,11 +965,7 @@ export default function TasksShell() {
     today: visibleTasks.filter((task) => isTaskDueToday(task)).length,
   };
   const selectedDepartment = department === "all" ? null : department;
-  const selectedDepartmentTasks = selectedDepartment ? tasks.filter((task) => task.department === selectedDepartment) : [];
-  const recentDepartmentTasks = (selectedDepartment ? selectedDepartmentTasks : tasks)
-    .slice()
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .slice(0, 6);
+  const selectedDepartmentTasks = selectedDepartment ? visibleTasks : [];
   const sidebarDepartments = departmentMeta.length
     ? departmentMeta
     : [
@@ -979,6 +975,57 @@ export default function TasksShell() {
         { id: "societario_paralegal", name: "Societário/Paralegal" },
         { id: "administrativo", name: "Administrativo" },
       ];
+  const overviewDepartmentStats = sidebarDepartments
+    .map((item) => {
+      const deptTasks = tasks.filter((task) => task.department === item.id);
+      return {
+        id: item.id,
+        label: item.name,
+        total: deptTasks.length,
+        open: deptTasks.filter((task) => task.status !== "done").length,
+        overdue: deptTasks.filter((task) => isTaskOverdue(task)).length,
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+  const overviewStatusStats = (
+    statusMeta.length
+      ? statusMeta.map((item) => ({ id: item.id, label: item.name }))
+      : [
+          { id: "to_do", label: "A Fazer" },
+          { id: "in_progress", label: "Em Andamento" },
+          { id: "blocked", label: "Pendente" },
+          { id: "done", label: "Concluído" },
+        ]
+  ).map((item) => ({
+    id: item.id,
+    label: item.label,
+    value: visibleTasks.filter((task) => task.status === item.id).length,
+  }));
+  const overviewPriorityStats = (["urgent", "high", "normal", "low"] as TaskPriority[]).map((priority) => ({
+    id: priority,
+    label: priorityLabel(priority),
+    value: visibleTasks.filter((task) => task.priority === priority).length,
+  }));
+  const overviewAssigneeStats = [
+    { id: "vanderlei", label: "Vanderlei" },
+    { id: "gustavo", label: "Gustavo" },
+    { id: "none", label: "Sem responsável" },
+  ].map((item) => ({
+    ...item,
+    value:
+      item.id === "none"
+        ? visibleTasks.filter((task) => !task.assignee).length
+        : visibleTasks.filter((task) => task.assignee?.agentId === item.id).length,
+  }));
+  const nextDueTasks = visibleTasks
+    .filter((task) => task.dueAt)
+    .slice()
+    .sort((a, b) => String(a.dueAt).localeCompare(String(b.dueAt)))
+    .slice(0, 5);
+  const departmentMax = Math.max(1, ...overviewDepartmentStats.map((item) => item.total));
+  const statusMax = Math.max(1, ...overviewStatusStats.map((item) => item.value));
+  const priorityMax = Math.max(1, ...overviewPriorityStats.map((item) => item.value));
+  const assigneeMax = Math.max(1, ...overviewAssigneeStats.map((item) => item.value));
 
   useEffect(() => {
     if (visibleTasks.length === 0) {
@@ -1178,7 +1225,7 @@ export default function TasksShell() {
                 {department === "all" ? "Visão geral" : deptLabel(department, departmentMeta)}
               </div>
               <div className="text-xs text-[var(--muted)] truncate">
-                {department === "all" ? "Escolha um departamento na lateral" : `${taskStats.total} tarefas visíveis`}
+                {department === "all" ? "Painel consolidado da operação" : `${taskStats.total} tarefas visíveis`}
                 {assignee !== "all" ? ` • ${assignee === "vanderlei" ? "Vanderlei" : "Gustavo"}` : ""}
                 {status !== "all" ? ` • ${statusLabel(status, statusMeta)}` : ""}
               </div>
@@ -1240,8 +1287,8 @@ export default function TasksShell() {
                   </div>
                   <div className="mt-1 text-xs text-[var(--muted)]">
                     {department === "all"
-                      ? "Escolha um departamento na lateral para abrir suas tarefas no centro."
-                      : "Resumo rápido do departamento selecionado e suas tarefas recentes."}
+                      ? "Leia a operação por volume, prazos e distribuição entre departamentos."
+                      : "Tarefas filtradas do departamento selecionado."}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1395,20 +1442,13 @@ export default function TasksShell() {
             </div>
 
             {viewType === "list" ? (
-              <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-4">
-              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold">
-                      {selectedDepartment ? `Tarefas de ${deptLabel(selectedDepartment, departmentMeta)}` : "Selecione um departamento"}
+              selectedDepartment ? (
+                <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Departamento</div>
+                      <div className="mt-1 text-base font-semibold">Tarefas de {deptLabel(selectedDepartment, departmentMeta)}</div>
                     </div>
-                    <div className="text-xs text-[var(--muted)]">
-                      {selectedDepartment
-                        ? "Lista de tarefas do departamento selecionado"
-                        : "Clique em um departamento na lateral para carregar seu painel"}
-                    </div>
-                  </div>
-                  {selectedDepartment ? (
                     <button
                       type="button"
                       onClick={() => setShowCreateForm(true)}
@@ -1416,114 +1456,198 @@ export default function TasksShell() {
                     >
                       Nova tarefa
                     </button>
-                  ) : null}
-                </div>
+                  </div>
 
-                <div className="mt-4 space-y-2">
-                  {selectedDepartmentTasks.length > 0 ? (
-                    selectedDepartmentTasks.slice(0, 250).map((t) => {
-                      const isSelected = t.id === selectedTaskId;
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedTaskId(t.id);
-                            setShowTaskModal(true);
-                          }}
-                          className={[
-                            "w-full rounded-2xl px-4 py-3 text-left ring-1 transition",
-                            isSelected
-                              ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
-                              : "bg-white/5 ring-white/10 hover:bg-white/8",
-                          ].join(" ")}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-sm font-semibold truncate">
-                                <span className="text-[var(--muted)] mr-2">#{t.taskNumber}</span>
-                                {t.title}
+                  <div className="mt-4 space-y-2">
+                    {selectedDepartmentTasks.length > 0 ? (
+                      selectedDepartmentTasks.slice(0, 250).map((t) => {
+                        const isSelected = t.id === selectedTaskId;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedTaskId(t.id);
+                              setShowTaskModal(true);
+                            }}
+                            className={[
+                              "w-full rounded-[26px] border px-4 py-3 text-left transition",
+                              isSelected
+                                ? "border-[color-mix(in_srgb,var(--primary)_35%,white)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
+                                : "border-[var(--border)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)]",
+                            ].join(" ")}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold truncate">
+                                  <span className="mr-2 text-[var(--muted)]">#{t.taskNumber}</span>
+                                  {t.title}
+                                </div>
+                                <div className="mt-1 text-xs text-[var(--muted)] truncate">
+                                  {statusLabel(t.status, statusMeta)}
+                                  {t.assignee ? ` • ${t.assignee.name}` : " • Sem responsável"}
+                                  {t.client ? ` • ${t.client.name}` : ""}
+                                  {t.dueAt ? ` • Vence ${formatDateOnly(t.dueAt)}` : " • Sem prazo"}
+                                </div>
                               </div>
-                              <div className="mt-1 text-xs text-[var(--muted)] truncate">
-                                {statusLabel(t.status, statusMeta)}
-                                {t.assignee ? ` • ${t.assignee.name}` : " • Sem responsável"}
-                                {t.client ? ` • ${t.client.name}` : ""}
-                                {t.dueAt ? ` • Vence ${formatDateOnly(t.dueAt)}` : " • Sem prazo"}
+                              <div className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-[10px]">
+                                {priorityLabel(t.priority)}
                               </div>
                             </div>
-                            <div className="shrink-0 text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">
-                              {priorityLabel(t.priority)}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="rounded-[26px] border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-8 text-sm text-[var(--muted)]">
+                        Nenhuma tarefa encontrada para este departamento com os filtros atuais.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                  <div className="space-y-4">
+                    <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Carga</div>
+                          <div className="mt-1 text-base font-semibold">Departamentos mais ativos</div>
+                        </div>
+                        <div className="text-[11px] text-[var(--muted)]">{overviewDepartmentStats.length} departamentos</div>
+                      </div>
+                      <div className="mt-4 space-y-3">
+                        {overviewDepartmentStats.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setDepartment(item.id as Department)}
+                            className="w-full rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-left transition hover:bg-[var(--surface-2)]"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium">{item.label}</div>
+                                <div className="mt-1 text-xs text-[var(--muted)]">
+                                  {item.open} abertas • {item.overdue} atrasadas
+                                </div>
+                              </div>
+                              <div className="shrink-0 text-sm font-semibold">{item.total}</div>
+                            </div>
+                            <div className="mt-3 h-2 rounded-full bg-[var(--surface-2)]">
+                              <div
+                                className="h-2 rounded-full bg-[var(--primary)]"
+                                style={{ width: `${(item.total / departmentMax) * 100}%` }}
+                              />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Prazos</div>
+                          <div className="mt-1 text-base font-semibold">Próximas entregas</div>
+                        </div>
+                        <div className="text-[11px] text-[var(--muted)]">Ordenado por vencimento</div>
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        {nextDueTasks.length > 0 ? (
+                          nextDueTasks.map((task) => (
+                            <button
+                              key={task.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedTaskId(task.id);
+                                setShowTaskModal(true);
+                              }}
+                              className="flex w-full items-center justify-between gap-3 rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-left transition hover:bg-[var(--surface-2)]"
+                            >
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-medium">{task.title}</div>
+                                <div className="mt-1 text-xs text-[var(--muted)]">
+                                  {deptLabel(task.department, departmentMeta)}
+                                  {task.assignee ? ` • ${task.assignee.name}` : ""}
+                                </div>
+                              </div>
+                              <div className="shrink-0 text-sm font-semibold">{formatDateOnly(task.dueAt)}</div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="rounded-[24px] border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-6 text-sm text-[var(--muted)]">
+                            Nenhuma tarefa com prazo definido.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
+                      <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Status</div>
+                      <div className="mt-1 text-base font-semibold">Distribuição atual</div>
+                      <div className="mt-4 space-y-3">
+                        {overviewStatusStats.map((item) => (
+                          <div key={item.id} className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-sm font-medium">{item.label}</span>
+                              <span className="text-sm font-semibold">{item.value}</span>
+                            </div>
+                            <div className="mt-3 h-2 rounded-full bg-[var(--surface-2)]">
+                              <div
+                                className="h-2 rounded-full bg-[var(--primary)]"
+                                style={{ width: `${(item.value / statusMax) * 100}%` }}
+                              />
                             </div>
                           </div>
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-5 text-sm text-[var(--muted)]">
-                      Nenhuma tarefa neste departamento.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="rounded-[30px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
-                  <div className="flex items-center justify-between gap-3 rounded-[22px] border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
-                    <div>
-                      <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Timeline</div>
-                      <div className="mt-1 text-sm font-semibold">Atividade recente</div>
-                    </div>
-                    <div className="rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-2 py-1 text-[10px] text-[var(--muted)]">
-                      {recentDepartmentTasks.length}
-                    </div>
-                  </div>
-                  <div className="mt-4 space-y-3">
-                    {recentDepartmentTasks.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedTaskId(t.id);
-                          setShowTaskModal(true);
-                        }}
-                        className="w-full rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-left transition hover:bg-[var(--surface-2)]"
-                      >
-                        <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
-                          {statusLabel(t.status, statusMeta)}
-                        </div>
-                        <div className="mt-1 text-sm font-medium truncate">{t.title}</div>
-                        <div className="mt-2 flex items-center justify-between gap-3 text-xs text-[var(--muted)]">
-                          <span className="truncate">{t.assignee ? t.assignee.name : "Sem responsável"}</span>
-                          <span className="shrink-0">{formatTime(t.updatedAt)}</span>
-                        </div>
-                      </button>
-                    ))}
-                    {recentDepartmentTasks.length === 0 ? (
-                      <div className="rounded-[24px] border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-5 text-sm text-[var(--muted)]">
-                        Sem atividade recente.
+                        ))}
                       </div>
-                    ) : null}
-                  </div>
-                </div>
+                    </div>
 
-                <div className="rounded-[30px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
-                  <div className="text-sm font-semibold">Detalhes rápidos</div>
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    {[
-                      { label: "A fazer", value: visibleTasks.filter((task) => task.status === "to_do").length },
-                      { label: "Em andamento", value: visibleTasks.filter((task) => task.status === "in_progress").length },
-                      { label: "Bloqueadas", value: visibleTasks.filter((task) => task.status === "blocked").length },
-                      { label: "Concluídas", value: visibleTasks.filter((task) => task.status === "done").length },
-                    ].map((item) => (
-                      <div key={item.label} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
-                        <div className="text-[11px] text-[var(--muted)]">{item.label}</div>
-                        <div className="mt-1 text-lg font-semibold">{item.value}</div>
+                    <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
+                      <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Prioridade</div>
+                      <div className="mt-1 text-base font-semibold">Peso da fila</div>
+                      <div className="mt-4 space-y-3">
+                        {overviewPriorityStats.map((item) => (
+                          <div key={item.id} className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-sm font-medium">{item.label}</span>
+                              <span className="text-sm font-semibold">{item.value}</span>
+                            </div>
+                            <div className="mt-3 h-2 rounded-full bg-[var(--surface-2)]">
+                              <div
+                                className="h-2 rounded-full bg-[var(--primary)]"
+                                style={{ width: `${(item.value / priorityMax) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+
+                    <div className="rounded-[32px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
+                      <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">Responsáveis</div>
+                      <div className="mt-1 text-base font-semibold">Distribuição por agente</div>
+                      <div className="mt-4 space-y-3">
+                        {overviewAssigneeStats.map((item) => (
+                          <div key={item.id} className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-sm font-medium">{item.label}</span>
+                              <span className="text-sm font-semibold">{item.value}</span>
+                            </div>
+                            <div className="mt-3 h-2 rounded-full bg-[var(--surface-2)]">
+                              <div
+                                className="h-2 rounded-full bg-[var(--primary)]"
+                                style={{ width: `${(item.value / assigneeMax) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              </div>
+              )
             ) : viewType === "board" ? (
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
                 {(statusMeta.length ? statusMeta.map((x) => x.id) : (["to_do", "in_progress", "blocked", "done"] as TaskStatus[])).map((s) => {
