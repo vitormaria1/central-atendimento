@@ -28,6 +28,7 @@ type TaskListItem = {
   priority: TaskPriority;
   client: Client | null;
   taskType: TaskType | null;
+  parentTaskId: string | null;
   assignee: { agentId: string; name: string } | null;
   dueAt: string | null;
   tags: string[];
@@ -74,6 +75,29 @@ function formatTime(iso: string) {
 function formatDateOnly(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function summarizeAudit(item: AuditItem, statuses: StatusMeta[], departments: DepartmentMeta[]) {
+  if (item.eventType !== "task_updated" || !item.data || typeof item.data !== "object") return "Atualização registrada na tarefa.";
+  const rawChanges = (item.data as { changes?: Record<string, { from: unknown; to: unknown }> }).changes;
+  if (!rawChanges) return "Atualização registrada na tarefa.";
+  const labels: Record<string, string> = {
+    status: "status",
+    assigneeAgentId: "responsável",
+    dueAt: "prazo",
+    priority: "prioridade",
+    department: "departamento",
+  };
+  const parts = Object.entries(rawChanges).map(([key, change]) => {
+    const label = labels[key] ?? key;
+    let toValue = change.to;
+    if (key === "status" && typeof toValue === "string") toValue = statusLabel(toValue, statuses);
+    if (key === "department" && typeof toValue === "string") toValue = deptLabel(toValue, departments);
+    if (key === "dueAt" && typeof toValue === "string") toValue = formatDateOnly(toValue);
+    if (key === "priority" && typeof toValue === "string") toValue = priorityLabel(toValue as TaskPriority);
+    return `${label}: ${toValue ?? "vazio"}`;
+  });
+  return parts.length > 0 ? parts.join(" • ") : "Atualização registrada na tarefa.";
 }
 
 function startOfMonth(d: Date) {
@@ -218,6 +242,7 @@ export default function TasksShell() {
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [audit, setAudit] = useState<AuditItem[]>([]);
   const [reactionsByCommentId, setReactionsByCommentId] = useState<Record<string, ReactionSummary[]>>({});
+  const [subtasks, setSubtasks] = useState<TaskListItem[]>([]);
 
   const [toast, setToast] = useState<string | null>(null);
 
@@ -261,9 +286,12 @@ export default function TasksShell() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const commentFileRef = useRef<HTMLInputElement | null>(null);
+  const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [commentBody, setCommentBody] = useState("");
   const [commentSending, setCommentSending] = useState(false);
   const [commentFiles, setCommentFiles] = useState<File[]>([]);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const [creatingSubtask, setCreatingSubtask] = useState(false);
 
   function renderInlineDetails() {
     if (!details) return <div className="text-sm text-[var(--muted)]">Selecione uma tarefa na lista.</div>;
@@ -500,16 +528,84 @@ export default function TasksShell() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-2xl font-semibold">Subtarefas</div>
-                    <div className="mt-1 text-sm text-[var(--muted)]">
-                      Área preparada para subtarefas persistentes assim que o vínculo pai-filho existir no backend.
-                    </div>
+                    <div className="mt-1 text-sm text-[var(--muted)]">Quebre a entrega principal em tarefas menores com acompanhamento próprio.</div>
                   </div>
-                  <div className="rounded-full border border-dashed border-[var(--border)] px-3 py-1 text-xs text-[var(--muted)]">
-                    Em preparação
+                  <div className="rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1 text-xs text-[var(--muted)]">
+                    {subtasks.length} item(ns)
                   </div>
                 </div>
-                <div className="mt-5 rounded-[24px] border border-dashed border-[var(--border)] bg-[var(--surface-1)] px-5 py-6 text-sm text-[var(--muted)]">
-                  Hoje a base de dados não tem relação nativa de subtarefa. Preferi não salvar isso em descrição, tag ou comentário para não corromper a estrutura atual.
+
+                {me?.agentId === "vanderlei" ? (
+                  <div className="mt-5 flex flex-col gap-3 rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Nova subtarefa</div>
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <input
+                        value={newSubtaskTitle}
+                        onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                        placeholder="Ex.: Revisar documentos do cliente"
+                        className="min-w-0 flex-1 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void createSubtask(details)}
+                        disabled={creatingSubtask || newSubtaskTitle.trim().length === 0}
+                        className="rounded-2xl bg-[var(--primary)] px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+                      >
+                        {creatingSubtask ? "Criando..." : "Adicionar subtarefa"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="mt-5 space-y-3">
+                  {subtasks.length > 0 ? (
+                    subtasks.map((task) => (
+                      <button
+                        key={task.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTaskId(task.id);
+                          setShowTaskModal(true);
+                        }}
+                        className="w-full rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-4 text-left transition hover:bg-[var(--surface-2)]"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-[10px] text-[var(--muted)]">
+                                #{task.taskNumber}
+                              </span>
+                              <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-[10px] text-[var(--muted)]">
+                                {statusLabel(task.status, statusMeta)}
+                              </span>
+                            </div>
+                            <div className="mt-2 truncate text-sm font-semibold">{task.title}</div>
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+                              <span>{task.assignee?.name ?? "Sem responsável"}</span>
+                              <span>•</span>
+                              <span>{priorityLabel(task.priority)}</span>
+                              <span>•</span>
+                              <span>{task.dueAt ? `Vence ${formatDateOnly(task.dueAt)}` : "Sem prazo"}</span>
+                            </div>
+                          </div>
+                          <div
+                            className="shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium"
+                            style={{
+                              borderColor: priorityTone(task.priority).border,
+                              backgroundColor: priorityTone(task.priority).background,
+                              color: priorityTone(task.priority).text,
+                            }}
+                          >
+                            {priorityLabel(task.priority)}
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="rounded-[24px] border border-dashed border-[var(--border)] bg-[var(--surface-1)] px-5 py-6 text-sm text-[var(--muted)]">
+                      Nenhuma subtarefa criada para esta entrega.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -553,9 +649,20 @@ export default function TasksShell() {
         <aside className="border-t border-[var(--border)] bg-[var(--surface-2)] xl:border-l xl:border-t-0">
           <div className="flex h-full flex-col">
             <div className="border-b border-[var(--border)] px-5 py-5">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">Atividade</div>
-              <div className="mt-1 text-2xl font-semibold">Linha do tempo</div>
-              <div className="mt-2 text-sm text-[var(--muted)]">Comentários, arquivos e interações da tarefa.</div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">Atividade</div>
+                  <div className="mt-1 text-2xl font-semibold">Linha do tempo</div>
+                  <div className="mt-2 text-sm text-[var(--muted)]">Comentários, arquivos e interações da tarefa.</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => commentTextareaRef.current?.focus()}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm hover:bg-[var(--surface-2)]"
+                >
+                  Comentar
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
@@ -565,6 +672,16 @@ export default function TasksShell() {
                   {details.createdBy?.name ?? "Sistema"} • {formatTime(details.createdAt)}
                 </div>
               </div>
+
+              {audit.map((item) => (
+                <div key={item.id} className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold">{item.actorName}</div>
+                    <div className="text-[11px] text-[var(--muted)]">{formatTime(item.createdAt)}</div>
+                  </div>
+                  <div className="mt-3 text-sm text-[var(--muted)]">{summarizeAudit(item, statusMeta, departmentMeta)}</div>
+                </div>
+              ))}
 
               <input
                 ref={fileInputRef}
@@ -635,7 +752,9 @@ export default function TasksShell() {
 
             <div className="border-t border-[var(--border)] bg-[var(--surface-1)] px-5 py-4">
               <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Novo comentário</div>
                 <textarea
+                  ref={commentTextareaRef}
                   value={commentBody}
                   onChange={(e) => setCommentBody(e.target.value)}
                   rows={3}
@@ -861,6 +980,7 @@ export default function TasksShell() {
     if (q.trim()) url.searchParams.set("q", q.trim());
     if (status !== "all") url.searchParams.set("status", status);
     if (assignee !== "all") url.searchParams.set("assigneeAgentId", assignee);
+    url.searchParams.set("rootOnly", "true");
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string; details?: string } | null;
@@ -870,6 +990,19 @@ export default function TasksShell() {
     const data = (await res.json()) as { items: TaskListItem[] };
     setTasks(data.items);
     if (!selectedTaskId && data.items[0]?.id) setSelectedTaskId(data.items[0].id);
+  }
+
+  async function loadTaskSubtasks(taskId: string) {
+    const url = new URL("/api/tasks", window.location.origin);
+    url.searchParams.set("parentTaskId", taskId);
+    url.searchParams.set("limit", "200");
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) {
+      setSubtasks([]);
+      return;
+    }
+    const data = (await res.json()) as { items: TaskListItem[] };
+    setSubtasks(data.items);
   }
 
   async function loadTaskDetails(taskId: string) {
@@ -894,7 +1027,7 @@ export default function TasksShell() {
   }
 
   async function refreshTask(taskId: string) {
-    await Promise.all([loadTaskDetails(taskId), loadTaskComments(taskId), loadTaskAttachments(taskId), loadTaskAudit(taskId)]);
+    await Promise.all([loadTaskDetails(taskId), loadTaskComments(taskId), loadTaskAttachments(taskId), loadTaskAudit(taskId), loadTaskSubtasks(taskId)]);
     await loadTasks();
   }
 
@@ -971,6 +1104,37 @@ export default function TasksShell() {
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       throw new Error(data?.error ?? "Falha ao comentar");
+    }
+  }
+
+  async function createSubtask(parent: TaskDetails) {
+    const title = newSubtaskTitle.trim();
+    if (!title || creatingSubtask) return;
+    setCreatingSubtask(true);
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title,
+          department: parent.department,
+          priority: parent.priority,
+          assigneeAgentId: parent.assignee?.agentId ?? null,
+          taskTypeId: parent.taskType?.id ?? null,
+          clientId: parent.client?.id ?? undefined,
+          parentTaskId: parent.id,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as { id?: string; error?: string } | null;
+      if (!res.ok || !data?.id) throw new Error(data?.error ?? "Falha ao criar subtarefa");
+      setNewSubtaskTitle("");
+      await refreshTask(parent.id);
+      setSelectedTaskId(data.id);
+      setShowTaskModal(true);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Falha ao criar subtarefa");
+    } finally {
+      setCreatingSubtask(false);
     }
   }
 
@@ -1075,6 +1239,7 @@ export default function TasksShell() {
       setDetails(null);
       setComments([]);
       setAttachments([]);
+      setSubtasks([]);
       return;
     }
     setShowCreateForm(false);
@@ -1214,6 +1379,7 @@ export default function TasksShell() {
   const visibleTaskIdsKey = visibleTasks.map((task) => task.id).join(",");
 
   useEffect(() => {
+    if (showTaskModal) return;
     if (visibleTasks.length === 0) {
       if (selectedTaskId !== null) setSelectedTaskId(null);
       return;
@@ -1222,7 +1388,7 @@ export default function TasksShell() {
       setSelectedTaskId(visibleTasks[0]!.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [department, q, status, assignee, timeRange, visibleTaskIdsKey, selectedTaskId]);
+  }, [department, q, status, assignee, timeRange, visibleTaskIdsKey, selectedTaskId, showTaskModal]);
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">

@@ -19,6 +19,7 @@ const patchSchema = z.object({
   clientId: z.string().nullable().optional(),
   assigneeAgentId: z.enum(["vanderlei", "gustavo"]).nullable().optional(),
   taskTypeId: z.string().nullable().optional(),
+  parentTaskId: z.string().nullable().optional(),
   dueAt: z.string().nullable().optional(),
   tags: z.array(z.string().min(1).max(40)).optional(),
 });
@@ -45,6 +46,7 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[
     client_name: string | null;
     task_type_id: string | null;
     task_type_name: string | null;
+    parent_task_id: string | null;
     assignee_agent_id: string | null;
     assignee_name: string | null;
     created_by_agent_id: string | null;
@@ -67,6 +69,7 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[
         c.name as client_name,
         t.task_type_id,
         tt.name as task_type_name,
+        t.parent_task_id::text,
         t.assignee_agent_id,
         a.name as assignee_name,
         t.created_by_agent_id,
@@ -100,6 +103,7 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[
       priority: row.priority,
       client: row.client_id ? { id: row.client_id, name: row.client_name ?? "—" } : null,
       taskType: row.task_type_id ? { id: row.task_type_id, name: row.task_type_name ?? row.task_type_id } : null,
+      parentTaskId: row.parent_task_id,
       assignee: row.assignee_agent_id ? { agentId: row.assignee_agent_id, name: row.assignee_name ?? row.assignee_agent_id } : null,
       createdBy: row.created_by_agent_id ? { agentId: row.created_by_agent_id, name: row.created_by_name ?? row.created_by_agent_id } : null,
       dueAt: row.due_at,
@@ -130,6 +134,9 @@ export const PATCH = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/
   }
   if (session.agentId === "gustavo" && patch.taskTypeId !== undefined) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (patch.parentTaskId !== undefined) {
+    return NextResponse.json({ error: "parentTaskId is immutable" }, { status: 400 });
   }
   const fields: string[] = [];
   const values: unknown[] = [];

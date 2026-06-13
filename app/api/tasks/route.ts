@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
+import { requireTaskAccess } from "@/lib/task-access";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,6 +17,8 @@ const querySchema = z.object({
   assigneeAgentId: z.enum(["vanderlei", "gustavo"]).optional(),
   taskTypeId: z.string().optional(),
   clientId: z.string().optional(),
+  parentTaskId: z.string().optional(),
+  rootOnly: z.coerce.boolean().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
 });
 
@@ -28,6 +31,7 @@ const createSchema = z.object({
   clientId: z.string().optional(),
   assigneeAgentId: z.enum(["vanderlei", "gustavo"]).nullable().optional(),
   taskTypeId: z.string().nullable().optional(),
+  parentTaskId: z.string().nullable().optional(),
   dueAt: z.string().nullable().optional(), // ISO
   tags: z.array(z.string().min(1).max(40)).optional(),
 });
@@ -47,9 +51,15 @@ export const GET = withApi(async (req: Request) => {
   const effectiveAssigneeAgentId = session.agentId === "gustavo" ? "gustavo" : assigneeAgentId;
   const taskTypeId = parsed.data.taskTypeId ?? null;
   const clientId = parsed.data.clientId ? Number.parseInt(parsed.data.clientId, 10) : null;
+  const parentTaskId = parsed.data.parentTaskId ? Number.parseInt(parsed.data.parentTaskId, 10) : null;
+  const rootOnly = parsed.data.rootOnly ?? false;
   const limit = parsed.data.limit ?? 80;
 
   if (clientId !== null && !Number.isFinite(clientId)) return NextResponse.json({ error: "Invalid clientId" }, { status: 400 });
+  if (parentTaskId !== null && !Number.isFinite(parentTaskId)) return NextResponse.json({ error: "Invalid parentTaskId" }, { status: 400 });
+  if (parentTaskId !== null && !(await requireTaskAccess(session, parentTaskId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const where: string[] = [];
   const params: unknown[] = [];
@@ -78,6 +88,12 @@ export const GET = withApi(async (req: Request) => {
     params.push(taskTypeId);
     where.push(`t.task_type_id = $${params.length}`);
   }
+  if (parentTaskId !== null) {
+    params.push(parentTaskId);
+    where.push(`t.parent_task_id = $${params.length}`);
+  } else if (rootOnly) {
+    where.push(`t.parent_task_id is null`);
+  }
 
   params.push(limit);
   const sql = `
@@ -92,6 +108,7 @@ export const GET = withApi(async (req: Request) => {
       c.name as client_name,
       t.task_type_id,
       tt.name as task_type_name,
+      t.parent_task_id::text,
       t.assignee_agent_id,
       a.name as assignee_name,
       t.due_at::text,
@@ -118,6 +135,7 @@ export const GET = withApi(async (req: Request) => {
     client_name: string | null;
     task_type_id: string | null;
     task_type_name: string | null;
+    parent_task_id: string | null;
     assignee_agent_id: string | null;
     assignee_name: string | null;
     due_at: string | null;
@@ -136,6 +154,7 @@ export const GET = withApi(async (req: Request) => {
       priority: r.priority,
       client: r.client_id ? { id: r.client_id, name: r.client_name ?? "—" } : null,
       taskType: r.task_type_id ? { id: r.task_type_id, name: r.task_type_name ?? r.task_type_id } : null,
+      parentTaskId: r.parent_task_id,
       assignee: r.assignee_agent_id ? { agentId: r.assignee_agent_id, name: r.assignee_name ?? r.assignee_agent_id } : null,
       dueAt: r.due_at,
       tags: r.tags ?? [],
@@ -165,18 +184,23 @@ export const POST = withApi(async (req: Request) => {
   const assigneeAgentId = parsed.data.assigneeAgentId ?? session.agentId;
   const taskTypeId = parsed.data.taskTypeId ?? null;
   const clientId = parsed.data.clientId ? Number.parseInt(parsed.data.clientId, 10) : null;
+  const parentTaskId = parsed.data.parentTaskId ? Number.parseInt(parsed.data.parentTaskId, 10) : null;
   const dueAt = parsed.data.dueAt ? new Date(parsed.data.dueAt).toISOString() : null;
   const tags = parsed.data.tags ?? [];
 
   if (clientId !== null && !Number.isFinite(clientId)) return NextResponse.json({ error: "Invalid clientId" }, { status: 400 });
+  if (parentTaskId !== null && !Number.isFinite(parentTaskId)) return NextResponse.json({ error: "Invalid parentTaskId" }, { status: 400 });
+  if (parentTaskId !== null && !(await requireTaskAccess(session, parentTaskId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const { rows } = await dbQuery<{ id: string }>(
     `
-      insert into tasks (title, description, department, status, priority, client_id, assignee_agent_id, task_type_id, created_by_agent_id, due_at, tags)
-      values ($1, $2, $3::task_department, $4::task_status, $5::task_priority, $6, $7, $8, $9, $10, $11)
+      insert into tasks (title, description, department, status, priority, client_id, assignee_agent_id, task_type_id, created_by_agent_id, due_at, tags, parent_task_id)
+      values ($1, $2, $3::task_department, $4::task_status, $5::task_priority, $6, $7, $8, $9, $10, $11, $12)
       returning id::text
     `,
-    [title, description, department, status, priority, clientId, assigneeAgentId, taskTypeId, session.agentId, dueAt, tags],
+    [title, description, department, status, priority, clientId, assigneeAgentId, taskTypeId, session.agentId, dueAt, tags, parentTaskId],
   );
 
   const row = rows[0];
