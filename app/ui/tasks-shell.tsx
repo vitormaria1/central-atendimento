@@ -292,9 +292,14 @@ export default function TasksShell() {
             Estruture status, responsáveis e contexto da tarefa com clareza para o time.
           </div>
 
-          <div className="mt-8 grid gap-x-10 gap-y-5 md:grid-cols-2">
-            <div className="space-y-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Status</div>
+          <div className="mt-8 rounded-[32px] border border-[var(--border)] bg-[var(--surface-1)] px-6 py-6">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Campos principais</div>
+            <div className="mt-5 grid gap-x-10 gap-y-5 md:grid-cols-2">
+              <div className="grid grid-cols-[120px_minmax(0,1fr)] items-center gap-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <span className="text-[var(--muted)]">◉</span>
+                  Status
+                </div>
               <select
                 value={details.status}
                 onChange={(e) => {
@@ -308,7 +313,7 @@ export default function TasksShell() {
                     }
                   })();
                 }}
-                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
+                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm outline-none"
               >
                 {(statusMeta.length
                   ? statusMeta
@@ -324,10 +329,13 @@ export default function TasksShell() {
                   </option>
                 ))}
               </select>
-            </div>
+              </div>
 
-            <div className="space-y-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Responsável</div>
+              <div className="grid grid-cols-[120px_minmax(0,1fr)] items-center gap-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <span className="text-[var(--muted)]">👤</span>
+                  Responsável
+                </div>
               <select
                 value={details.assignee?.agentId ?? "none"}
                 disabled={me?.agentId !== "vanderlei"}
@@ -342,17 +350,20 @@ export default function TasksShell() {
                     }
                   })();
                 }}
-                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none disabled:opacity-60"
+                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm outline-none disabled:opacity-60"
                 title={me?.agentId === "vanderlei" ? "Responsável" : "Somente Vanderlei pode alterar"}
               >
                 <option value="none">Sem responsável</option>
                 <option value="vanderlei">Vanderlei</option>
                 <option value="gustavo">Gustavo</option>
               </select>
-            </div>
+              </div>
 
-            <div className="space-y-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Prioridade</div>
+              <div className="grid grid-cols-[120px_minmax(0,1fr)] items-center gap-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <span className="text-[var(--muted)]">⚑</span>
+                  Prioridade
+                </div>
               <select
                 value={details.priority}
                 onChange={(e) => {
@@ -366,17 +377,20 @@ export default function TasksShell() {
                     }
                   })();
                 }}
-                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
+                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm outline-none"
               >
                 <option value="low">Baixa</option>
                 <option value="normal">Normal</option>
                 <option value="high">Alta</option>
                 <option value="urgent">Urgente</option>
               </select>
-            </div>
+              </div>
 
-            <div className="space-y-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Departamento</div>
+              <div className="grid grid-cols-[120px_minmax(0,1fr)] items-center gap-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <span className="text-[var(--muted)]">▤</span>
+                  Departamento
+                </div>
               <select
                 value={details.department}
                 onChange={(e) => {
@@ -390,7 +404,7 @@ export default function TasksShell() {
                     }
                   })();
                 }}
-                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
+                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm outline-none"
               >
                 {(departmentMeta.length
                   ? departmentMeta
@@ -407,10 +421,13 @@ export default function TasksShell() {
                   </option>
                 ))}
               </select>
-            </div>
+              </div>
 
-            <div className="space-y-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Tipo</div>
+              <div className="grid grid-cols-[120px_minmax(0,1fr)] items-center gap-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <span className="text-[var(--muted)]">◌</span>
+                  Tipo
+                </div>
               <select
                 value={details.taskType?.id ?? ""}
                 disabled={me?.agentId !== "vanderlei"}
@@ -425,7 +442,7 @@ export default function TasksShell() {
                     }
                   })();
                 }}
-                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none disabled:opacity-60"
+                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm outline-none disabled:opacity-60"
                 title={me?.agentId === "vanderlei" ? "Tipo de tarefa" : "Somente Vanderlei pode alterar"}
               >
                 <option value="">Sem tipo</option>
@@ -435,19 +452,26 @@ export default function TasksShell() {
                   </option>
                 ))}
               </select>
-            </div>
+              </div>
 
-            <div className="space-y-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Prazo</div>
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm">
+              <div className="grid grid-cols-[120px_minmax(0,1fr)] items-center gap-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <span className="text-[var(--muted)]">🗓</span>
+                  Prazo
+                </div>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm">
                 {details.dueAt ? formatDateOnly(details.dueAt) : "Sem prazo definido"}
+              </div>
               </div>
             </div>
           </div>
 
           <div className="mt-10 border-t border-[var(--border)] pt-8">
-            <div className="text-2xl font-semibold">Descrição</div>
-            <div className="mt-4 rounded-[28px] border border-[var(--border)] bg-[var(--surface-1)] px-5 py-5 text-sm leading-7 text-[var(--muted)]">
+            <div className="flex items-center gap-3">
+              <div className="text-2xl font-semibold">Descrição</div>
+              <div className="text-xs text-[var(--muted)]">Contexto principal da entrega</div>
+            </div>
+            <div className="mt-4 rounded-[28px] border border-[var(--border)] bg-[var(--surface-2)] px-6 py-6 text-sm leading-7 text-[var(--muted)]">
               {details.description ? (
                 <div className="whitespace-pre-wrap text-[var(--foreground)]">{details.description}</div>
               ) : (
@@ -459,11 +483,11 @@ export default function TasksShell() {
           <div className="mt-10 border-t border-[var(--border)] pt-8">
             <div className="text-2xl font-semibold">Campos adicionais</div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-4">
+              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-2)] px-4 py-4">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">Cliente</div>
                 <div className="mt-2 text-sm">{details.client?.name ?? "Não vinculado"}</div>
               </div>
-              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-4">
+              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-2)] px-4 py-4">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">Arquivos</div>
                 <div className="mt-2 text-sm">{attachments.length} arquivo(s)</div>
               </div>
@@ -476,6 +500,7 @@ export default function TasksShell() {
             <div className="border-b border-[var(--border)] px-5 py-5">
               <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">Atividade</div>
               <div className="mt-1 text-2xl font-semibold">Linha do tempo</div>
+              <div className="mt-2 text-sm text-[var(--muted)]">Comentários, arquivos e interações da tarefa.</div>
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
@@ -533,7 +558,7 @@ export default function TasksShell() {
 
               <div className="space-y-3">
                 {comments.map((c) => (
-                  <div key={c.id} className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] p-4">
+                  <div key={c.id} className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0 text-sm font-semibold truncate">{c.authorName}</div>
                       <div className="shrink-0 text-[11px] text-[var(--muted)]">{formatTime(c.createdAt)}</div>
