@@ -965,7 +965,7 @@ export default function TasksShell() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div className="flex h-screen">
-        <aside className="w-[360px] shrink-0 border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_80%,black)]">
+        <aside className="w-[360px] shrink-0 border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_92%,var(--background))]">
           <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--border)]">
             <button
               type="button"
@@ -1000,7 +1000,7 @@ export default function TasksShell() {
           </div>
 
           <div className="p-4 border-b border-[var(--border)]">
-            <div className="rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--background)_78%,white)_0%,color-mix(in_srgb,var(--background)_90%,black)_100%)] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+            <div className="rounded-[28px] border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--card)_96%,var(--background))_0%,color-mix(in_srgb,var(--card)_88%,var(--background))_100%)] p-4 shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-[10px] uppercase tracking-[0.26em] text-[var(--muted)]">Workspace</div>
@@ -1022,7 +1022,10 @@ export default function TasksShell() {
                   { label: "Hoje", value: taskStats.today },
                   { label: "Atraso", value: taskStats.overdue },
                 ].map((item) => (
-                  <div key={item.label} className="rounded-2xl border border-white/8 bg-white/4 px-3 py-2">
+                  <div
+                    key={item.label}
+                    className="rounded-2xl border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_90%,var(--background))] px-3 py-2"
+                  >
                     <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">{item.label}</div>
                     <div className="mt-1 text-sm font-semibold">{item.value}</div>
                   </div>
@@ -1036,7 +1039,7 @@ export default function TasksShell() {
                   "mt-3 w-full rounded-2xl border px-3 py-3 text-left transition",
                   department === "all"
                     ? "border-[color-mix(in_srgb,var(--primary)_35%,white)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
-                    : "border-white/8 bg-white/4 hover:bg-white/6",
+                    : "border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_88%,var(--background))] hover:bg-[color-mix(in_srgb,var(--card)_96%,var(--background))]",
                 ].join(" ")}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -1044,7 +1047,7 @@ export default function TasksShell() {
                     <div className="text-sm font-medium">Visão geral</div>
                     <div className="mt-1 text-[11px] text-[var(--muted)]">Tudo em uma única lista</div>
                   </div>
-                  <span className="rounded-full border border-white/8 bg-black/10 px-2 py-1 text-[10px] text-[var(--muted)]">
+                  <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] px-2 py-1 text-[10px] text-[var(--muted)]">
                     {tasks.length}
                   </span>
                 </div>
@@ -1053,7 +1056,7 @@ export default function TasksShell() {
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
-            <div className="mb-2 flex items-center justify-between px-2">
+            <div className="mb-3 flex items-center justify-between rounded-2xl border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_88%,var(--background))] px-3 py-2">
               <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">Departamentos</div>
               <div className="text-[11px] text-[var(--muted)]">{sidebarDepartments.length} pastas</div>
             </div>
@@ -1077,7 +1080,7 @@ export default function TasksShell() {
                       "rounded-3xl border transition",
                       active
                         ? "border-[color-mix(in_srgb,var(--primary)_28%,white)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
-                        : "border-white/8 bg-white/[0.03] hover:bg-white/[0.05]",
+                        : "border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_86%,var(--background))] hover:bg-[color-mix(in_srgb,var(--card)_96%,var(--background))]",
                     ].join(" ")}
                   >
                     <button
@@ -1102,13 +1105,13 @@ export default function TasksShell() {
                         </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-2 text-[11px] text-[var(--muted)]">
-                        <span className="rounded-full border border-white/8 bg-black/10 px-2 py-1">{deptCounts.total}</span>
+                        <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] px-2 py-1">{deptCounts.total}</span>
                         <span className="transition group-hover:text-[var(--foreground)]">{expanded ? "▾" : "▸"}</span>
                       </span>
                     </button>
                     {expanded ? (
-                      <div className="border-t border-white/8 px-3 py-2">
-                        <div className="ml-3 border-l border-white/8 pl-3 space-y-1.5">
+                      <div className="border-t border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] px-3 py-2">
+                        <div className="ml-3 border-l border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] pl-3 space-y-1.5">
                           {[
                             { label: "Todas", status: "all" as const, count: deptCounts.total },
                             { label: "A fazer", status: "to_do" as const, count: deptTasks.filter((task) => task.status === "to_do").length },
@@ -1123,10 +1126,10 @@ export default function TasksShell() {
                                 setDepartment(d.id);
                                 setStatus(item.status);
                               }}
-                              className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-[11px] text-[var(--muted)] transition hover:bg-white/6 hover:text-[var(--foreground)]"
+                              className="flex w-full items-center justify-between rounded-2xl border border-transparent px-3 py-2 text-left text-[11px] text-[var(--muted)] transition hover:border-[color-mix(in_srgb,var(--foreground)_6%,var(--background))] hover:bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] hover:text-[var(--foreground)]"
                             >
                               <span>{item.label}</span>
-                              <span className="rounded-full border border-white/8 bg-black/10 px-2 py-0.5">{item.count}</span>
+                              <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] px-2 py-0.5">{item.count}</span>
                             </button>
                           ))}
                         </div>

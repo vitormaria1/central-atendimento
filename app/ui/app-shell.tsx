@@ -1712,7 +1712,7 @@ export default function AppShell() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div className="flex h-screen">
-        <aside className="w-[440px] shrink-0 border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_80%,black)]">
+        <aside className="w-[440px] shrink-0 border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_92%,var(--background))]">
           <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--border)] relative">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-2xl bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] flex items-center justify-center">
@@ -1736,7 +1736,7 @@ export default function AppShell() {
                     if (sidebarMenuOpen) closeSidebarMenu();
                     else openSidebarMenu();
                   }}
-                  className="h-10 w-10 rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/8 flex items-center justify-center text-lg"
+                  className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_94%,var(--background))] text-lg hover:bg-[color-mix(in_srgb,var(--card)_98%,var(--background))]"
                   aria-label="Mais opções"
                   title="Mais opções"
                 >
@@ -1799,7 +1799,7 @@ export default function AppShell() {
                   </div>
                 ) : null}
               </div>
-              <div className="flex items-center gap-1 rounded-2xl bg-white/5 ring-1 ring-white/10 p-1">
+              <div className="flex items-center gap-1 rounded-2xl border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_90%,var(--background))] p-1">
                 <button
                   type="button"
                   onClick={() => setAssignedFilter((prev) => (prev === "vanderlei" ? "all" : "vanderlei"))}
@@ -1835,12 +1835,21 @@ export default function AppShell() {
             </div>
           </div>
 
-          <div className="p-4 border-b border-[var(--border)]">
+          <div className="border-b border-[var(--border)] p-4">
+            <div className="mb-3 flex items-center justify-between rounded-2xl border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_88%,var(--background))] px-3 py-2">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">Conversas</div>
+                <div className="mt-0.5 text-sm font-medium text-[var(--foreground)]">WhatsApp</div>
+              </div>
+              <div className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] px-2 py-1 text-[10px] text-[var(--muted)]">
+                {pinnedVisibleChats.length}
+              </div>
+            </div>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar conversas..."
-              className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
+              className="w-full rounded-2xl border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_94%,var(--background))] px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
             />
           </div>
   
@@ -1861,7 +1870,9 @@ export default function AppShell() {
                     key={chat.chatId}
                     className={[
                       "w-full px-4 py-3 border-b border-[var(--border)] transition",
-                      active ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)]" : "hover:bg-white/3",
+                      active
+                        ? "bg-[color-mix(in_srgb,var(--primary)_10%,var(--card))]"
+                        : "hover:bg-[color-mix(in_srgb,var(--card)_88%,var(--background))]",
                     ].join(" ")}
                     onContextMenu={(e) => {
                       e.preventDefault();
