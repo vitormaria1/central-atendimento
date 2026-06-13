@@ -156,6 +156,35 @@ function departmentTone(id: string) {
   return `hsl(${hue} 55% 60%)`;
 }
 
+function priorityTone(priority: TaskPriority) {
+  switch (priority) {
+    case "urgent":
+      return {
+        border: "rgba(220, 38, 38, 0.16)",
+        background: "rgba(220, 38, 38, 0.08)",
+        text: "#b91c1c",
+      };
+    case "high":
+      return {
+        border: "rgba(217, 119, 6, 0.18)",
+        background: "rgba(217, 119, 6, 0.10)",
+        text: "#b45309",
+      };
+    case "low":
+      return {
+        border: "rgba(15, 154, 131, 0.16)",
+        background: "rgba(15, 154, 131, 0.08)",
+        text: "#0f766e",
+      };
+    default:
+      return {
+        border: "rgba(71, 85, 105, 0.16)",
+        background: "rgba(71, 85, 105, 0.08)",
+        text: "var(--muted)",
+      };
+  }
+}
+
 export default function TasksShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
@@ -1480,17 +1509,18 @@ export default function TasksShell() {
               </div>
               </div>
             ) : viewType === "board" ? (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
                 {(statusMeta.length ? statusMeta.map((x) => x.id) : (["to_do", "in_progress", "blocked", "done"] as TaskStatus[])).map((s) => {
                   const columnTasks = visibleTasks.filter((t) => t.status === s).slice(0, 200);
+                  const statusColor = statusMeta.find((x) => x.id === s)?.color ?? "#64748b";
                   return (
                     <div
                       key={s}
                       className={[
-                        "rounded-3xl ring-1 p-4 min-h-[220px] transition",
+                        "min-h-[320px] rounded-[30px] border p-3 transition",
                         boardDraggingTaskId
-                          ? "bg-[color-mix(in_srgb,var(--primary)_6%,transparent)] ring-[color-mix(in_srgb,var(--primary)_20%,var(--border))]"
-                          : "bg-white/5 ring-white/10",
+                          ? "border-[color-mix(in_srgb,var(--primary)_22%,white)] bg-[color-mix(in_srgb,var(--primary)_7%,var(--card))]"
+                          : "border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_90%,var(--background))]",
                       ].join(" ")}
                       onDragOver={(e) => {
                         e.preventDefault();
@@ -1514,17 +1544,24 @@ export default function TasksShell() {
                         setBoardDraggingTaskId(null);
                       }}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-semibold flex items-center gap-2">
-                          <span
-                            className="inline-block h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: statusMeta.find((x) => x.id === s)?.color ?? "#64748b" }}
-                          />
-                          {statusLabel(s, statusMeta)}
+                      <div className="rounded-[24px] border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] px-4 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">Coluna</div>
+                            <div className="mt-1 flex items-center gap-2 text-sm font-semibold">
+                              <span
+                                className="inline-block h-2.5 w-2.5 rounded-full"
+                                style={{ backgroundColor: statusColor }}
+                              />
+                              {statusLabel(s, statusMeta)}
+                            </div>
+                          </div>
+                          <div className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_100%,var(--background))] px-2 py-1 text-[10px] text-[var(--muted)]">
+                            {columnTasks.length}
+                          </div>
                         </div>
-                        <div className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1">{columnTasks.length}</div>
                       </div>
-                      <div className="mt-3 space-y-2">
+                      <div className="mt-3 space-y-3">
                         {columnTasks.map((t) => (
                           <div
                             key={t.id}
@@ -1535,8 +1572,10 @@ export default function TasksShell() {
                             }}
                             onDragEnd={() => setBoardDraggingTaskId(null)}
                             className={[
-                              "w-full text-left rounded-2xl bg-[color-mix(in_srgb,var(--background)_70%,black)] ring-1 ring-white/10 px-3 py-2 hover:bg-white/8 cursor-grab active:cursor-grabbing",
-                              t.id === selectedTaskId ? "ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]" : "",
+                              "cursor-grab rounded-[26px] border bg-[color-mix(in_srgb,var(--card)_98%,var(--background))] px-4 py-4 text-left shadow-[0_10px_24px_rgba(15,23,42,0.06)] active:cursor-grabbing",
+                              t.id === selectedTaskId
+                                ? "border-[color-mix(in_srgb,var(--primary)_30%,white)] bg-[color-mix(in_srgb,var(--primary)_6%,var(--card))]"
+                                : "border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] hover:border-[color-mix(in_srgb,var(--foreground)_12%,var(--background))]",
                             ].join(" ")}
                           >
                             <button
@@ -1547,51 +1586,94 @@ export default function TasksShell() {
                               }}
                               className="w-full text-left"
                             >
-                              <div className="text-sm font-medium truncate">{t.title}</div>
-                              <div className="mt-1 text-xs text-[var(--muted)] truncate">
-                                {t.taskType ? `${t.taskType.name} • ` : ""}
-                                {t.client ? t.client.name : "Sem cliente"} • {priorityLabel(t.priority)}
-                                {t.assignee ? ` • ${t.assignee.name}` : ""}
-                                {t.dueAt ? ` • ${formatDateOnly(t.dueAt)}` : ""}
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
+                                {t.taskType ? t.taskType.name : "Tarefa"}
+                              </div>
+                              <div className="mt-2 text-base font-semibold leading-snug">{t.title}</div>
+                              <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]">
+                                {t.client ? (
+                                  <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] px-2 py-1">
+                                    {t.client.name}
+                                  </span>
+                                ) : null}
+                                {t.assignee ? (
+                                  <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] px-2 py-1">
+                                    {t.assignee.name}
+                                  </span>
+                                ) : null}
+                                {t.dueAt ? (
+                                  <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] px-2 py-1">
+                                    {formatDateOnly(t.dueAt)}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="mt-3 flex items-center justify-between gap-3">
+                                <div
+                                  className="rounded-full border px-2.5 py-1 text-[11px] font-medium"
+                                  style={{
+                                    borderColor: priorityTone(t.priority).border,
+                                    backgroundColor: priorityTone(t.priority).background,
+                                    color: priorityTone(t.priority).text,
+                                  }}
+                                >
+                                  {priorityLabel(t.priority)}
+                                </div>
+                                <div className="text-[11px] text-[var(--muted)]">#{t.taskNumber}</div>
                               </div>
                             </button>
                           </div>
                         ))}
-                        {columnTasks.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem tarefas.</div> : null}
+                        {columnTasks.length === 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowCreateForm(true)}
+                            className="w-full rounded-[24px] border border-dashed border-[color-mix(in_srgb,var(--foreground)_10%,var(--background))] bg-[color-mix(in_srgb,var(--card)_94%,var(--background))] px-4 py-5 text-left text-sm text-[var(--muted)] hover:bg-[color-mix(in_srgb,var(--card)_98%,var(--background))]"
+                          >
+                            + Adicionar tarefa
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setShowCreateForm(true)}
+                            className="w-full rounded-[22px] px-3 py-2 text-left text-sm text-[var(--muted)] hover:bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] hover:text-[var(--foreground)]"
+                          >
+                            + Adicionar tarefa
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
+              <div className="rounded-[32px] border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_90%,var(--background))] p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold">Calendário</div>
-                    <div className="text-xs text-[var(--muted)]">Organize tarefas por prazo.</div>
+                  <div className="rounded-[24px] border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] px-4 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">Calendário</div>
+                    <div className="mt-1 text-sm font-semibold">Organize tarefas por prazo</div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 rounded-[24px] border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] px-2 py-2">
                     <button
                       type="button"
                       onClick={() => setCalendarAnchor(new Date())}
-                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                      className="rounded-xl px-3 py-2 text-xs hover:bg-[color-mix(in_srgb,var(--card)_90%,var(--background))]"
                     >
                       Hoje
                     </button>
                     <button
                       type="button"
                       onClick={() => setCalendarAnchor((d) => addMonths(d, -1))}
-                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                      className="rounded-xl px-3 py-2 text-xs hover:bg-[color-mix(in_srgb,var(--card)_90%,var(--background))]"
                     >
                       ←
                     </button>
-                    <div className="text-sm font-semibold min-w-[140px] text-center">
+                    <div className="min-w-[140px] text-center text-sm font-semibold">
                       {startOfMonth(calendarAnchor).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
                     </div>
                     <button
                       type="button"
                       onClick={() => setCalendarAnchor((d) => addMonths(d, 1))}
-                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                      className="rounded-xl px-3 py-2 text-xs hover:bg-[color-mix(in_srgb,var(--card)_90%,var(--background))]"
                     >
                       →
                     </button>
@@ -1621,9 +1703,9 @@ export default function TasksShell() {
                   const dayNames = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
                   return (
                     <div className="mt-4">
-                      <div className="grid grid-cols-7 gap-2 text-xs text-[var(--muted)] px-1">
+                      <div className="grid grid-cols-7 gap-2 rounded-[24px] border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] px-2 py-2 text-xs text-[var(--muted)]">
                         {dayNames.map((n) => (
-                          <div key={n} className="text-center uppercase tracking-wide">
+                          <div key={n} className="text-center uppercase tracking-[0.18em]">
                             {n}
                           </div>
                         ))}
@@ -1638,18 +1720,25 @@ export default function TasksShell() {
                             <div
                               key={key}
                               className={[
-                                "rounded-3xl ring-1 p-2 min-h-[108px] overflow-hidden",
-                                inMonth ? "bg-white/5 ring-white/10" : "bg-white/3 ring-white/5 opacity-70",
-                                isToday ? "ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]" : "",
+                                "min-h-[148px] overflow-hidden rounded-[28px] border p-2.5",
+                                inMonth
+                                  ? "border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_94%,var(--background))]"
+                                  : "border-[color-mix(in_srgb,var(--foreground)_5%,var(--background))] bg-[color-mix(in_srgb,var(--card)_72%,var(--background))] opacity-75",
+                                isToday ? "border-[color-mix(in_srgb,var(--primary)_28%,white)]" : "",
                               ].join(" ")}
                             >
-                              <div className="flex items-center justify-between">
-                                <div className={["text-xs font-semibold", isToday ? "text-white" : "text-[var(--muted)]"].join(" ")}>
+                              <div className="flex items-center justify-between rounded-2xl bg-[color-mix(in_srgb,var(--card)_98%,var(--background))] px-2 py-1.5">
+                                <div
+                                  className={[
+                                    "text-xs font-semibold",
+                                    isToday ? "text-[var(--foreground)]" : "text-[var(--muted)]",
+                                  ].join(" ")}
+                                >
                                   {d.getDate()}
                                 </div>
-                                <div className="text-[10px] text-[var(--muted)]">{list.length ? list.length : ""}</div>
+                                <div className="text-[10px] text-[var(--muted)]">{list.length ? `${list.length} itens` : ""}</div>
                               </div>
-                              <div className="mt-2 space-y-1">
+                              <div className="mt-2 space-y-1.5">
                                 {list.slice(0, 4).map((t) => (
                                   <button
                                     key={t.id}
@@ -1659,19 +1748,29 @@ export default function TasksShell() {
                                       setShowTaskModal(true);
                                     }}
                                     className={[
-                                      "w-full text-left rounded-2xl px-2 py-1 text-xs ring-1 hover:bg-white/8",
+                                      "w-full rounded-2xl border px-2.5 py-2 text-left text-xs transition",
                                       t.id === selectedTaskId
-                                        ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
-                                        : "bg-white/5 ring-white/10",
+                                        ? "border-[color-mix(in_srgb,var(--primary)_28%,white)] bg-[color-mix(in_srgb,var(--primary)_8%,var(--card))]"
+                                        : "border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_98%,var(--background))] hover:bg-[color-mix(in_srgb,var(--card)_92%,var(--background))]",
                                     ].join(" ")}
                                   >
-                                    <div className="truncate">
-                                      <span className="text-[var(--muted)] mr-1">#{t.taskNumber}</span>
-                                      {t.title}
+                                    <div className="flex items-start gap-2">
+                                      <span
+                                        className="mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full"
+                                        style={{ backgroundColor: priorityTone(t.priority).text }}
+                                      />
+                                      <div className="min-w-0">
+                                        <div className="truncate text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">
+                                          #{t.taskNumber}
+                                        </div>
+                                        <div className="mt-0.5 truncate text-[12px] font-medium">{t.title}</div>
+                                      </div>
                                     </div>
                                   </button>
                                 ))}
-                                {list.length > 4 ? <div className="text-[10px] text-[var(--muted)] px-1">+{list.length - 4}…</div> : null}
+                                {list.length > 4 ? (
+                                  <div className="px-1 text-[10px] text-[var(--muted)]">+{list.length - 4} tarefas</div>
+                                ) : null}
                               </div>
                             </div>
                           );
