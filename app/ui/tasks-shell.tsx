@@ -268,215 +268,317 @@ export default function TasksShell() {
   function renderInlineDetails() {
     if (!details) return <div className="text-sm text-[var(--muted)]">Selecione uma tarefa na lista.</div>;
     return (
-      <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 space-y-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-lg font-semibold truncate">
-              <span className="text-[var(--muted)] mr-2">#{details.taskNumber}</span>
-              {details.title}
-            </div>
-            <div className="mt-1 text-xs text-[var(--muted)]">
-              Criado em {formatTime(details.createdAt)}
+      <div className="grid min-h-[70vh] grid-cols-1 overflow-hidden rounded-[32px] border border-[var(--border)] bg-[var(--surface-1)] xl:grid-cols-[minmax(0,1.8fr)_420px]">
+        <div className="min-w-0 overflow-y-auto p-7">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
+            <span className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5">Tarefa</span>
+            <span className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5">#{details.taskNumber}</span>
+            {details.taskType ? (
+              <span className="rounded-2xl border border-[color-mix(in_srgb,var(--accent)_30%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] px-3 py-1.5 text-[var(--foreground)]">
+                {details.taskType.name}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="mt-5">
+            <h2 className="text-3xl font-semibold tracking-tight">{details.title}</h2>
+            <div className="mt-2 text-sm text-[var(--muted)]">
+              Criada em {formatTime(details.createdAt)}
               {details.createdBy ? ` • por ${details.createdBy.name}` : ""}
             </div>
-            {details.taskType ? (
-              <div className="mt-2 inline-flex items-center gap-2 text-xs rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-1">
-                Tipo: <span className="text-[var(--foreground)] font-medium">{details.taskType.name}</span>
+          </div>
+
+          <div className="mt-6 rounded-[28px] border border-[var(--border)] bg-[var(--surface-2)] px-5 py-4 text-sm text-[var(--muted)]">
+            Estruture status, responsáveis e contexto da tarefa com clareza para o time.
+          </div>
+
+          <div className="mt-8 grid gap-x-10 gap-y-5 md:grid-cols-2">
+            <div className="space-y-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Status</div>
+              <select
+                value={details.status}
+                onChange={(e) => {
+                  const v = e.target.value as TaskStatus;
+                  void (async () => {
+                    try {
+                      await patchTask(details.id, { status: v });
+                      await refreshTask(details.id);
+                    } catch (err) {
+                      setToast(err instanceof Error ? err.message : "Falha ao atualizar");
+                    }
+                  })();
+                }}
+                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
+              >
+                {(statusMeta.length
+                  ? statusMeta
+                  : [
+                      { id: "to_do", name: "A Fazer" },
+                      { id: "in_progress", name: "Em Andamento" },
+                      { id: "blocked", name: "Pendente" },
+                      { id: "done", name: "Concluído" },
+                    ]
+                ).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Responsável</div>
+              <select
+                value={details.assignee?.agentId ?? "none"}
+                disabled={me?.agentId !== "vanderlei"}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  void (async () => {
+                    try {
+                      await patchTask(details.id, { assigneeAgentId: v === "none" ? null : v });
+                      await refreshTask(details.id);
+                    } catch (err) {
+                      setToast(err instanceof Error ? err.message : "Falha ao atualizar");
+                    }
+                  })();
+                }}
+                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none disabled:opacity-60"
+                title={me?.agentId === "vanderlei" ? "Responsável" : "Somente Vanderlei pode alterar"}
+              >
+                <option value="none">Sem responsável</option>
+                <option value="vanderlei">Vanderlei</option>
+                <option value="gustavo">Gustavo</option>
+              </select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Prioridade</div>
+              <select
+                value={details.priority}
+                onChange={(e) => {
+                  const v = e.target.value as TaskPriority;
+                  void (async () => {
+                    try {
+                      await patchTask(details.id, { priority: v });
+                      await refreshTask(details.id);
+                    } catch (err) {
+                      setToast(err instanceof Error ? err.message : "Falha ao atualizar");
+                    }
+                  })();
+                }}
+                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
+              >
+                <option value="low">Baixa</option>
+                <option value="normal">Normal</option>
+                <option value="high">Alta</option>
+                <option value="urgent">Urgente</option>
+              </select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Departamento</div>
+              <select
+                value={details.department}
+                onChange={(e) => {
+                  const v = e.target.value as Department;
+                  void (async () => {
+                    try {
+                      await patchTask(details.id, { department: v });
+                      await refreshTask(details.id);
+                    } catch (err) {
+                      setToast(err instanceof Error ? err.message : "Falha ao atualizar");
+                    }
+                  })();
+                }}
+                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
+              >
+                {(departmentMeta.length
+                  ? departmentMeta
+                  : [
+                      { id: "fiscal", name: "Fiscal" },
+                      { id: "contabil", name: "Contábil" },
+                      { id: "pessoal", name: "Pessoal" },
+                      { id: "societario_paralegal", name: "Societário/Paralegal" },
+                      { id: "administrativo", name: "Administrativo" },
+                    ]
+                ).map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Tipo</div>
+              <select
+                value={details.taskType?.id ?? ""}
+                disabled={me?.agentId !== "vanderlei"}
+                onChange={(e) => {
+                  const v = e.target.value || null;
+                  void (async () => {
+                    try {
+                      await patchTask(details.id, { taskTypeId: v });
+                      await refreshTask(details.id);
+                    } catch (err) {
+                      setToast(err instanceof Error ? err.message : "Falha ao atualizar");
+                    }
+                  })();
+                }}
+                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none disabled:opacity-60"
+                title={me?.agentId === "vanderlei" ? "Tipo de tarefa" : "Somente Vanderlei pode alterar"}
+              >
+                <option value="">Sem tipo</option>
+                {taskTypes.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Prazo</div>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm">
+                {details.dueAt ? formatDateOnly(details.dueAt) : "Sem prazo definido"}
               </div>
-            ) : null}
+            </div>
+          </div>
+
+          <div className="mt-10 border-t border-[var(--border)] pt-8">
+            <div className="text-2xl font-semibold">Descrição</div>
+            <div className="mt-4 rounded-[28px] border border-[var(--border)] bg-[var(--surface-1)] px-5 py-5 text-sm leading-7 text-[var(--muted)]">
+              {details.description ? (
+                <div className="whitespace-pre-wrap text-[var(--foreground)]">{details.description}</div>
+              ) : (
+                <div>Sem descrição no momento.</div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-10 border-t border-[var(--border)] pt-8">
+            <div className="text-2xl font-semibold">Campos adicionais</div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-4">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">Cliente</div>
+                <div className="mt-2 text-sm">{details.client?.name ?? "Não vinculado"}</div>
+              </div>
+              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-4">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">Arquivos</div>
+                <div className="mt-2 text-sm">{attachments.length} arquivo(s)</div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {details.description ? <div className="text-sm whitespace-pre-wrap">{details.description}</div> : null}
+        <aside className="border-t border-[var(--border)] bg-[var(--surface-2)] xl:border-l xl:border-t-0">
+          <div className="flex h-full flex-col">
+            <div className="border-b border-[var(--border)] px-5 py-5">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">Atividade</div>
+              <div className="mt-1 text-2xl font-semibold">Linha do tempo</div>
+            </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <select
-            value={details.taskType?.id ?? ""}
-            disabled={me?.agentId !== "vanderlei"}
-            onChange={(e) => {
-              const v = e.target.value || null;
-              void (async () => {
-                try {
-                  await patchTask(details.id, { taskTypeId: v });
-                  await refreshTask(details.id);
-                } catch (err) {
-                  setToast(err instanceof Error ? err.message : "Falha ao atualizar");
-                }
-              })();
-            }}
-            className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none disabled:opacity-60"
-            title={me?.agentId === "vanderlei" ? "Tipo de tarefa" : "Somente Vanderlei pode alterar"}
-          >
-            <option value="">Sem tipo</option>
-            {taskTypes.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={details.status}
-            onChange={(e) => {
-              const v = e.target.value as TaskStatus;
-              void (async () => {
-                try {
-                  await patchTask(details.id, { status: v });
-                  await refreshTask(details.id);
-                } catch (err) {
-                  setToast(err instanceof Error ? err.message : "Falha ao atualizar");
-                }
-              })();
-            }}
-            className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-          >
-            {(statusMeta.length
-              ? statusMeta
-              : [
-                  { id: "to_do", name: "A Fazer" },
-                  { id: "in_progress", name: "Em Andamento" },
-                  { id: "blocked", name: "Pendente" },
-                  { id: "done", name: "Concluído" },
-                ]
-            ).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={details.assignee?.agentId ?? "none"}
-            disabled={me?.agentId !== "vanderlei"}
-            onChange={(e) => {
-              const v = e.target.value;
-              void (async () => {
-                try {
-                  await patchTask(details.id, { assigneeAgentId: v === "none" ? null : v });
-                  await refreshTask(details.id);
-                } catch (err) {
-                  setToast(err instanceof Error ? err.message : "Falha ao atualizar");
-                }
-              })();
-            }}
-            className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none disabled:opacity-60"
-            title={me?.agentId === "vanderlei" ? "Responsável" : "Somente Vanderlei pode alterar"}
-          >
-            <option value="none">Sem responsável</option>
-            <option value="vanderlei">Vanderlei</option>
-            <option value="gustavo">Gustavo</option>
-          </select>
-
-          <select
-            value={details.priority}
-            onChange={(e) => {
-              const v = e.target.value as TaskPriority;
-              void (async () => {
-                try {
-                  await patchTask(details.id, { priority: v });
-                  await refreshTask(details.id);
-                } catch (err) {
-                  setToast(err instanceof Error ? err.message : "Falha ao atualizar");
-                }
-              })();
-            }}
-            className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-          >
-            <option value="low">Baixa</option>
-            <option value="normal">Normal</option>
-            <option value="high">Alta</option>
-            <option value="urgent">Urgente</option>
-          </select>
-
-          <select
-            value={details.department}
-            onChange={(e) => {
-              const v = e.target.value as Department;
-              void (async () => {
-                try {
-                  await patchTask(details.id, { department: v });
-                  await refreshTask(details.id);
-                } catch (err) {
-                  setToast(err instanceof Error ? err.message : "Falha ao atualizar");
-                }
-              })();
-            }}
-            className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-          >
-            {(departmentMeta.length
-              ? departmentMeta
-              : [
-                  { id: "fiscal", name: "Fiscal" },
-                  { id: "contabil", name: "Contábil" },
-                  { id: "pessoal", name: "Pessoal" },
-                  { id: "societario_paralegal", name: "Societário/Paralegal" },
-                  { id: "administrativo", name: "Administrativo" },
-                ]
-            ).map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
-            <div className="text-sm font-semibold">Comentários</div>
-            <div className="mt-3 space-y-3">
-              {comments.map((c) => (
-                <div key={c.id} className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs font-semibold">{c.authorName}</div>
-                    <div className="text-[10px] text-[var(--muted)]">{formatTime(c.createdAt)}</div>
-                  </div>
-                  <div className="mt-1 text-sm whitespace-pre-wrap">{renderWithMentions(c.body)}</div>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {(reactionsByCommentId[c.id] ?? []).map((r) => (
-                      <button
-                        key={r.emoji}
-                        type="button"
-                        onClick={() => void toggleReaction(c.id, r.emoji, r.mine)}
-                        className={[
-                          "text-xs rounded-full px-3 py-1 ring-1 transition",
-                          r.mine
-                            ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
-                            : "bg-white/5 ring-white/10 hover:bg-white/8",
-                        ].join(" ")}
-                      >
-                        {r.emoji} {r.count}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void loadReactions(c.id);
-                      }}
-                      className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
-                    >
-                      Atualizar reações
-                    </button>
-                    {["👍", "✅", "🔥"].map((e) => (
-                      <button
-                        key={e}
-                        type="button"
-                        onClick={() =>
-                          void toggleReaction(
-                            c.id,
-                            e,
-                            Boolean((reactionsByCommentId[c.id] ?? []).find((x) => x.emoji === e)?.mine),
-                          )
-                        }
-                        className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
-                      >
-                        {e}
-                      </button>
-                    ))}
-                  </div>
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] p-4">
+                <div className="text-xs text-[var(--muted)]">Criada por</div>
+                <div className="mt-2 text-sm font-medium">
+                  {details.createdBy?.name ?? "Sistema"} • {formatTime(details.createdAt)}
                 </div>
-              ))}
+              </div>
 
-              <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
+              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold">Arquivos</div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files ?? []);
+                      if (files.length === 0) return;
+                      void (async () => {
+                        try {
+                          await uploadAttachments(details.id, files.slice(0, 5));
+                          await refreshTask(details.id);
+                        } catch (err) {
+                          setToast(err instanceof Error ? err.message : "Falha ao enviar arquivo");
+                        } finally {
+                          if (fileInputRef.current) fileInputRef.current.value = "";
+                        }
+                      })();
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs hover:bg-[var(--surface-1)]"
+                  >
+                    Enviar
+                  </button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {attachments.map((a) => (
+                    <a
+                      key={a.id}
+                      href={`/api/tasks/attachments/download?id=${encodeURIComponent(a.id)}`}
+                      className="block rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3 text-sm hover:bg-[var(--surface-1)]"
+                    >
+                      {a.filename}
+                    </a>
+                  ))}
+                  {attachments.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem anexos.</div> : null}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {comments.map((c) => (
+                  <div key={c.id} className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 text-sm font-semibold truncate">{c.authorName}</div>
+                      <div className="shrink-0 text-[11px] text-[var(--muted)]">{formatTime(c.createdAt)}</div>
+                    </div>
+                    <div className="mt-3 text-sm whitespace-pre-wrap">{renderWithMentions(c.body)}</div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {(reactionsByCommentId[c.id] ?? []).map((r) => (
+                        <button
+                          key={r.emoji}
+                          type="button"
+                          onClick={() => void toggleReaction(c.id, r.emoji, r.mine)}
+                          className={[
+                            "rounded-full px-3 py-1 text-xs ring-1 transition",
+                            r.mine
+                              ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_45%,transparent)]"
+                              : "bg-[var(--surface-2)] ring-[var(--border)] hover:bg-[var(--surface-1)]",
+                          ].join(" ")}
+                        >
+                          {r.emoji} {r.count}
+                        </button>
+                      ))}
+                      {["👍", "✅", "🔥"].map((e) => (
+                        <button
+                          key={e}
+                          type="button"
+                          onClick={() =>
+                            void toggleReaction(
+                              c.id,
+                              e,
+                              Boolean((reactionsByCommentId[c.id] ?? []).find((x) => x.emoji === e)?.mine),
+                            )
+                          }
+                          className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs ring-1 ring-[var(--border)] hover:bg-[var(--surface-1)]"
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-[var(--border)] bg-[var(--surface-1)] px-5 py-4">
+              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-2)] p-4">
                 <textarea
                   value={commentBody}
                   onChange={(e) => setCommentBody(e.target.value)}
@@ -484,8 +586,8 @@ export default function TasksShell() {
                   placeholder="Escreva um comentário... (use @vanderlei / @gustavo)"
                   className="w-full resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
                 />
-                <div className="mt-2 flex items-center justify-between gap-3">
-                  <label className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8 cursor-pointer">
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <label className="cursor-pointer rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1.5 text-xs hover:bg-[var(--surface-2)]">
                     Anexar
                     <input
                       ref={commentFileRef}
@@ -498,7 +600,7 @@ export default function TasksShell() {
                       }}
                     />
                   </label>
-                  <div className="text-xs text-[var(--muted)] truncate">
+                  <div className="min-w-0 flex-1 truncate text-xs text-[var(--muted)] text-right">
                     {commentFiles.length > 0 ? commentFiles.map((f) => f.name).join(", ") : "Até 5 arquivos"}
                   </div>
                   <button
@@ -511,7 +613,6 @@ export default function TasksShell() {
                           await addComment(details.id, commentBody.trim());
                           setCommentBody("");
                           await refreshTask(details.id);
-                          // upload after comment exists: fetch latest to get last id
                           if (commentFiles.length > 0) {
                             const latest = await fetch(`/api/tasks/${encodeURIComponent(details.id)}/comments`, { cache: "no-store" });
                             const latestData = (await latest.json()) as { items: CommentItem[] };
@@ -529,58 +630,13 @@ export default function TasksShell() {
                     }}
                     className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
                   >
-                    {commentSending ? "Enviando..." : "Comentar"}
+                    {commentSending ? "Enviando..." : "Responder"}
                   </button>
                 </div>
               </div>
             </div>
           </div>
-
-          <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">Arquivos</div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files ?? []);
-                  if (files.length === 0) return;
-                  void (async () => {
-                    try {
-                      await uploadAttachments(details.id, files.slice(0, 5));
-                      await refreshTask(details.id);
-                    } catch (err) {
-                      setToast(err instanceof Error ? err.message : "Falha ao enviar arquivo");
-                    } finally {
-                      if (fileInputRef.current) fileInputRef.current.value = "";
-                    }
-                  })();
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-              >
-                Enviar
-              </button>
-            </div>
-            <div className="mt-3 space-y-2">
-              {attachments.map((a) => (
-                <a
-                  key={a.id}
-                  href={`/api/tasks/attachments/download?id=${encodeURIComponent(a.id)}`}
-                  className="block text-sm rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
-                >
-                  {a.filename}
-                </a>
-              ))}
-              {attachments.length === 0 ? <div className="text-xs text-[var(--muted)]">Sem anexos.</div> : null}
-            </div>
-          </div>
-        </div>
+        </aside>
       </div>
     );
   }
@@ -2243,7 +2299,7 @@ export default function TasksShell() {
                   if (e.target === e.currentTarget) setShowTaskModal(false);
                 }}
               >
-                <div className="w-full max-w-4xl max-h-[86vh] overflow-y-auto rounded-3xl bg-[color-mix(in_srgb,var(--background)_92%,black)] ring-1 ring-white/10 p-5">
+                <div className="w-full max-w-[92vw] xl:max-w-[1500px] max-h-[90vh] overflow-hidden rounded-[36px] bg-[color-mix(in_srgb,var(--background)_95%,black)] ring-1 ring-white/10 p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-semibold">Editar tarefa</div>
                     <button
