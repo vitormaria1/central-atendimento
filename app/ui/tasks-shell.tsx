@@ -291,6 +291,11 @@ export default function TasksShell() {
   const [commentSending, setCommentSending] = useState(false);
   const [commentFiles, setCommentFiles] = useState<File[]>([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const [newSubtaskDescription, setNewSubtaskDescription] = useState("");
+  const [newSubtaskPriority, setNewSubtaskPriority] = useState<TaskPriority>("normal");
+  const [newSubtaskAssignee, setNewSubtaskAssignee] = useState<"none" | "vanderlei" | "gustavo">("none");
+  const [newSubtaskDueAt, setNewSubtaskDueAt] = useState("");
+  const [newSubtaskTaskTypeId, setNewSubtaskTaskTypeId] = useState("");
   const [creatingSubtask, setCreatingSubtask] = useState(false);
 
   function renderInlineDetails() {
@@ -538,18 +543,66 @@ export default function TasksShell() {
                 {me?.agentId === "vanderlei" ? (
                   <div className="mt-5 flex flex-col gap-3 rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] p-4">
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Nova subtarefa</div>
-                    <div className="flex flex-col gap-3 sm:flex-row">
+                    <div className="grid gap-3">
                       <input
                         value={newSubtaskTitle}
                         onChange={(e) => setNewSubtaskTitle(e.target.value)}
                         placeholder="Ex.: Revisar documentos do cliente"
                         className="min-w-0 flex-1 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
                       />
+                      <textarea
+                        value={newSubtaskDescription}
+                        onChange={(e) => setNewSubtaskDescription(e.target.value)}
+                        rows={3}
+                        placeholder="Descrição da subtarefa"
+                        className="w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
+                      />
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <select
+                          value={newSubtaskAssignee}
+                          onChange={(e) => setNewSubtaskAssignee(e.target.value as typeof newSubtaskAssignee)}
+                          className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
+                        >
+                          <option value="none">Sem responsável</option>
+                          <option value="vanderlei">Vanderlei</option>
+                          <option value="gustavo">Gustavo</option>
+                        </select>
+                        <select
+                          value={newSubtaskPriority}
+                          onChange={(e) => setNewSubtaskPriority(e.target.value as TaskPriority)}
+                          className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
+                        >
+                          <option value="low">Baixa</option>
+                          <option value="normal">Normal</option>
+                          <option value="high">Alta</option>
+                          <option value="urgent">Urgente</option>
+                        </select>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <input
+                          type="date"
+                          value={newSubtaskDueAt}
+                          onChange={(e) => setNewSubtaskDueAt(e.target.value)}
+                          className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
+                        />
+                        <select
+                          value={newSubtaskTaskTypeId}
+                          onChange={(e) => setNewSubtaskTaskTypeId(e.target.value)}
+                          className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
+                        >
+                          <option value="">Sem tipo</option>
+                          {taskTypes.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <button
                         type="button"
                         onClick={() => void createSubtask(details)}
                         disabled={creatingSubtask || newSubtaskTitle.trim().length === 0}
-                        className="rounded-2xl bg-[var(--primary)] px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+                        className="rounded-2xl bg-[var(--primary)] px-4 py-3 text-sm font-medium text-white disabled:opacity-60 md:self-end"
                       >
                         {creatingSubtask ? "Criando..." : "Adicionar subtarefa"}
                       </button>
@@ -665,6 +718,67 @@ export default function TasksShell() {
               </div>
             </div>
 
+            <div className="border-b border-[var(--border)] bg-[var(--surface-1)] px-5 py-4">
+              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Novo comentário</div>
+                <textarea
+                  ref={commentTextareaRef}
+                  value={commentBody}
+                  onChange={(e) => setCommentBody(e.target.value)}
+                  rows={3}
+                  placeholder="Escreva um comentário... (use @vanderlei / @gustavo)"
+                  className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-[var(--muted)]"
+                />
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <label className="cursor-pointer rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1.5 text-xs hover:bg-[var(--surface-2)]">
+                    Anexar
+                    <input
+                      ref={commentFileRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? []);
+                        setCommentFiles(files.slice(0, 5));
+                      }}
+                    />
+                  </label>
+                  <div className="min-w-0 flex-1 truncate text-right text-xs text-[var(--muted)]">
+                    {commentFiles.length > 0 ? commentFiles.map((f) => f.name).join(", ") : "Até 5 arquivos"}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={commentSending || commentBody.trim().length === 0}
+                    onClick={() => {
+                      void (async () => {
+                        setCommentSending(true);
+                        try {
+                          await addComment(details.id, commentBody.trim());
+                          setCommentBody("");
+                          await refreshTask(details.id);
+                          if (commentFiles.length > 0) {
+                            const latest = await fetch(`/api/tasks/${encodeURIComponent(details.id)}/comments`, { cache: "no-store" });
+                            const latestData = (await latest.json()) as { items: CommentItem[] };
+                            const last = latestData.items[latestData.items.length - 1];
+                            if (last?.id) await uploadCommentAttachments(last.id, commentFiles);
+                            setCommentFiles([]);
+                          }
+                          await refreshTask(details.id);
+                        } catch (err) {
+                          setToast(err instanceof Error ? err.message : "Falha ao comentar");
+                        } finally {
+                          setCommentSending(false);
+                        }
+                      })();
+                    }}
+                    className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  >
+                    {commentSending ? "Enviando..." : "Responder"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
               <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-1)] p-4">
                 <div className="text-xs text-[var(--muted)]">Criada por</div>
@@ -747,67 +861,6 @@ export default function TasksShell() {
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-
-            <div className="border-t border-[var(--border)] bg-[var(--surface-1)] px-5 py-4">
-              <div className="rounded-[24px] border border-[var(--border)] bg-[var(--surface-2)] p-4">
-                <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Novo comentário</div>
-                <textarea
-                  ref={commentTextareaRef}
-                  value={commentBody}
-                  onChange={(e) => setCommentBody(e.target.value)}
-                  rows={3}
-                  placeholder="Escreva um comentário... (use @vanderlei / @gustavo)"
-                  className="w-full resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
-                />
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                  <label className="cursor-pointer rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1.5 text-xs hover:bg-[var(--surface-2)]">
-                    Anexar
-                    <input
-                      ref={commentFileRef}
-                      type="file"
-                      multiple
-                      className="hidden"
-                      onChange={(e) => {
-                        const files = Array.from(e.target.files ?? []);
-                        setCommentFiles(files.slice(0, 5));
-                      }}
-                    />
-                  </label>
-                  <div className="min-w-0 flex-1 truncate text-xs text-[var(--muted)] text-right">
-                    {commentFiles.length > 0 ? commentFiles.map((f) => f.name).join(", ") : "Até 5 arquivos"}
-                  </div>
-                  <button
-                    type="button"
-                    disabled={commentSending || commentBody.trim().length === 0}
-                    onClick={() => {
-                      void (async () => {
-                        setCommentSending(true);
-                        try {
-                          await addComment(details.id, commentBody.trim());
-                          setCommentBody("");
-                          await refreshTask(details.id);
-                          if (commentFiles.length > 0) {
-                            const latest = await fetch(`/api/tasks/${encodeURIComponent(details.id)}/comments`, { cache: "no-store" });
-                            const latestData = (await latest.json()) as { items: CommentItem[] };
-                            const last = latestData.items[latestData.items.length - 1];
-                            if (last?.id) await uploadCommentAttachments(last.id, commentFiles);
-                            setCommentFiles([]);
-                          }
-                          await refreshTask(details.id);
-                        } catch (err) {
-                          setToast(err instanceof Error ? err.message : "Falha ao comentar");
-                        } finally {
-                          setCommentSending(false);
-                        }
-                      })();
-                    }}
-                    className="rounded-2xl bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                  >
-                    {commentSending ? "Enviando..." : "Responder"}
-                  </button>
-                </div>
               </div>
             </div>
           </div>
@@ -1117,17 +1170,24 @@ export default function TasksShell() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           title,
+          description: newSubtaskDescription.trim() || undefined,
           department: parent.department,
-          priority: parent.priority,
-          assigneeAgentId: parent.assignee?.agentId ?? null,
-          taskTypeId: parent.taskType?.id ?? null,
+          priority: newSubtaskPriority,
+          assigneeAgentId: newSubtaskAssignee === "none" ? null : newSubtaskAssignee,
+          taskTypeId: newSubtaskTaskTypeId || null,
           clientId: parent.client?.id ?? undefined,
+          dueAt: newSubtaskDueAt ? new Date(newSubtaskDueAt).toISOString() : null,
           parentTaskId: parent.id,
         }),
       });
       const data = (await res.json().catch(() => null)) as { id?: string; error?: string } | null;
       if (!res.ok || !data?.id) throw new Error(data?.error ?? "Falha ao criar subtarefa");
       setNewSubtaskTitle("");
+      setNewSubtaskDescription("");
+      setNewSubtaskPriority(parent.priority);
+      setNewSubtaskAssignee((parent.assignee?.agentId as "vanderlei" | "gustavo" | undefined) ?? "none");
+      setNewSubtaskDueAt(parent.dueAt ? parent.dueAt.slice(0, 10) : "");
+      setNewSubtaskTaskTypeId(parent.taskType?.id ?? "");
       await refreshTask(parent.id);
       setSelectedTaskId(parent.id);
       setShowTaskModal(true);
@@ -1247,6 +1307,16 @@ export default function TasksShell() {
     void refreshTask(selectedTaskId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId]);
+
+  useEffect(() => {
+    if (!details) return;
+    setNewSubtaskPriority(details.priority);
+    setNewSubtaskAssignee((details.assignee?.agentId as "vanderlei" | "gustavo" | undefined) ?? "none");
+    setNewSubtaskDueAt(details.dueAt ? details.dueAt.slice(0, 10) : "");
+    setNewSubtaskTaskTypeId(details.taskType?.id ?? "");
+    setNewSubtaskDescription("");
+    setNewSubtaskTitle("");
+  }, [details]);
 
   useEffect(() => {
     if (!toast) return;
