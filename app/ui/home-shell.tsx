@@ -676,7 +676,7 @@ export default function HomeShell() {
               </div>
             ) : (
               <div className="central-enter mx-auto flex h-full w-full max-w-[1500px] flex-1 flex-col justify-center overflow-hidden py-2">
-                <div className="mx-auto w-full max-w-3xl -translate-y-8 text-center">
+                <div className="mx-auto w-full max-w-3xl -translate-y-14 text-center">
                   <div className="mx-auto inline-flex rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_88%,transparent)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--muted)] backdrop-blur">
                     Central de Atendimento
                   </div>
@@ -814,13 +814,14 @@ export default function HomeShell() {
 
         .hub-orbit {
           position: relative;
-          height: min(64vh, 680px);
+          height: min(60vh, 620px);
           width: 100%;
           max-width: 1240px;
           margin: 0 auto;
           display: flex;
           align-items: center;
           justify-content: center;
+          transform: translateY(-24px);
         }
 
         .hub-scene {
@@ -862,7 +863,7 @@ export default function HomeShell() {
         .hub-card-orbit {
           --orbit-x: 0px;
           --orbit-y: 0px;
-          --orbit-duration: 26s;
+          --orbit-duration: 36s;
           --orbit-delay: 0s;
           position: absolute;
           left: 50%;
@@ -909,10 +910,8 @@ export default function HomeShell() {
         }
 
         .hub-card--whatsapp {
-          --orbit-x: -165px;
-          --orbit-y: -398px;
-          --orbit-duration: 40s;
-          --orbit-delay: -3s;
+          --orbit-x: -220px;
+          --orbit-y: -250px;
           z-index: 3;
         }
 
@@ -921,10 +920,8 @@ export default function HomeShell() {
         }
 
         .hub-card--chat {
-          --orbit-x: 298px;
-          --orbit-y: -193px;
-          --orbit-duration: 33s;
-          --orbit-delay: -11s;
+          --orbit-x: 340px;
+          --orbit-y: 30px;
           z-index: 5;
         }
 
@@ -933,10 +930,8 @@ export default function HomeShell() {
         }
 
         .hub-card--jussara {
-          --orbit-x: -270px;
-          --orbit-y: 110px;
-          --orbit-duration: 25s;
-          --orbit-delay: -7s;
+          --orbit-x: -340px;
+          --orbit-y: 30px;
           z-index: 7;
         }
 
@@ -945,10 +940,8 @@ export default function HomeShell() {
         }
 
         .hub-card--tasks {
-          --orbit-x: 398px;
-          --orbit-y: 140px;
-          --orbit-duration: 40s;
-          --orbit-delay: -16s;
+          --orbit-x: 220px;
+          --orbit-y: -250px;
           z-index: 3;
         }
 
@@ -957,10 +950,8 @@ export default function HomeShell() {
         }
 
         .hub-card--clients {
-          --orbit-x: -258px;
-          --orbit-y: -258px;
-          --orbit-duration: 33s;
-          --orbit-delay: -20s;
+          --orbit-x: -180px;
+          --orbit-y: 260px;
           z-index: 5;
         }
 
@@ -969,10 +960,8 @@ export default function HomeShell() {
         }
 
         .hub-card--instagram {
-          --orbit-x: 158px;
-          --orbit-y: 250px;
-          --orbit-duration: 25s;
-          --orbit-delay: -25s;
+          --orbit-x: 180px;
+          --orbit-y: 260px;
           z-index: 7;
         }
 
@@ -1048,33 +1037,33 @@ export default function HomeShell() {
           }
 
           .hub-card--whatsapp {
-            --orbit-x: -140px;
-            --orbit-y: -343px;
+            --orbit-x: -176px;
+            --orbit-y: -210px;
           }
 
           .hub-card--chat {
-            --orbit-x: 248px;
-            --orbit-y: -165px;
+            --orbit-x: 274px;
+            --orbit-y: 24px;
           }
 
           .hub-card--jussara {
-            --orbit-x: -230px;
-            --orbit-y: 98px;
+            --orbit-x: -274px;
+            --orbit-y: 24px;
           }
 
           .hub-card--tasks {
-            --orbit-x: 338px;
-            --orbit-y: 120px;
+            --orbit-x: 176px;
+            --orbit-y: -210px;
           }
 
           .hub-card--clients {
-            --orbit-x: -218px;
-            --orbit-y: -218px;
+            --orbit-x: -146px;
+            --orbit-y: 214px;
           }
 
           .hub-card--instagram {
-            --orbit-x: 135px;
-            --orbit-y: 210px;
+            --orbit-x: 146px;
+            --orbit-y: 214px;
           }
         }
       `}</style>
