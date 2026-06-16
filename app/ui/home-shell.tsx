@@ -893,7 +893,7 @@ export default function HomeShell() {
 
         .hub-card {
           display: block;
-          width: 236px;
+          width: 177px;
           box-shadow: 0 18px 46px rgba(15, 23, 42, 0.12);
           transition:
             transform 220ms ease,
@@ -909,8 +909,8 @@ export default function HomeShell() {
         }
 
         .hub-card--whatsapp {
-          --orbit-x: -132px;
-          --orbit-y: -318px;
+          --orbit-x: -165px;
+          --orbit-y: -398px;
           --orbit-duration: 40s;
           --orbit-delay: -3s;
           z-index: 3;
@@ -921,8 +921,8 @@ export default function HomeShell() {
         }
 
         .hub-card--chat {
-          --orbit-x: 238px;
-          --orbit-y: -154px;
+          --orbit-x: 298px;
+          --orbit-y: -193px;
           --orbit-duration: 33s;
           --orbit-delay: -11s;
           z-index: 5;
@@ -933,8 +933,8 @@ export default function HomeShell() {
         }
 
         .hub-card--jussara {
-          --orbit-x: -216px;
-          --orbit-y: 88px;
+          --orbit-x: -270px;
+          --orbit-y: 110px;
           --orbit-duration: 25s;
           --orbit-delay: -7s;
           z-index: 7;
@@ -945,8 +945,8 @@ export default function HomeShell() {
         }
 
         .hub-card--tasks {
-          --orbit-x: 318px;
-          --orbit-y: 112px;
+          --orbit-x: 398px;
+          --orbit-y: 140px;
           --orbit-duration: 40s;
           --orbit-delay: -16s;
           z-index: 3;
@@ -957,8 +957,8 @@ export default function HomeShell() {
         }
 
         .hub-card--clients {
-          --orbit-x: -206px;
-          --orbit-y: -206px;
+          --orbit-x: -258px;
+          --orbit-y: -258px;
           --orbit-duration: 33s;
           --orbit-delay: -20s;
           z-index: 5;
@@ -969,8 +969,8 @@ export default function HomeShell() {
         }
 
         .hub-card--instagram {
-          --orbit-x: 126px;
-          --orbit-y: 200px;
+          --orbit-x: 158px;
+          --orbit-y: 250px;
           --orbit-duration: 25s;
           --orbit-delay: -25s;
           z-index: 7;
@@ -1044,37 +1044,37 @@ export default function HomeShell() {
           }
 
           .hub-card {
-            width: 208px;
+            width: 156px;
           }
 
           .hub-card--whatsapp {
-            --orbit-x: -112px;
-            --orbit-y: -274px;
+            --orbit-x: -140px;
+            --orbit-y: -343px;
           }
 
           .hub-card--chat {
-            --orbit-x: 198px;
-            --orbit-y: -132px;
+            --orbit-x: 248px;
+            --orbit-y: -165px;
           }
 
           .hub-card--jussara {
-            --orbit-x: -184px;
-            --orbit-y: 78px;
+            --orbit-x: -230px;
+            --orbit-y: 98px;
           }
 
           .hub-card--tasks {
-            --orbit-x: 270px;
-            --orbit-y: 96px;
+            --orbit-x: 338px;
+            --orbit-y: 120px;
           }
 
           .hub-card--clients {
-            --orbit-x: -174px;
-            --orbit-y: -174px;
+            --orbit-x: -218px;
+            --orbit-y: -218px;
           }
 
           .hub-card--instagram {
-            --orbit-x: 108px;
-            --orbit-y: 168px;
+            --orbit-x: 135px;
+            --orbit-y: 210px;
           }
         }
       `}</style>
