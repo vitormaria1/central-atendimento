@@ -720,8 +720,8 @@ export default function HomeShell() {
                         return (
                           <div key={card.id} className={["hub-card-spot", card.orbitClass].join(" ")}>
                             {card.href ? (
-                              <Link href={card.href} onClick={card.onClick} className={commonClass}>
-                                {content}
+                              <Link href={card.href} onClick={card.onClick} className="block">
+                                <div className={commonClass}>{content}</div>
                               </Link>
                             ) : (
                               <button
@@ -773,8 +773,8 @@ export default function HomeShell() {
                     ].join(" ");
                     if (card.href) {
                       return (
-                        <Link key={card.id} href={card.href} onClick={card.onClick} className={commonClass}>
-                          {content}
+                        <Link key={card.id} href={card.href} onClick={card.onClick} className="block">
+                          <div className={commonClass}>{content}</div>
                         </Link>
                       );
                     }
@@ -864,7 +864,7 @@ export default function HomeShell() {
 
         .hub-card {
           display: block;
-          width: 210px;
+          width: 236px;
           box-shadow: 0 18px 46px rgba(15, 23, 42, 0.12);
           transition:
             transform 220ms ease,
@@ -880,8 +880,8 @@ export default function HomeShell() {
         }
 
         .hub-card--whatsapp {
-          margin-left: -132px;
-          margin-top: -286px;
+          margin-left: -118px;
+          margin-top: -312px;
         }
 
         .hub-card--whatsapp .hub-card {
@@ -893,8 +893,8 @@ export default function HomeShell() {
         }
 
         .hub-card--chat {
-          margin-left: 198px;
-          margin-top: -174px;
+          margin-left: 232px;
+          margin-top: -192px;
         }
 
         .hub-card--chat .hub-card {
@@ -907,7 +907,7 @@ export default function HomeShell() {
 
         .hub-card--jussara {
           margin-left: -296px;
-          margin-top: -44px;
+          margin-top: -52px;
         }
 
         .hub-card--jussara .hub-card {
@@ -919,8 +919,8 @@ export default function HomeShell() {
         }
 
         .hub-card--tasks {
-          margin-left: 286px;
-          margin-top: -28px;
+          margin-left: 284px;
+          margin-top: 58px;
         }
 
         .hub-card--tasks .hub-card {
@@ -932,8 +932,8 @@ export default function HomeShell() {
         }
 
         .hub-card--clients {
-          margin-left: -188px;
-          margin-top: 198px;
+          margin-left: -178px;
+          margin-top: 252px;
         }
 
         .hub-card--clients .hub-card {
@@ -945,8 +945,8 @@ export default function HomeShell() {
         }
 
         .hub-card--instagram {
-          margin-left: 124px;
-          margin-top: 228px;
+          margin-left: 140px;
+          margin-top: 258px;
         }
 
         .hub-card--instagram .hub-card {
@@ -1039,37 +1039,37 @@ export default function HomeShell() {
           }
 
           .hub-card {
-            width: 192px;
+            width: 208px;
           }
 
           .hub-card--whatsapp {
-            margin-left: -122px;
-            margin-top: -250px;
+            margin-left: -104px;
+            margin-top: -266px;
           }
 
           .hub-card--chat {
-            margin-left: 176px;
-            margin-top: -154px;
+            margin-left: 194px;
+            margin-top: -170px;
           }
 
           .hub-card--jussara {
-            margin-left: -264px;
-            margin-top: -32px;
+            margin-left: -246px;
+            margin-top: -44px;
           }
 
           .hub-card--tasks {
-            margin-left: 254px;
-            margin-top: -18px;
+            margin-left: 236px;
+            margin-top: 44px;
           }
 
           .hub-card--clients {
-            margin-left: -166px;
-            margin-top: 176px;
+            margin-left: -152px;
+            margin-top: 214px;
           }
 
           .hub-card--instagram {
-            margin-left: 106px;
-            margin-top: 202px;
+            margin-left: 118px;
+            margin-top: 224px;
           }
         }
       `}</style>
