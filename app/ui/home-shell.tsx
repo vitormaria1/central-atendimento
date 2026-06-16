@@ -303,6 +303,19 @@ export default function HomeShell() {
                   </div>
                   <div className="mt-1 text-xs text-[var(--muted)]">Gerenciar tarefas por departamento</div>
                 </Link>
+
+                <Link
+                  href="/clients"
+                  className={itemClass(false)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">Clientes</div>
+                    <div className="text-[10px] rounded-full bg-[var(--primary)] text-white px-2 py-1">
+                      Ativo
+                    </div>
+                  </div>
+                  <div className="mt-1 text-xs text-[var(--muted)]">Cadastrar e manter dados importantes dos clientes</div>
+                </Link>
               </div>
             </div>
           </div>
