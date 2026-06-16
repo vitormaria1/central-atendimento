@@ -412,7 +412,7 @@ export default function HomeShell() {
             </div>
           </header>
 
-          <div className="flex-1">
+          <div className="flex min-h-0 flex-1 flex-col">
             {currentView === "jussara" ? (
               <div className="grid h-full min-h-[calc(100vh-5rem)] grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
                 <aside className="overflow-hidden rounded-[32px] border border-[var(--border)] bg-[var(--card)]">
@@ -675,24 +675,24 @@ export default function HomeShell() {
                 </div>
               </div>
             ) : (
-              <div className="central-enter mx-auto flex min-h-[calc(100vh-6rem)] max-w-[1500px] flex-col justify-center">
-                <div className="text-center">
+              <div className="central-enter mx-auto flex h-full w-full max-w-[1500px] flex-1 flex-col justify-center overflow-hidden py-2">
+                <div className="mx-auto w-full max-w-3xl text-center">
                   <div className="mx-auto inline-flex rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_88%,transparent)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--muted)] backdrop-blur">
                     Central de Atendimento
                   </div>
-                  <h1 className="mt-5 text-3xl font-semibold tracking-tight md:text-4xl">Hub Operacional</h1>
-                  <p className="mx-auto mt-3 max-w-2xl text-sm text-[var(--muted)] md:text-base">
-                    Escolha um módulo para continuar. A J.U.S.S.A.R.A. mantém conversas persistentes em uma workspace própria.
+                  <h1 className="mt-4 text-2xl font-semibold tracking-tight md:text-3xl">Centro operacional</h1>
+                  <p className="mx-auto mt-2 max-w-2xl text-sm text-[var(--muted)]">
+                    Todos os módulos ao redor do núcleo. A J.U.S.S.A.R.A. continua com workspace própria e conversas persistentes.
                   </p>
                 </div>
 
-                <div className="relative mt-10 hidden xl:block">
+                <div className="relative mt-6 hidden lg:block">
                   <div className="hub-orbit mx-auto">
                     <div className="orbit-ring orbit-ring--outer" />
                     <div className="orbit-ring orbit-ring--mid" />
                     <div className="orbit-ring orbit-ring--inner" />
 
-                    <div className="hub-grid">
+                    <div className="hub-scene">
                       {hubCards.map((card) => {
                         const badgeClass =
                           card.badgeTone === "warn"
@@ -713,27 +713,35 @@ export default function HomeShell() {
                         );
 
                         const commonClass = [
-                          "hub-card hub-grid__card rounded-[30px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_90%,transparent)] px-5 py-5 text-left backdrop-blur-xl",
-                          card.orbitClass,
+                          "hub-card rounded-[30px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_90%,transparent)] px-5 py-5 text-left backdrop-blur-xl",
                           card.disabled ? "cursor-not-allowed opacity-70" : "cursor-pointer",
                         ].join(" ");
 
-                        if (card.href) {
-                          return (
-                            <Link key={card.id} href={card.href} onClick={card.onClick} className={commonClass}>
-                              {content}
-                            </Link>
-                          );
-                        }
-
                         return (
-                          <button key={card.id} type="button" onClick={card.disabled ? undefined : card.action} disabled={card.disabled} className={commonClass}>
-                            {content}
-                          </button>
+                          <div key={card.id} className={["hub-card-orbit", card.orbitClass].join(" ")}>
+                            <div className="hub-card-orbit__slot">
+                              <div className="hub-card-orbit__face">
+                                {card.href ? (
+                                  <Link href={card.href} onClick={card.onClick} className={commonClass}>
+                                    {content}
+                                  </Link>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={card.disabled ? undefined : card.action}
+                                    disabled={card.disabled}
+                                    className={commonClass}
+                                  >
+                                    {content}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         );
                       })}
 
-                      <div className="brain-core hub-grid__core group relative z-10 flex h-[270px] w-[270px] items-center justify-center rounded-[44px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_86%,transparent)] shadow-[0_30px_80px_rgba(16,24,40,0.18)] backdrop-blur-xl">
+                      <div className="brain-core group relative z-10 flex h-[270px] w-[270px] items-center justify-center rounded-[44px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_86%,transparent)] shadow-[0_30px_80px_rgba(16,24,40,0.18)] backdrop-blur-xl">
                         <div className="brain-pulse absolute inset-5 rounded-[36px] border border-[color-mix(in_srgb,var(--primary)_28%,transparent)]" />
                         <div className="brain-pulse brain-pulse--alt absolute inset-0 rounded-[44px] border border-[color-mix(in_srgb,var(--accent)_18%,transparent)]" />
                         <div className="absolute inset-0 rounded-[44px] bg-[radial-gradient(circle_at_30%_30%,color-mix(in_srgb,var(--primary)_18%,transparent),transparent_45%),radial-gradient(circle_at_70%_70%,color-mix(in_srgb,var(--accent)_20%,transparent),transparent_42%)]" />
@@ -744,7 +752,7 @@ export default function HomeShell() {
                   </div>
                 </div>
 
-                <div className="mt-10 grid gap-4 xl:hidden md:grid-cols-2">
+                <div className="mt-6 grid gap-4 lg:hidden md:grid-cols-2">
                   {hubCards.map((card) => {
                     const badgeClass =
                       card.badgeTone === "warn"
@@ -806,36 +814,24 @@ export default function HomeShell() {
 
         .hub-orbit {
           position: relative;
-          height: 760px;
+          height: min(72vh, 760px);
           width: 100%;
-          max-width: 1120px;
+          max-width: 1180px;
           margin: 0 auto;
           display: flex;
           align-items: center;
           justify-content: center;
+          overflow: hidden;
         }
 
-        .hub-grid {
+        .hub-scene {
           position: relative;
           z-index: 2;
-          display: grid;
-          grid-template-columns: 240px 320px 240px;
-          grid-template-rows: 180px 320px 180px;
-          grid-template-areas:
-            "whatsapp core chat"
-            "jussara core tasks"
-            "clients core instagram";
+          height: 100%;
+          width: 100%;
+          display: flex;
           align-items: center;
-          justify-items: center;
-          gap: 28px 34px;
-        }
-
-        .hub-grid__card {
-          width: 220px;
-        }
-
-        .hub-grid__core {
-          grid-area: core;
+          justify-content: center;
         }
 
         .orbit-ring {
@@ -864,7 +860,33 @@ export default function HomeShell() {
           animation-duration: 14s;
         }
 
+        .hub-card-orbit {
+          --orbit-angle: 0deg;
+          --orbit-radius: 310px;
+          --orbit-duration: 22s;
+          --orbit-delay: 0s;
+          position: absolute;
+          inset: 0;
+          animation: orbitSpin var(--orbit-duration) linear infinite;
+          animation-delay: var(--orbit-delay);
+        }
+
+        .hub-card-orbit__slot {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: rotate(var(--orbit-angle)) translateX(var(--orbit-radius));
+          transform-origin: 0 0;
+        }
+
+        .hub-card-orbit__face {
+          animation: orbitCounterSpin var(--orbit-duration) linear infinite reverse;
+          animation-delay: var(--orbit-delay);
+        }
+
         .hub-card {
+          display: block;
+          width: 220px;
           box-shadow: 0 18px 46px rgba(15, 23, 42, 0.12);
           transition:
             transform 220ms ease,
@@ -880,56 +902,68 @@ export default function HomeShell() {
         }
 
         .hub-card--whatsapp {
-          grid-area: whatsapp;
-          animation: cardDriftA 9s ease-in-out infinite;
+          --orbit-angle: -90deg;
+          --orbit-radius: 318px;
+          --orbit-duration: 20s;
+          --orbit-delay: -2s;
         }
 
-        .hub-card--whatsapp:hover {
+        .hub-card--whatsapp:hover .hub-card {
           transform: translateY(-10px) rotate(-2deg) scale(1.04);
         }
 
         .hub-card--chat {
-          grid-area: chat;
-          animation: cardDriftB 10s ease-in-out infinite;
+          --orbit-angle: -30deg;
+          --orbit-radius: 338px;
+          --orbit-duration: 24s;
+          --orbit-delay: -9s;
         }
 
-        .hub-card--chat:hover {
+        .hub-card--chat:hover .hub-card {
           transform: translateY(-10px) rotate(2deg) scale(1.04);
         }
 
         .hub-card--jussara {
-          grid-area: jussara;
-          animation: cardDriftC 11s ease-in-out infinite;
+          --orbit-angle: 150deg;
+          --orbit-radius: 340px;
+          --orbit-duration: 21s;
+          --orbit-delay: -4s;
         }
 
-        .hub-card--jussara:hover {
+        .hub-card--jussara:hover .hub-card {
           transform: translateY(-10px) scale(1.05);
         }
 
         .hub-card--tasks {
-          grid-area: tasks;
-          animation: cardDriftD 8.6s ease-in-out infinite;
+          --orbit-angle: 30deg;
+          --orbit-radius: 332px;
+          --orbit-duration: 23s;
+          --orbit-delay: -12s;
         }
 
-        .hub-card--tasks:hover {
+        .hub-card--tasks:hover .hub-card {
           transform: translateY(-10px) rotate(1.5deg) scale(1.04);
         }
 
         .hub-card--clients {
-          grid-area: clients;
-          animation: cardDriftB 10.8s ease-in-out infinite;
+          --orbit-angle: 210deg;
+          --orbit-radius: 314px;
+          --orbit-duration: 19s;
+          --orbit-delay: -7s;
         }
 
-        .hub-card--clients:hover {
+        .hub-card--clients:hover .hub-card {
           transform: translateY(-10px) rotate(-1.5deg) scale(1.04);
         }
 
         .hub-card--instagram {
-          grid-area: instagram;
-          animation: cardDriftA 12s ease-in-out infinite;
+          --orbit-angle: 90deg;
+          --orbit-radius: 320px;
+          --orbit-duration: 25s;
+          --orbit-delay: -15s;
         }
 
-        .hub-card--instagram:hover {
+        .hub-card--instagram:hover .hub-card {
           transform: translateY(-6px) scale(1.01);
         }
 
@@ -973,39 +1007,43 @@ export default function HomeShell() {
           }
         }
 
-        @keyframes cardDriftA {
-          0%, 100% {
-            transform: translate3d(0, 0, 0);
+        @keyframes orbitSpin {
+          from {
+            transform: rotate(0deg);
           }
-          50% {
-            transform: translate3d(0, -10px, 0);
-          }
-        }
-
-        @keyframes cardDriftB {
-          0%, 100% {
-            transform: translate3d(0, 0, 0);
-          }
-          50% {
-            transform: translate3d(6px, -8px, 0);
+          to {
+            transform: rotate(360deg);
           }
         }
 
-        @keyframes cardDriftC {
-          0%, 100% {
-            transform: translate3d(0, 0, 0);
+        @keyframes orbitCounterSpin {
+          from {
+            transform: rotate(0deg) translate3d(0, 0, 0);
           }
           50% {
-            transform: translate3d(-6px, -10px, 0);
+            transform: rotate(-180deg) translate3d(0, -8px, 0);
+          }
+          to {
+            transform: rotate(-360deg) translate3d(0, 0, 0);
           }
         }
 
-        @keyframes cardDriftD {
-          0%, 100% {
-            transform: translate3d(0, 0, 0);
+        @media (max-height: 860px) {
+          .hub-orbit {
+            height: min(68vh, 680px);
           }
-          50% {
-            transform: translate3d(4px, -12px, 0);
+
+          .hub-card {
+            width: 204px;
+          }
+
+          .hub-card--whatsapp,
+          .hub-card--chat,
+          .hub-card--jussara,
+          .hub-card--tasks,
+          .hub-card--clients,
+          .hub-card--instagram {
+            --orbit-radius: 286px;
           }
         }
       `}</style>
