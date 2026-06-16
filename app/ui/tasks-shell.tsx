@@ -2158,141 +2158,143 @@ export default function TasksShell() {
                 </div>
               )
             ) : viewType === "board" ? (
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
-                {(statusMeta.length ? statusMeta.map((x) => x.id) : (["to_do", "in_progress", "blocked", "done"] as TaskStatus[])).map((s) => {
-                  const columnTasks = visibleTasks.filter((t) => t.status === s).slice(0, 200);
-                  const statusColor = statusMeta.find((x) => x.id === s)?.color ?? "#64748b";
-                  return (
-                    <div
-                      key={s}
-                      className={[
-                        "min-h-[320px] rounded-[30px] border p-3 transition",
-                        boardDraggingTaskId
-                          ? "border-[color-mix(in_srgb,var(--primary)_22%,white)] bg-[color-mix(in_srgb,var(--primary)_7%,var(--card))]"
-                          : "border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_90%,var(--background))]",
-                      ].join(" ")}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const id = e.dataTransfer.getData("text/taskId") || boardDraggingTaskId;
-                        if (!id) return;
-                        const task = tasks.find((t) => t.id === id);
-                        if (!task || task.status === s) return;
-                        setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: s } : t)));
-                        void (async () => {
-                          try {
-                            await patchTask(id, { status: s });
-                            await refreshTask(id);
-                          } catch (err) {
-                            setToast(err instanceof Error ? err.message : "Falha ao mover tarefa");
-                            await loadTasks();
-                          }
-                        })();
-                        setBoardDraggingTaskId(null);
-                      }}
-                    >
-                      <div className="rounded-[24px] border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] px-4 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">Coluna</div>
-                            <div className="mt-1 flex items-center gap-2 text-sm font-semibold">
-                              <span
-                                className="inline-block h-2.5 w-2.5 rounded-full"
-                                style={{ backgroundColor: statusColor }}
-                              />
-                              {statusLabel(s, statusMeta)}
+              <div className="overflow-x-auto pb-2">
+                <div className="flex min-w-max items-start gap-4">
+                  {(statusMeta.length ? statusMeta.map((x) => x.id) : (["to_do", "in_progress", "blocked", "done"] as TaskStatus[])).map((s) => {
+                    const columnTasks = visibleTasks.filter((t) => t.status === s).slice(0, 200);
+                    const statusColor = statusMeta.find((x) => x.id === s)?.color ?? "#64748b";
+                    return (
+                      <div
+                        key={s}
+                        className={[
+                          "flex h-[calc(100vh-19rem)] min-h-[420px] w-[320px] min-w-[320px] flex-col overflow-hidden rounded-[30px] border p-3 transition",
+                          boardDraggingTaskId
+                            ? "border-[color-mix(in_srgb,var(--primary)_22%,white)] bg-[color-mix(in_srgb,var(--primary)_7%,var(--card))]"
+                            : "border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_90%,var(--background))]",
+                        ].join(" ")}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const id = e.dataTransfer.getData("text/taskId") || boardDraggingTaskId;
+                          if (!id) return;
+                          const task = tasks.find((t) => t.id === id);
+                          if (!task || task.status === s) return;
+                          setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: s } : t)));
+                          void (async () => {
+                            try {
+                              await patchTask(id, { status: s });
+                              await refreshTask(id);
+                            } catch (err) {
+                              setToast(err instanceof Error ? err.message : "Falha ao mover tarefa");
+                              await loadTasks();
+                            }
+                          })();
+                          setBoardDraggingTaskId(null);
+                        }}
+                      >
+                        <div className="rounded-[24px] border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] px-4 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">Coluna</div>
+                              <div className="mt-1 flex items-center gap-2 text-sm font-semibold">
+                                <span
+                                  className="inline-block h-2.5 w-2.5 rounded-full"
+                                  style={{ backgroundColor: statusColor }}
+                                />
+                                {statusLabel(s, statusMeta)}
+                              </div>
+                            </div>
+                            <div className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_100%,var(--background))] px-2 py-1 text-[10px] text-[var(--muted)]">
+                              {columnTasks.length}
                             </div>
                           </div>
-                          <div className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_8%,var(--background))] bg-[color-mix(in_srgb,var(--card)_100%,var(--background))] px-2 py-1 text-[10px] text-[var(--muted)]">
-                            {columnTasks.length}
-                          </div>
                         </div>
-                      </div>
-                      <div className="mt-3 space-y-3">
-                        {columnTasks.map((t) => (
-                          <div
-                            key={t.id}
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData("text/taskId", t.id);
-                              setBoardDraggingTaskId(t.id);
-                            }}
-                            onDragEnd={() => setBoardDraggingTaskId(null)}
-                            className={[
-                              "cursor-grab rounded-[26px] border bg-[color-mix(in_srgb,var(--card)_98%,var(--background))] px-4 py-4 text-left shadow-[0_10px_24px_rgba(15,23,42,0.06)] active:cursor-grabbing",
-                              t.id === selectedTaskId
-                                ? "border-[color-mix(in_srgb,var(--primary)_30%,white)] bg-[color-mix(in_srgb,var(--primary)_6%,var(--card))]"
-                                : "border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] hover:border-[color-mix(in_srgb,var(--foreground)_12%,var(--background))]",
-                            ].join(" ")}
-                          >
+                        <div className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                          {columnTasks.map((t) => (
+                            <div
+                              key={t.id}
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData("text/taskId", t.id);
+                                setBoardDraggingTaskId(t.id);
+                              }}
+                              onDragEnd={() => setBoardDraggingTaskId(null)}
+                              className={[
+                                "cursor-grab rounded-[26px] border bg-[color-mix(in_srgb,var(--card)_98%,var(--background))] px-4 py-4 text-left shadow-[0_10px_24px_rgba(15,23,42,0.06)] active:cursor-grabbing",
+                                t.id === selectedTaskId
+                                  ? "border-[color-mix(in_srgb,var(--primary)_30%,white)] bg-[color-mix(in_srgb,var(--primary)_6%,var(--card))]"
+                                  : "border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] hover:border-[color-mix(in_srgb,var(--foreground)_12%,var(--background))]",
+                              ].join(" ")}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedTaskId(t.id);
+                                  setShowTaskModal(true);
+                                }}
+                                className="w-full text-left"
+                              >
+                                <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
+                                  {t.taskType ? t.taskType.name : "Tarefa"}
+                                </div>
+                                <div className="mt-2 text-base font-semibold leading-snug">{t.title}</div>
+                                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]">
+                                  {t.client ? (
+                                    <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] px-2 py-1">
+                                      {t.client.name}
+                                    </span>
+                                  ) : null}
+                                  {t.assignee ? (
+                                    <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] px-2 py-1">
+                                      {t.assignee.name}
+                                    </span>
+                                  ) : null}
+                                  {t.dueAt ? (
+                                    <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] px-2 py-1">
+                                      {formatDateOnly(t.dueAt)}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="mt-3 flex items-center justify-between gap-3">
+                                  <div
+                                    className="rounded-full border px-2.5 py-1 text-[11px] font-medium"
+                                    style={{
+                                      borderColor: priorityTone(t.priority).border,
+                                      backgroundColor: priorityTone(t.priority).background,
+                                      color: priorityTone(t.priority).text,
+                                    }}
+                                  >
+                                    {priorityLabel(t.priority)}
+                                  </div>
+                                  <div className="text-[11px] text-[var(--muted)]">#{t.taskNumber}</div>
+                                </div>
+                              </button>
+                            </div>
+                          ))}
+                          {columnTasks.length === 0 ? (
                             <button
                               type="button"
-                              onClick={() => {
-                                setSelectedTaskId(t.id);
-                                setShowTaskModal(true);
-                              }}
-                              className="w-full text-left"
+                              onClick={() => setShowCreateForm(true)}
+                              className="w-full rounded-[24px] border border-dashed border-[color-mix(in_srgb,var(--foreground)_10%,var(--background))] bg-[color-mix(in_srgb,var(--card)_94%,var(--background))] px-4 py-5 text-left text-sm text-[var(--muted)] hover:bg-[color-mix(in_srgb,var(--card)_98%,var(--background))]"
                             >
-                              <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
-                                {t.taskType ? t.taskType.name : "Tarefa"}
-                              </div>
-                              <div className="mt-2 text-base font-semibold leading-snug">{t.title}</div>
-                              <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]">
-                                {t.client ? (
-                                  <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] px-2 py-1">
-                                    {t.client.name}
-                                  </span>
-                                ) : null}
-                                {t.assignee ? (
-                                  <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] px-2 py-1">
-                                    {t.assignee.name}
-                                  </span>
-                                ) : null}
-                                {t.dueAt ? (
-                                  <span className="rounded-full border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] px-2 py-1">
-                                    {formatDateOnly(t.dueAt)}
-                                  </span>
-                                ) : null}
-                              </div>
-                              <div className="mt-3 flex items-center justify-between gap-3">
-                                <div
-                                  className="rounded-full border px-2.5 py-1 text-[11px] font-medium"
-                                  style={{
-                                    borderColor: priorityTone(t.priority).border,
-                                    backgroundColor: priorityTone(t.priority).background,
-                                    color: priorityTone(t.priority).text,
-                                  }}
-                                >
-                                  {priorityLabel(t.priority)}
-                                </div>
-                                <div className="text-[11px] text-[var(--muted)]">#{t.taskNumber}</div>
-                              </div>
+                              + Adicionar tarefa
                             </button>
-                          </div>
-                        ))}
-                        {columnTasks.length === 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => setShowCreateForm(true)}
-                            className="w-full rounded-[24px] border border-dashed border-[color-mix(in_srgb,var(--foreground)_10%,var(--background))] bg-[color-mix(in_srgb,var(--card)_94%,var(--background))] px-4 py-5 text-left text-sm text-[var(--muted)] hover:bg-[color-mix(in_srgb,var(--card)_98%,var(--background))]"
-                          >
-                            + Adicionar tarefa
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setShowCreateForm(true)}
-                            className="w-full rounded-[22px] px-3 py-2 text-left text-sm text-[var(--muted)] hover:bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] hover:text-[var(--foreground)]"
-                          >
-                            + Adicionar tarefa
-                          </button>
-                        )}
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setShowCreateForm(true)}
+                              className="w-full rounded-[22px] px-3 py-2 text-left text-sm text-[var(--muted)] hover:bg-[color-mix(in_srgb,var(--card)_96%,var(--background))] hover:text-[var(--foreground)]"
+                            >
+                              + Adicionar tarefa
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <div className="rounded-[32px] border border-[color-mix(in_srgb,var(--foreground)_7%,var(--background))] bg-[color-mix(in_srgb,var(--card)_90%,var(--background))] p-5">
