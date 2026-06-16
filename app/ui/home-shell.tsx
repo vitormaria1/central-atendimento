@@ -23,15 +23,18 @@ type AiMsgWithFiles = AiMsg & {
   files?: AiFile[];
   attachments?: Array<{ name: string; mimeType: string; sizeBytes?: number }>;
 };
-
-function itemClass(disabled: boolean) {
-  return [
-    "block w-full rounded-2xl px-4 py-3 text-left border transition",
-    disabled
-      ? "border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] opacity-70 cursor-not-allowed"
-      : "border-[var(--border)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)]",
-  ].join(" ");
-}
+type HubCard = {
+  id: string;
+  title: string;
+  description: string;
+  badge: string;
+  badgeTone: "warn" | "primary" | "accent" | "muted";
+  orbitClass: string;
+  href?: string;
+  action?: () => void;
+  onClick?: () => void;
+  disabled?: boolean;
+};
 
 export default function HomeShell() {
   const [me, setMe] = useState<Agent | null>(null);
@@ -256,6 +259,64 @@ export default function HomeShell() {
     return list;
   })();
 
+  const hubCards: HubCard[] = [
+    {
+      id: "whatsapp",
+      title: "WhatsApp",
+      description: "Atendimento, conversas e documentos enviados ao cliente.",
+      badge: whatsappBadge > 0 ? `${whatsappBadge}` : "Ativo",
+      badgeTone: whatsappBadge > 0 ? "warn" : "primary",
+      orbitClass: "hub-card--whatsapp",
+      href: "/whatsapp",
+      onClick: () => clearWhatsappBadge(),
+    },
+    {
+      id: "chat",
+      title: "Chat Interno",
+      description: "Comunicação rápida entre atendentes e operação.",
+      badge: "Time",
+      badgeTone: "accent",
+      orbitClass: "hub-card--chat",
+      href: "/team-chat",
+    },
+    {
+      id: "jussara",
+      title: "J.U.S.S.A.R.A.",
+      description: "IA com memória, histórico lateral e geração de documentos.",
+      badge: "IA",
+      badgeTone: "primary",
+      orbitClass: "hub-card--jussara",
+      action: () => setCurrentView("jussara"),
+    },
+    {
+      id: "tasks",
+      title: "Tarefas",
+      description: "Gestão de demandas por departamento, prazo e responsável.",
+      badge: "Ativo",
+      badgeTone: "primary",
+      orbitClass: "hub-card--tasks",
+      href: "/tasks",
+    },
+    {
+      id: "clients",
+      title: "Clientes",
+      description: "Cadastro completo e dados operacionais importantes.",
+      badge: "Ativo",
+      badgeTone: "primary",
+      orbitClass: "hub-card--clients",
+      href: "/clients",
+    },
+    {
+      id: "instagram",
+      title: "Instagram",
+      description: "Canal em preparação para a próxima etapa da central.",
+      badge: "Bloqueado",
+      badgeTone: "muted",
+      orbitClass: "hub-card--instagram",
+      disabled: true,
+    },
+  ] as const;
+
   async function sendToAi() {
     const prompt = aiInput.trim();
     if (!prompt || aiSending) return;
@@ -321,154 +382,37 @@ export default function HomeShell() {
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {aiAnnounce}
       </div>
-      <div className="flex h-screen">
-        <aside className="w-[360px] shrink-0 border-r border-[var(--border)] bg-[var(--surface-1)]">
-          <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--border)]">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo-mark.png" alt="Logo" className="h-7 w-7" />
-              </div>
-              <div>
-                <div className="text-sm font-semibold leading-tight">Central</div>
-                <div className="text-xs text-[var(--muted)] leading-tight">
-                  {me ? me.agentName : "Carregando..."}
-                </div>
-              </div>
-            </div>
+      <div className="relative min-h-screen overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-24 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] blur-3xl" />
+          <div className="absolute bottom-[-8rem] left-[10%] h-72 w-72 rounded-full bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] blur-3xl" />
+          <div className="absolute right-[8%] top-[18%] h-64 w-64 rounded-full bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] blur-3xl" />
+        </div>
 
+        <div className="relative z-10 flex min-h-screen flex-col px-5 py-5 md:px-8 md:py-7">
+          <header className="flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
-              onClick={() => void logout()}
-              className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-xs hover:bg-[var(--surface-2)]"
+              onClick={() => setCurrentView("overview")}
+              className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_88%,transparent)] px-4 py-2 text-sm backdrop-blur hover:bg-[var(--surface-1)]"
             >
-              Sair
+              Central
             </button>
-          </div>
-
-          <div className="p-4 space-y-6">
-            <div>
-              <div className="text-xs font-semibold text-[var(--muted)] mb-3 tracking-wide uppercase">
-                Central de Atendimento
+            <div className="flex items-center gap-2">
+              <div className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_88%,transparent)] px-4 py-2 text-sm text-[var(--muted)] backdrop-blur">
+                {me ? me.agentName : "Carregando..."}
               </div>
-              <div className="space-y-2">
-                <Link
-                  href="/whatsapp"
-                  className={itemClass(false)}
-                  onClick={() => {
-                    clearWhatsappBadge();
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium flex items-center gap-2">
-                      WhatsApp
-                      {whatsappBadge > 0 ? (
-                        <span className="text-[10px] rounded-full bg-[var(--warning)] text-black px-2 py-1">
-                          {whatsappBadge}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="text-[10px] rounded-full bg-[var(--primary)] text-white px-2 py-1">Ativo</div>
-                  </div>
-                  <div className="mt-1 text-xs text-[var(--muted)]">Atender conversas e enviar documentos</div>
-                </Link>
-
-                <Link
-                  href="/team-chat"
-                  className={itemClass(false)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">Chat Interno</div>
-                    <div className="text-[10px] rounded-full bg-[color-mix(in_srgb,var(--accent)_22%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_55%,transparent)] px-2 py-1">
-                      Time
-                    </div>
-                  </div>
-                  <div className="mt-1 text-xs text-[var(--muted)]">Comunicação rápida entre atendentes</div>
-                </Link>
-
-                <button className={itemClass(true)} disabled>
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">Instagram</div>
-                    <div className="text-[10px] rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-2 py-1">
-                      Bloqueado
-                    </div>
-                  </div>
-                </button>
-
-                <button className={itemClass(true)} disabled>
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">E-mail</div>
-                    <div className="text-[10px] rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-2 py-1">
-                      Bloqueado
-                    </div>
-                  </div>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_88%,transparent)] px-4 py-2 text-sm backdrop-blur hover:bg-[var(--surface-1)]"
+              >
+                Sair
+              </button>
             </div>
+          </header>
 
-            <div>
-              <div className="text-xs font-semibold text-[var(--muted)] mb-3 tracking-wide uppercase">
-                Central de Inteligência
-              </div>
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  className={itemClass(currentView === "jussara" ? false : false)}
-                  onClick={() => setCurrentView("jussara")}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">J.U.S.S.A.R.A.</div>
-                    <div
-                      className={[
-                        "text-[10px] rounded-full px-2 py-1",
-                        currentView === "jussara"
-                          ? "bg-[var(--primary)] text-white"
-                          : "border border-[var(--border)] bg-[var(--surface-1)] text-[var(--muted)]",
-                      ].join(" ")}
-                    >
-                      IA
-                    </div>
-                  </div>
-                  <div className="mt-1 text-xs text-[var(--muted)]">Conversas, memória e geração de documentos</div>
-                </button>
-
-                <Link
-                  href="/tasks"
-                  className={itemClass(false)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">Tarefas</div>
-                    <div className="text-[10px] rounded-full bg-[var(--primary)] text-white px-2 py-1">
-                      Ativo
-                    </div>
-                  </div>
-                  <div className="mt-1 text-xs text-[var(--muted)]">Gerenciar tarefas por departamento</div>
-                </Link>
-
-                <Link
-                  href="/clients"
-                  className={itemClass(false)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">Clientes</div>
-                    <div className="text-[10px] rounded-full bg-[var(--primary)] text-white px-2 py-1">
-                      Ativo
-                    </div>
-                  </div>
-                  <div className="mt-1 text-xs text-[var(--muted)]">Cadastrar e manter dados importantes dos clientes</div>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        <main className="flex-1 relative overflow-hidden">
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] blur-3xl" />
-            <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] blur-3xl" />
-          </div>
-
-          <div className="relative h-full overflow-y-auto px-6 md:px-10 py-10">
+          <div className="flex-1">
             {currentView === "jussara" ? (
               <div className="grid h-full min-h-[calc(100vh-5rem)] grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
                 <aside className="overflow-hidden rounded-[32px] border border-[var(--border)] bg-[var(--card)]">
@@ -731,49 +675,325 @@ export default function HomeShell() {
                 </div>
               </div>
             ) : (
-              <div className="mx-auto flex h-full max-w-4xl flex-col items-center justify-center text-center">
-                <div className="relative">
-                  <div className="absolute inset-0 rounded-[48px] bg-[color-mix(in_srgb,var(--primary)_16%,transparent)] blur-2xl" />
-                  <div className="relative rounded-[48px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_86%,transparent)] p-10">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/logo-mark.png" alt="Central" className="h-36 w-36 md:h-52 md:w-52 object-contain" />
+              <div className="central-enter mx-auto flex min-h-[calc(100vh-6rem)] max-w-[1500px] flex-col justify-center">
+                <div className="grid items-center gap-10 xl:grid-cols-[1.05fr_0.95fr]">
+                  <div className="text-center xl:text-left">
+                    <div className="inline-flex rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_88%,transparent)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--muted)] backdrop-blur">
+                      Núcleo Operacional
+                    </div>
+                    <h1 className="mt-6 text-4xl font-semibold tracking-tight md:text-6xl">
+                      A central gira em torno do seu cérebro operacional.
+                    </h1>
+                    <p className="mx-auto mt-5 max-w-2xl text-sm text-[var(--muted)] md:text-base xl:mx-0">
+                      Abra canais, tarefas, clientes e a J.U.S.S.A.R.A. a partir de um hub visual único. Cada card responde com uma animação própria e a central chega com uma entrada mais imersiva após o login.
+                    </p>
+                  </div>
+
+                  <div className="relative mx-auto flex h-[680px] w-full max-w-[760px] items-center justify-center overflow-visible">
+                    <div className="orbit-ring orbit-ring--outer" />
+                    <div className="orbit-ring orbit-ring--mid" />
+                    <div className="orbit-ring orbit-ring--inner" />
+
+                    <div className="brain-core group relative z-10 flex h-[250px] w-[250px] items-center justify-center rounded-[44px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_86%,transparent)] shadow-[0_30px_80px_rgba(16,24,40,0.18)] backdrop-blur-xl md:h-[300px] md:w-[300px]">
+                      <div className="brain-pulse absolute inset-5 rounded-[36px] border border-[color-mix(in_srgb,var(--primary)_28%,transparent)]" />
+                      <div className="brain-pulse brain-pulse--alt absolute inset-0 rounded-[44px] border border-[color-mix(in_srgb,var(--accent)_18%,transparent)]" />
+                      <div className="absolute inset-0 rounded-[44px] bg-[radial-gradient(circle_at_30%_30%,color-mix(in_srgb,var(--primary)_18%,transparent),transparent_45%),radial-gradient(circle_at_70%_70%,color-mix(in_srgb,var(--accent)_20%,transparent),transparent_42%)]" />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/logo-mark.png" alt="Central" className="relative z-10 h-36 w-36 object-contain drop-shadow-[0_12px_28px_rgba(35,66,244,0.28)] md:h-44 md:w-44" />
+                    </div>
+
+                    <div className="hidden xl:block">
+                      {hubCards.map((card) => {
+                        const badgeClass =
+                          card.badgeTone === "warn"
+                            ? "bg-[var(--warning)] text-black"
+                            : card.badgeTone === "accent"
+                              ? "bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] text-[var(--foreground)] ring-1 ring-[color-mix(in_srgb,var(--accent)_42%,transparent)]"
+                              : card.badgeTone === "muted"
+                                ? "border border-[var(--border)] bg-[var(--surface-1)] text-[var(--muted)]"
+                                : "bg-[var(--primary)] text-white";
+                        const content = (
+                          <>
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="text-sm font-semibold">{card.title}</div>
+                              <span className={["rounded-full px-2 py-1 text-[10px]", badgeClass].join(" ")}>{card.badge}</span>
+                            </div>
+                            <div className="mt-3 text-xs leading-5 text-[var(--muted)]">{card.description}</div>
+                          </>
+                        );
+
+                        const commonClass = [
+                          "hub-card absolute w-[220px] rounded-[30px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_90%,transparent)] px-5 py-5 text-left backdrop-blur-xl",
+                          card.orbitClass,
+                          card.disabled ? "cursor-not-allowed opacity-70" : "cursor-pointer",
+                        ].join(" ");
+
+                        if (card.href) {
+                          return (
+                            <Link
+                              key={card.id}
+                              href={card.href}
+                              onClick={card.onClick}
+                              className={commonClass}
+                            >
+                              {content}
+                            </Link>
+                          );
+                        }
+
+                        return (
+                          <button
+                            key={card.id}
+                            type="button"
+                            onClick={card.disabled ? undefined : card.action}
+                            disabled={card.disabled}
+                            className={commonClass}
+                          >
+                            {content}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                <div className="mt-8 text-2xl font-semibold tracking-tight md:text-4xl">Central de Atendimento</div>
-                <div className="mt-3 max-w-2xl text-sm text-[var(--muted)] md:text-base">
-                  Use o menu lateral para abrir atendimento, tarefas, clientes ou entrar na aba da J.U.S.S.A.R.A. com conversas persistentes em coluna lateral.
-                </div>
-
-                <div className="mt-8 grid w-full gap-3 text-left md:grid-cols-3">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentView("jussara")}
-                    className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] px-5 py-5 hover:bg-[var(--surface-1)]"
-                  >
-                    <div className="text-sm font-semibold">J.U.S.S.A.R.A.</div>
-                    <div className="mt-2 text-xs text-[var(--muted)]">Abrir a IA com histórico lateral de conversas.</div>
-                  </button>
-                  <Link
-                    href="/tasks"
-                    className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] px-5 py-5 hover:bg-[var(--surface-1)]"
-                  >
-                    <div className="text-sm font-semibold">Tarefas</div>
-                    <div className="mt-2 text-xs text-[var(--muted)]">Gerenciar entregas por departamento.</div>
-                  </Link>
-                  <Link
-                    href="/clients"
-                    className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] px-5 py-5 hover:bg-[var(--surface-1)]"
-                  >
-                    <div className="text-sm font-semibold">Clientes</div>
-                    <div className="mt-2 text-xs text-[var(--muted)]">Consultar e manter dados cadastrais.</div>
-                  </Link>
+                <div className="mt-10 grid gap-4 xl:hidden md:grid-cols-2">
+                  {hubCards.map((card) => {
+                    const badgeClass =
+                      card.badgeTone === "warn"
+                        ? "bg-[var(--warning)] text-black"
+                        : card.badgeTone === "accent"
+                          ? "bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] text-[var(--foreground)] ring-1 ring-[color-mix(in_srgb,var(--accent)_42%,transparent)]"
+                          : card.badgeTone === "muted"
+                            ? "border border-[var(--border)] bg-[var(--surface-1)] text-[var(--muted)]"
+                            : "bg-[var(--primary)] text-white";
+                    const content = (
+                      <>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-semibold">{card.title}</div>
+                          <span className={["rounded-full px-2 py-1 text-[10px]", badgeClass].join(" ")}>{card.badge}</span>
+                        </div>
+                        <div className="mt-3 text-xs leading-5 text-[var(--muted)]">{card.description}</div>
+                      </>
+                    );
+                    const commonClass = [
+                      "hub-card rounded-[28px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_92%,transparent)] px-5 py-5 text-left backdrop-blur-xl",
+                      card.disabled ? "cursor-not-allowed opacity-70" : "",
+                    ].join(" ");
+                    if (card.href) {
+                      return (
+                        <Link key={card.id} href={card.href} onClick={card.onClick} className={commonClass}>
+                          {content}
+                        </Link>
+                      );
+                    }
+                    return (
+                      <button key={card.id} type="button" onClick={card.disabled ? undefined : card.action} disabled={card.disabled} className={commonClass}>
+                        {content}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
           </div>
-        </main>
+        </div>
       </div>
+
+      <style jsx>{`
+        .central-enter {
+          animation: centralReveal 680ms ease-out both;
+        }
+
+        .brain-core {
+          animation: coreFloat 9s ease-in-out infinite;
+        }
+
+        .brain-pulse {
+          animation: pulseRing 4.6s ease-in-out infinite;
+        }
+
+        .brain-pulse--alt {
+          animation-delay: -2.2s;
+        }
+
+        .orbit-ring {
+          position: absolute;
+          border-radius: 9999px;
+          border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+          animation: slowSpin 22s linear infinite;
+          opacity: 0.9;
+        }
+
+        .orbit-ring--outer {
+          height: 640px;
+          width: 640px;
+        }
+
+        .orbit-ring--mid {
+          height: 520px;
+          width: 520px;
+          animation-direction: reverse;
+          animation-duration: 18s;
+        }
+
+        .orbit-ring--inner {
+          height: 400px;
+          width: 400px;
+          animation-duration: 14s;
+        }
+
+        .hub-card {
+          box-shadow: 0 18px 46px rgba(15, 23, 42, 0.12);
+          transition:
+            transform 220ms ease,
+            box-shadow 220ms ease,
+            border-color 220ms ease,
+            background-color 220ms ease;
+        }
+
+        .hub-card:hover {
+          transform: translateY(-8px) scale(1.02);
+          box-shadow: 0 26px 60px rgba(15, 23, 42, 0.18);
+          border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+        }
+
+        .hub-card--whatsapp {
+          left: 2%;
+          top: 8%;
+          animation: cardDriftA 9s ease-in-out infinite;
+        }
+
+        .hub-card--whatsapp:hover {
+          transform: translateY(-10px) rotate(-2deg) scale(1.04);
+        }
+
+        .hub-card--chat {
+          right: 1%;
+          top: 11%;
+          animation: cardDriftB 10s ease-in-out infinite;
+        }
+
+        .hub-card--chat:hover {
+          transform: translateY(-10px) rotate(2deg) scale(1.04);
+        }
+
+        .hub-card--jussara {
+          left: -1%;
+          bottom: 16%;
+          animation: cardDriftC 11s ease-in-out infinite;
+        }
+
+        .hub-card--jussara:hover {
+          transform: translateY(-10px) scale(1.05);
+        }
+
+        .hub-card--tasks {
+          right: 3%;
+          bottom: 12%;
+          animation: cardDriftD 8.6s ease-in-out infinite;
+        }
+
+        .hub-card--tasks:hover {
+          transform: translateY(-10px) rotate(1.5deg) scale(1.04);
+        }
+
+        .hub-card--clients {
+          left: 12%;
+          bottom: -1%;
+          animation: cardDriftB 10.8s ease-in-out infinite;
+        }
+
+        .hub-card--clients:hover {
+          transform: translateY(-10px) rotate(-1.5deg) scale(1.04);
+        }
+
+        .hub-card--instagram {
+          right: 15%;
+          bottom: -3%;
+          animation: cardDriftA 12s ease-in-out infinite;
+        }
+
+        .hub-card--instagram:hover {
+          transform: translateY(-6px) scale(1.01);
+        }
+
+        @keyframes centralReveal {
+          from {
+            opacity: 0;
+            transform: translateY(24px) scale(0.985);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        @keyframes coreFloat {
+          0%, 100% {
+            transform: translateY(0px);
+          }
+          50% {
+            transform: translateY(-10px);
+          }
+        }
+
+        @keyframes pulseRing {
+          0%, 100% {
+            opacity: 0.32;
+            transform: scale(0.98);
+          }
+          50% {
+            opacity: 0.7;
+            transform: scale(1.04);
+          }
+        }
+
+        @keyframes slowSpin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        @keyframes cardDriftA {
+          0%, 100% {
+            transform: translate3d(0, 0, 0);
+          }
+          50% {
+            transform: translate3d(0, -10px, 0);
+          }
+        }
+
+        @keyframes cardDriftB {
+          0%, 100% {
+            transform: translate3d(0, 0, 0);
+          }
+          50% {
+            transform: translate3d(6px, -8px, 0);
+          }
+        }
+
+        @keyframes cardDriftC {
+          0%, 100% {
+            transform: translate3d(0, 0, 0);
+          }
+          50% {
+            transform: translate3d(-6px, -10px, 0);
+          }
+        }
+
+        @keyframes cardDriftD {
+          0%, 100% {
+            transform: translate3d(0, 0, 0);
+          }
+          50% {
+            transform: translate3d(4px, -12px, 0);
+          }
+        }
+      `}</style>
 
       {templatePickerOpen ? (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4">
