@@ -882,7 +882,7 @@ export default function HomeShell() {
 
         .hub-card-orbit__face {
           transform: translate(-50%, -50%);
-          animation: orbitCounterSpin var(--orbit-duration) linear infinite reverse;
+          animation: orbitCounterSpin var(--orbit-duration) linear infinite;
           animation-delay: var(--orbit-delay);
         }
 
