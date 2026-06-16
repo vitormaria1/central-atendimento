@@ -184,11 +184,6 @@ export default function ClientsShell() {
     }
   }
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
-  }
-
   useEffect(() => {
     void loadMe();
     void loadClients("", null);
@@ -258,18 +253,8 @@ export default function ClientsShell() {
                 {me ? me.agentName : "Carregando..."}
               </div>
               <Link href="/" className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-sm hover:bg-[var(--surface-1)]">
-                Central
+                Voltar
               </Link>
-              <Link href="/tasks" className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-sm hover:bg-[var(--surface-1)]">
-                Tarefas
-              </Link>
-              <button
-                type="button"
-                onClick={() => void logout()}
-                className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-sm hover:bg-[var(--surface-1)]"
-              >
-                Sair
-              </button>
             </div>
           </div>
 

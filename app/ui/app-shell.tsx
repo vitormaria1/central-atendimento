@@ -533,6 +533,15 @@ type PendingAttachment = {
   recorded?: boolean;
 };
 
+const CHAT_ASSIGN_OPTIONS = [
+  { id: "vanderlei", label: "Vanderlei" },
+  { id: "gustavo", label: "Gustavo" },
+  { id: null, label: "Sem responsável" },
+] satisfies ReadonlyArray<{
+  id: "vanderlei" | "gustavo" | null;
+  label: string;
+}>;
+
 type FileDragEvent = {
   preventDefault: () => void;
   dataTransfer: DataTransfer;
@@ -595,6 +604,7 @@ export default function AppShell() {
   const [tagInput, setTagInput] = useState("");
   const [chatMenuChatId, setChatMenuChatId] = useState<string | null>(null);
   const [chatMenuPosition, setChatMenuPosition] = useState<{ left: number; top: number } | null>(null);
+  const [chatMenuAssignOpen, setChatMenuAssignOpen] = useState(false);
   const [chatMenuTagInput, setChatMenuTagInput] = useState("");
   const [sidebarMenuOpen, setSidebarMenuOpen] = useState(false);
   const [sidebarMenuPosition, setSidebarMenuPosition] = useState<{ left: number; top: number } | null>(null);
@@ -651,6 +661,7 @@ export default function AppShell() {
     const maxTop = Math.max(margin, window.innerHeight - height - margin);
 
     setChatMenuChatId(chatId);
+    setChatMenuAssignOpen(false);
     setChatMenuTagInput("");
     setChatMenuPosition({
       left: Math.min(Math.max(margin, x), maxLeft),
@@ -659,6 +670,7 @@ export default function AppShell() {
   }
 
   function closeChatActionMenu() {
+    setChatMenuAssignOpen(false);
     setChatMenuPosition(null);
   }
   const contactProfile = useMemo<ContactProfile | null>(() => {
@@ -706,6 +718,7 @@ export default function AppShell() {
     // ao trocar de chat, reseta modos
     setHeaderMenuOpen(false);
     setHeaderAssignOpen(false);
+    setChatMenuAssignOpen(false);
     setChatMenuPosition(null);
     setContactProfileOpen(false);
     setChatMenuPosition(null);
@@ -2466,6 +2479,10 @@ export default function AppShell() {
                   idx > 0 ? normalizeReceiptStage(messages[idx - 1]!) : null;
                 const receiptAnimate = receiptStage !== previousReceiptStage;
                 const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
+                const bubbleToneClass = mine
+                  ? "bg-[color-mix(in_srgb,var(--primary)_18%,var(--surface-1))] ring-[color-mix(in_srgb,var(--primary)_32%,white)] text-[var(--foreground)]"
+                  : "bg-[color-mix(in_srgb,var(--surface-1)_98%,white)] ring-[color-mix(in_srgb,var(--foreground)_12%,var(--background))] text-[var(--foreground)] shadow-[0_2px_10px_rgba(15,23,42,0.06)]";
+                const bubbleContentPaddingClass = showAudioPlayer ? "pr-4 pb-10" : "pr-16 pb-7";
                 return (
                   <div
                     key={stableKey}
@@ -2502,10 +2519,9 @@ export default function AppShell() {
                     <div
                       className={[
                         showAudioPlayer ? "max-w-[92%]" : "max-w-[78%]",
-                        "rounded-3xl px-4 py-3 ring-1",
-                      mine
-                        ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
-                        : "bg-white/5 ring-white/10",
+                        "relative rounded-[20px] px-4 py-3 ring-1",
+                        bubbleToneClass,
+                        bubbleContentPaddingClass,
                     ].join(" ")}
                   >
                     <div className="text-sm font-semibold">
@@ -2519,13 +2535,13 @@ export default function AppShell() {
                           <div className="text-sm whitespace-pre-wrap break-words">{contact.caption}</div>
                         ) : null}
 
-                        <div className="mt-2 rounded-2xl bg-[color-mix(in_srgb,var(--background)_55%,black)] ring-1 ring-white/10 overflow-hidden">
+                        <div className="mt-2 overflow-hidden rounded-[16px] bg-[color-mix(in_srgb,var(--surface-2)_92%,var(--background))] ring-1 ring-[color-mix(in_srgb,var(--foreground)_10%,var(--background))]">
                           <div className="p-4 flex items-center gap-3">
-                            <div className="h-11 w-11 rounded-2xl bg-white/5 ring-1 ring-white/10 flex items-center justify-center text-sm shrink-0">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[var(--surface-1)] ring-1 ring-[color-mix(in_srgb,var(--foreground)_10%,var(--background))] text-sm">
                               {initialsFromName(contact.name)}
                             </div>
                             <div className="min-w-0">
-                              <div className="text-sm font-semibold truncate text-[color-mix(in_srgb,var(--accent)_75%,white)]">
+                              <div className="truncate text-sm font-semibold text-[var(--foreground)]">
                                 {contact.name}
                               </div>
                               {contact.subtitle ? (
@@ -2541,7 +2557,7 @@ export default function AppShell() {
                             <div className="grid grid-cols-2">
                               <button
                                 type="button"
-                                className="px-4 py-3 text-sm text-[color-mix(in_srgb,var(--accent)_75%,white)] hover:bg-white/5"
+                                className="px-4 py-3 text-sm text-[var(--foreground)] hover:bg-[color-mix(in_srgb,var(--surface-1)_86%,transparent)]"
                                 onClick={() => {
                                   const phone = contact.phones[0] ?? "";
                                   if (!phone) return;
@@ -2553,7 +2569,7 @@ export default function AppShell() {
                               </button>
                               <button
                                 type="button"
-                                className="px-4 py-3 text-sm text-[color-mix(in_srgb,var(--accent)_75%,white)] hover:bg-white/5 border-l border-white/10"
+                                className="border-l border-[color-mix(in_srgb,var(--foreground)_10%,var(--background))] px-4 py-3 text-sm text-[var(--foreground)] hover:bg-[color-mix(in_srgb,var(--surface-1)_86%,transparent)]"
                                 onClick={() => {
                                   void openConversationForNumber(contact.phones[0] ?? "", contact.name);
                                 }}
@@ -2618,14 +2634,14 @@ export default function AppShell() {
                             <img
                               src={mediaUrl}
                               alt="Imagem enviada"
-                              className="max-w-full rounded-2xl ring-1 ring-white/10"
+                              className="max-w-full rounded-[16px] ring-1 ring-[color-mix(in_srgb,var(--foreground)_10%,var(--background))]"
                               style={{ maxHeight: 420 }}
                               loading="lazy"
                             />
                           </a>
                         ) : mediaUrl && showVideo ? (
-                          <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
-                            <video controls preload="metadata" src={mediaUrl} className="w-[520px] max-w-full rounded-2xl" />
+                          <div className="rounded-[16px] bg-[color-mix(in_srgb,var(--surface-2)_92%,var(--background))] p-3 ring-1 ring-[color-mix(in_srgb,var(--foreground)_10%,var(--background))]">
+                            <video controls preload="metadata" src={mediaUrl} className="w-[520px] max-w-full rounded-[16px]" />
                             <div className="mt-2 flex items-center justify-end gap-2">
                               <a
                                 href={mediaUrl}
@@ -2638,12 +2654,12 @@ export default function AppShell() {
                             </div>
                           </div>
                         ) : mediaUrl && showPdf ? (
-                          <div className="w-[360px] max-w-full overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
+                          <div className="w-[360px] max-w-full overflow-hidden rounded-[16px] bg-[color-mix(in_srgb,var(--surface-2)_92%,var(--background))] ring-1 ring-[color-mix(in_srgb,var(--foreground)_10%,var(--background))]">
                             <a
                               href={mediaUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="flex items-center gap-3 bg-[color-mix(in_srgb,var(--background)_62%,black)] px-3 py-3 hover:bg-white/8"
+                              className="flex items-center gap-3 bg-[color-mix(in_srgb,var(--surface-1)_88%,var(--background))] px-3 py-3 hover:bg-[color-mix(in_srgb,var(--surface-1)_96%,var(--background))]"
                               aria-label={`Abrir ${fileNameFromUrl(mediaUrl, "documento.pdf")}`}
                             >
                               <div className="relative flex h-12 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-[10px] font-black text-red-600 shadow-sm">
@@ -2655,7 +2671,7 @@ export default function AppShell() {
                                 <div className="mt-0.5 text-xs text-[var(--muted)]">PDF • tocar para abrir</div>
                               </div>
                             </a>
-                            <div className="flex items-center justify-end gap-2 border-t border-white/10 px-3 py-2">
+                            <div className="flex items-center justify-end gap-2 border-t border-[color-mix(in_srgb,var(--foreground)_10%,var(--background))] px-3 py-2">
                               <a
                                 href={mediaUrl}
                                 target="_blank"
@@ -2674,12 +2690,12 @@ export default function AppShell() {
                             </div>
                           </div>
                         ) : mediaUrl ? (
-                          <div className="w-[360px] max-w-full overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
+                          <div className="w-[360px] max-w-full overflow-hidden rounded-[16px] bg-[color-mix(in_srgb,var(--surface-2)_92%,var(--background))] ring-1 ring-[color-mix(in_srgb,var(--foreground)_10%,var(--background))]">
                             <a
                               href={mediaUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="flex items-center gap-3 bg-[color-mix(in_srgb,var(--background)_62%,black)] px-3 py-3 hover:bg-white/8"
+                              className="flex items-center gap-3 bg-[color-mix(in_srgb,var(--surface-1)_88%,var(--background))] px-3 py-3 hover:bg-[color-mix(in_srgb,var(--surface-1)_96%,var(--background))]"
                               aria-label={`Abrir ${fileNameFromUrl(mediaUrl, "documento")}`}
                             >
                               <div className="flex h-12 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-[9px] font-black text-slate-700 shadow-sm">
@@ -2690,7 +2706,7 @@ export default function AppShell() {
                                 <div className="mt-0.5 text-xs text-[var(--muted)]">Documento • tocar para abrir</div>
                               </div>
                             </a>
-                            <div className="flex items-center justify-end gap-2 border-t border-white/10 px-3 py-2">
+                            <div className="flex items-center justify-end gap-2 border-t border-[color-mix(in_srgb,var(--foreground)_10%,var(--background))] px-3 py-2">
                               <a
                                 href={mediaUrl}
                                 target="_blank"
@@ -2734,21 +2750,19 @@ export default function AppShell() {
                         <div className="mt-2 text-xs text-[var(--muted)]">Mídia indisponível.</div>
                       ) : null}
 
-                      <div className="mt-2 flex items-end justify-end gap-1 text-[10px] text-[var(--muted)] text-right">
+                      <div className="absolute bottom-2.5 right-3 flex items-center gap-1 text-[10px] leading-none text-[var(--muted)]">
                         <span>{formatTime(m.messageTimestamp)}</span>
-                      </div>
-                      {mine && receiptStage ? (
-                        <div className="mt-1 flex justify-end">
-                          <div
+                        {mine && receiptStage ? (
+                          <span
                             className={[
-                              "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5",
-                              receiptStage === "read" ? "bg-[color-mix(in_srgb,#53bdeb_16%,transparent)]" : "bg-transparent",
+                              "inline-flex items-center",
+                              receiptStage === "read" ? "text-[#53bdeb]" : "",
                             ].join(" ")}
                           >
                             <ReceiptTicks key={`${stableKey}:${receiptStage}`} stage={receiptStage} animate={receiptAnimate} />
-                          </div>
-                        </div>
-                      ) : null}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                     </div>
                   </div>
@@ -3043,128 +3057,162 @@ export default function AppShell() {
             className="absolute w-80 overflow-hidden rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] shadow-2xl"
             style={{ left: chatMenuPosition.left, top: chatMenuPosition.top }}
           >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                closeChatActionMenu();
-                setChatMenuChatId(null);
-                setToast("Em breve: arquivar conversa.");
-              }}
-              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
-            >
-              <span className="w-6 text-center text-lg" aria-hidden="true">▣</span>
-              <span>Arquivar conversa</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                closeChatActionMenu();
-                setChatMenuChatId(null);
-                setToast("Em breve: desafixar conversa.");
-              }}
-              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
-            >
-              <span className="w-6 text-center text-lg" aria-hidden="true">⌧</span>
-              <span>Desafixar conversa</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setReadAtByChatId((prev) => ({ ...prev, [chatMenuChat.chatId]: 0 }));
-                setManualUnreadByChatId((prev) => ({ ...prev, [chatMenuChat.chatId]: true }));
-                closeChatActionMenu();
-                setChatMenuChatId(null);
-                setToast("Conversa marcada como não lida.");
-              }}
-              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
-            >
-              <span className="w-6 text-center text-lg" aria-hidden="true">☰</span>
-              <span>Marcar como não lida</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                const alreadyFavorite = (chatMenuChat.state?.tags ?? []).includes("Favoritos");
-                void toggleLabelForChat(chatMenuChat.chatId, "Favoritos");
-                closeChatActionMenu();
-                setChatMenuChatId(null);
-                setToast(alreadyFavorite ? "Removido dos Favoritos." : "Adicionado aos Favoritos.");
-              }}
-              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
-            >
-              <span className="w-6 text-center text-lg" aria-hidden="true">♡</span>
-              <span>{(chatMenuChat.state?.tags ?? []).includes("Favoritos") ? "Remover dos Favoritos" : "Adicionar aos Favoritos"}</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                closeChatActionMenu();
-                setChatMenuTagInput("");
-              }}
-              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
-            >
-              <span className="w-6 text-center text-lg" aria-hidden="true">🏷</span>
-              <span>Etiquetas</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                const next = (chatMenuChat.state?.assignedAgentId ?? null) === "vanderlei" ? "gustavo" : "vanderlei";
-                void saveState(chatMenuChat.chatId, { assignedAgentId: next });
-                closeChatActionMenu();
-                setChatMenuChatId(null);
-                setToast(`Conversa atribuída para ${next === "vanderlei" ? "Vanderlei" : "Gustavo"}.`);
-              }}
-              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
-            >
-              <span className="w-6 text-center text-lg" aria-hidden="true">👤</span>
-              <span>
-                Atribuir
-                <span className="ml-2 text-xs text-[var(--muted)]">
-                  {chatMenuChat.state?.assignedAgentId === "vanderlei"
-                    ? "Vanderlei"
-                    : chatMenuChat.state?.assignedAgentId === "gustavo"
-                      ? "Gustavo"
-                      : "—"}
-                </span>
-              </span>
-            </button>
-            <div className="mx-5 border-t border-[var(--border)]" />
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                if (selectedChatIdRef.current === chatMenuChat.chatId) {
-                  setMessages([]);
-                }
-                closeChatActionMenu();
-                setChatMenuChatId(null);
-                setToast("Conversa limpa nesta visualização.");
-              }}
-              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
-            >
-              <span className="w-6 text-center text-lg" aria-hidden="true">⊖</span>
-              <span>Limpar conversa</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                closeChatActionMenu();
-                setChatMenuChatId(null);
-                setToast("Em breve: apagar conversa.");
-              }}
-              className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
-            >
-              <span className="w-6 text-center text-lg" aria-hidden="true">🗑</span>
-              <span>Apagar conversa</span>
-            </button>
+            {chatMenuAssignOpen ? (
+              <>
+                <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
+                  <div className="text-sm font-semibold">Atribuir conversa</div>
+                  <button
+                    type="button"
+                    onClick={() => setChatMenuAssignOpen(false)}
+                    className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs hover:bg-white/8"
+                  >
+                    Voltar
+                  </button>
+                </div>
+                {CHAT_ASSIGN_OPTIONS.map((opt) => {
+                  const selected = (chatMenuChat.state?.assignedAgentId ?? null) === opt.id;
+                  return (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        void saveState(chatMenuChat.chatId, { assignedAgentId: opt.id });
+                        closeChatActionMenu();
+                        setChatMenuChatId(null);
+                        setToast(`Conversa atribuída para ${opt.label}.`);
+                      }}
+                      className={[
+                        "flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-sm hover:bg-white/5",
+                        selected ? "bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]" : "",
+                      ].join(" ")}
+                    >
+                      <span>{opt.label}</span>
+                      {selected ? <span className="text-[var(--primary)]">✓</span> : null}
+                    </button>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    closeChatActionMenu();
+                    setChatMenuChatId(null);
+                    setToast("Em breve: arquivar conversa.");
+                  }}
+                  className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+                >
+                  <span className="w-6 text-center text-lg" aria-hidden="true">▣</span>
+                  <span>Arquivar conversa</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    closeChatActionMenu();
+                    setChatMenuChatId(null);
+                    setToast("Em breve: desafixar conversa.");
+                  }}
+                  className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+                >
+                  <span className="w-6 text-center text-lg" aria-hidden="true">⌧</span>
+                  <span>Desafixar conversa</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setReadAtByChatId((prev) => ({ ...prev, [chatMenuChat.chatId]: 0 }));
+                    setManualUnreadByChatId((prev) => ({ ...prev, [chatMenuChat.chatId]: true }));
+                    closeChatActionMenu();
+                    setChatMenuChatId(null);
+                    setToast("Conversa marcada como não lida.");
+                  }}
+                  className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+                >
+                  <span className="w-6 text-center text-lg" aria-hidden="true">☰</span>
+                  <span>Marcar como não lida</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    const alreadyFavorite = (chatMenuChat.state?.tags ?? []).includes("Favoritos");
+                    void toggleLabelForChat(chatMenuChat.chatId, "Favoritos");
+                    closeChatActionMenu();
+                    setChatMenuChatId(null);
+                    setToast(alreadyFavorite ? "Removido dos Favoritos." : "Adicionado aos Favoritos.");
+                  }}
+                  className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+                >
+                  <span className="w-6 text-center text-lg" aria-hidden="true">♡</span>
+                  <span>{(chatMenuChat.state?.tags ?? []).includes("Favoritos") ? "Remover dos Favoritos" : "Adicionar aos Favoritos"}</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    closeChatActionMenu();
+                    setChatMenuTagInput("");
+                  }}
+                  className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+                >
+                  <span className="w-6 text-center text-lg" aria-hidden="true">🏷</span>
+                  <span>Etiquetas</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => setChatMenuAssignOpen(true)}
+                  className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+                >
+                  <span className="w-6 text-center text-lg" aria-hidden="true">👤</span>
+                  <span>
+                    Atribuir
+                    <span className="ml-2 text-xs text-[var(--muted)]">
+                      {chatMenuChat.state?.assignedAgentId === "vanderlei"
+                        ? "Vanderlei"
+                        : chatMenuChat.state?.assignedAgentId === "gustavo"
+                          ? "Gustavo"
+                          : "—"}
+                    </span>
+                  </span>
+                </button>
+                <div className="mx-5 border-t border-[var(--border)]" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    if (selectedChatIdRef.current === chatMenuChat.chatId) {
+                      setMessages([]);
+                    }
+                    closeChatActionMenu();
+                    setChatMenuChatId(null);
+                    setToast("Conversa limpa nesta visualização.");
+                  }}
+                  className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+                >
+                  <span className="w-6 text-center text-lg" aria-hidden="true">⊖</span>
+                  <span>Limpar conversa</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    closeChatActionMenu();
+                    setChatMenuChatId(null);
+                    setToast("Em breve: apagar conversa.");
+                  }}
+                  className="flex w-full items-center gap-4 px-5 py-4 text-left text-sm hover:bg-white/5"
+                >
+                  <span className="w-6 text-center text-lg" aria-hidden="true">🗑</span>
+                  <span>Apagar conversa</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       ) : null}
@@ -3197,30 +3245,64 @@ export default function AppShell() {
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const next = (chatMenuChat.state?.assignedAgentId ?? null) === "vanderlei" ? "gustavo" : "vanderlei";
-                  void saveState(chatMenuChat.chatId, { assignedAgentId: next });
-                }}
-                className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3 text-sm hover:bg-white/8"
-              >
-                Atribuir: {chatMenuChat.state?.assignedAgentId === "vanderlei" ? "Vanderlei" : chatMenuChat.state?.assignedAgentId === "gustavo" ? "Gustavo" : "—"}
-              </button>
+            {chatMenuAssignOpen ? (
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">Atribuir conversa</div>
+                  <button
+                    type="button"
+                    onClick={() => setChatMenuAssignOpen(false)}
+                    className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs hover:bg-white/8"
+                  >
+                    Voltar
+                  </button>
+                </div>
+                {CHAT_ASSIGN_OPTIONS.map((opt) => {
+                  const selected = (chatMenuChat.state?.assignedAgentId ?? null) === opt.id;
+                  return (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => {
+                        void saveState(chatMenuChat.chatId, { assignedAgentId: opt.id });
+                        setChatMenuAssignOpen(false);
+                        setChatMenuChatId(null);
+                        setToast(`Conversa atribuída para ${opt.label}.`);
+                      }}
+                      className={[
+                        "flex w-full items-center justify-between rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3 text-sm hover:bg-white/8",
+                        selected ? "bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]" : "",
+                      ].join(" ")}
+                    >
+                      <span>{opt.label}</span>
+                      {selected ? <span className="text-[var(--primary)]">✓</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setChatMenuAssignOpen(true)}
+                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3 text-sm hover:bg-white/8"
+                >
+                  Atribuir: {chatMenuChat.state?.assignedAgentId === "vanderlei" ? "Vanderlei" : chatMenuChat.state?.assignedAgentId === "gustavo" ? "Gustavo" : "—"}
+                </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const current = chatMenuChat.state?.status ?? "pendente";
-                  const next = current === "pendente" ? "resolvido" : "pendente";
-                  void saveState(chatMenuChat.chatId, { status: next });
-                }}
-                className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3 text-sm hover:bg-white/8"
-              >
-                Status: {chatMenuChat.state?.status ?? "pendente"}
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = chatMenuChat.state?.status ?? "pendente";
+                    const next = current === "pendente" ? "resolvido" : "pendente";
+                    void saveState(chatMenuChat.chatId, { status: next });
+                  }}
+                  className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-3 text-sm hover:bg-white/8"
+                >
+                  Status: {chatMenuChat.state?.status ?? "pendente"}
+                </button>
+              </div>
+            )}
 
             <div className="mt-4 rounded-2xl bg-white/5 ring-1 ring-white/10 p-4">
               <div className="text-sm font-medium">Etiquetas</div>
