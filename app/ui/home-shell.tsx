@@ -12,7 +12,7 @@ type AiMsgWithFiles = AiMsg & { files?: AiFile[]; attachments?: Array<{ name: st
 
 function itemClass(disabled: boolean) {
   return [
-    "w-full rounded-2xl px-4 py-3 text-left border transition",
+    "block w-full rounded-2xl px-4 py-3 text-left border transition",
     disabled
       ? "border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] opacity-70 cursor-not-allowed"
       : "border-[var(--border)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)]",
