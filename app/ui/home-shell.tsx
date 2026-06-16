@@ -814,14 +814,13 @@ export default function HomeShell() {
 
         .hub-orbit {
           position: relative;
-          height: min(72vh, 760px);
+          height: min(64vh, 680px);
           width: 100%;
-          max-width: 1180px;
+          max-width: 1240px;
           margin: 0 auto;
           display: flex;
           align-items: center;
           justify-content: center;
-          overflow: hidden;
         }
 
         .hub-scene {
@@ -843,26 +842,26 @@ export default function HomeShell() {
         }
 
         .orbit-ring--outer {
-          height: 700px;
-          width: 700px;
+          height: 620px;
+          width: 620px;
         }
 
         .orbit-ring--mid {
-          height: 560px;
-          width: 560px;
+          height: 500px;
+          width: 500px;
           animation-direction: reverse;
           animation-duration: 18s;
         }
 
         .orbit-ring--inner {
-          height: 420px;
-          width: 420px;
+          height: 380px;
+          width: 380px;
           animation-duration: 14s;
         }
 
         .hub-card-orbit {
           --orbit-angle: 0deg;
-          --orbit-radius: 310px;
+          --orbit-radius: 286px;
           --orbit-duration: 22s;
           --orbit-delay: 0s;
           position: absolute;
@@ -880,13 +879,17 @@ export default function HomeShell() {
         }
 
         .hub-card-orbit__face {
-          animation: orbitCounterSpin var(--orbit-duration) linear infinite reverse;
+          position: absolute;
+          left: 0;
+          top: 0;
+          transform: translate(-50%, -50%);
+          animation: orbitCounterSpin var(--orbit-duration) linear infinite;
           animation-delay: var(--orbit-delay);
         }
 
         .hub-card {
           display: block;
-          width: 220px;
+          width: 210px;
           box-shadow: 0 18px 46px rgba(15, 23, 42, 0.12);
           transition:
             transform 220ms ease,
@@ -903,7 +906,7 @@ export default function HomeShell() {
 
         .hub-card--whatsapp {
           --orbit-angle: -90deg;
-          --orbit-radius: 318px;
+          --orbit-radius: 282px;
           --orbit-duration: 20s;
           --orbit-delay: -2s;
         }
@@ -914,7 +917,7 @@ export default function HomeShell() {
 
         .hub-card--chat {
           --orbit-angle: -30deg;
-          --orbit-radius: 338px;
+          --orbit-radius: 294px;
           --orbit-duration: 24s;
           --orbit-delay: -9s;
         }
@@ -925,7 +928,7 @@ export default function HomeShell() {
 
         .hub-card--jussara {
           --orbit-angle: 150deg;
-          --orbit-radius: 340px;
+          --orbit-radius: 294px;
           --orbit-duration: 21s;
           --orbit-delay: -4s;
         }
@@ -936,7 +939,7 @@ export default function HomeShell() {
 
         .hub-card--tasks {
           --orbit-angle: 30deg;
-          --orbit-radius: 332px;
+          --orbit-radius: 294px;
           --orbit-duration: 23s;
           --orbit-delay: -12s;
         }
@@ -947,7 +950,7 @@ export default function HomeShell() {
 
         .hub-card--clients {
           --orbit-angle: 210deg;
-          --orbit-radius: 314px;
+          --orbit-radius: 282px;
           --orbit-duration: 19s;
           --orbit-delay: -7s;
         }
@@ -958,7 +961,7 @@ export default function HomeShell() {
 
         .hub-card--instagram {
           --orbit-angle: 90deg;
-          --orbit-radius: 320px;
+          --orbit-radius: 282px;
           --orbit-duration: 25s;
           --orbit-delay: -15s;
         }
@@ -1018,23 +1021,23 @@ export default function HomeShell() {
 
         @keyframes orbitCounterSpin {
           from {
-            transform: rotate(0deg) translate3d(0, 0, 0);
+            transform: translate(-50%, -50%) rotate(0deg) translate3d(0, 0, 0);
           }
           50% {
-            transform: rotate(-180deg) translate3d(0, -8px, 0);
+            transform: translate(-50%, -50%) rotate(-180deg) translate3d(0, -8px, 0);
           }
           to {
-            transform: rotate(-360deg) translate3d(0, 0, 0);
+            transform: translate(-50%, -50%) rotate(-360deg) translate3d(0, 0, 0);
           }
         }
 
         @media (max-height: 860px) {
           .hub-orbit {
-            height: min(68vh, 680px);
+            height: min(58vh, 600px);
           }
 
           .hub-card {
-            width: 204px;
+            width: 192px;
           }
 
           .hub-card--whatsapp,
@@ -1043,7 +1046,7 @@ export default function HomeShell() {
           .hub-card--tasks,
           .hub-card--clients,
           .hub-card--instagram {
-            --orbit-radius: 286px;
+            --orbit-radius: 248px;
           }
         }
       `}</style>
