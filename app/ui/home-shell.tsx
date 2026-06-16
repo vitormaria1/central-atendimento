@@ -676,7 +676,7 @@ export default function HomeShell() {
               </div>
             ) : (
               <div className="central-enter mx-auto flex h-full w-full max-w-[1500px] flex-1 flex-col justify-center overflow-hidden py-2">
-                <div className="mx-auto w-full max-w-3xl text-center">
+                <div className="mx-auto w-full max-w-3xl -translate-y-8 text-center">
                   <div className="mx-auto inline-flex rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_88%,transparent)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--muted)] backdrop-blur">
                     Central de Atendimento
                   </div>
@@ -718,21 +718,25 @@ export default function HomeShell() {
                         ].join(" ");
 
                         return (
-                          <div key={card.id} className={["hub-card-spot", card.orbitClass].join(" ")}>
-                            {card.href ? (
-                              <Link href={card.href} onClick={card.onClick} className="block">
-                                <div className={commonClass}>{content}</div>
-                              </Link>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={card.disabled ? undefined : card.action}
-                                disabled={card.disabled}
-                                className={commonClass}
-                              >
-                                {content}
-                              </button>
-                            )}
+                          <div key={card.id} className={["hub-card-orbit", card.orbitClass].join(" ")}>
+                            <div className="hub-card-orbit__slot">
+                              <div className="hub-card-orbit__face">
+                                {card.href ? (
+                                  <Link href={card.href} onClick={card.onClick} className="block">
+                                    <div className={commonClass}>{content}</div>
+                                  </Link>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={card.disabled ? undefined : card.action}
+                                    disabled={card.disabled}
+                                    className={commonClass}
+                                  >
+                                    {content}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         );
                       })}
@@ -855,11 +859,31 @@ export default function HomeShell() {
           animation-duration: 14s;
         }
 
-        .hub-card-spot {
+        .hub-card-orbit {
+          --orbit-x: 0px;
+          --orbit-y: 0px;
+          --orbit-duration: 26s;
+          --orbit-delay: 0s;
           position: absolute;
           left: 50%;
           top: 50%;
+          width: 0;
+          height: 0;
+          animation: orbitSpin var(--orbit-duration) linear infinite;
+          animation-delay: var(--orbit-delay);
+        }
+
+        .hub-card-orbit__slot {
+          position: absolute;
+          left: 0;
+          top: 0;
+          transform: translate(var(--orbit-x), var(--orbit-y));
+        }
+
+        .hub-card-orbit__face {
           transform: translate(-50%, -50%);
+          animation: orbitCounterSpin var(--orbit-duration) linear infinite reverse;
+          animation-delay: var(--orbit-delay);
         }
 
         .hub-card {
@@ -880,12 +904,10 @@ export default function HomeShell() {
         }
 
         .hub-card--whatsapp {
-          margin-left: -118px;
-          margin-top: -312px;
-        }
-
-        .hub-card--whatsapp .hub-card {
-          animation: fixedCardSpinA 12s ease-in-out infinite;
+          --orbit-x: -118px;
+          --orbit-y: -312px;
+          --orbit-duration: 30s;
+          --orbit-delay: -3s;
         }
 
         .hub-card--whatsapp:hover .hub-card {
@@ -893,12 +915,10 @@ export default function HomeShell() {
         }
 
         .hub-card--chat {
-          margin-left: 232px;
-          margin-top: -192px;
-        }
-
-        .hub-card--chat .hub-card {
-          animation: fixedCardSpinB 13s ease-in-out infinite;
+          --orbit-x: 232px;
+          --orbit-y: -192px;
+          --orbit-duration: 34s;
+          --orbit-delay: -11s;
         }
 
         .hub-card--chat:hover .hub-card {
@@ -906,12 +926,10 @@ export default function HomeShell() {
         }
 
         .hub-card--jussara {
-          margin-left: -296px;
-          margin-top: -52px;
-        }
-
-        .hub-card--jussara .hub-card {
-          animation: fixedCardSpinC 14s ease-in-out infinite;
+          --orbit-x: -296px;
+          --orbit-y: -52px;
+          --orbit-duration: 32s;
+          --orbit-delay: -7s;
         }
 
         .hub-card--jussara:hover .hub-card {
@@ -919,12 +937,10 @@ export default function HomeShell() {
         }
 
         .hub-card--tasks {
-          margin-left: 284px;
-          margin-top: 58px;
-        }
-
-        .hub-card--tasks .hub-card {
-          animation: fixedCardSpinD 11.5s ease-in-out infinite;
+          --orbit-x: 284px;
+          --orbit-y: 58px;
+          --orbit-duration: 31s;
+          --orbit-delay: -16s;
         }
 
         .hub-card--tasks:hover .hub-card {
@@ -932,12 +948,10 @@ export default function HomeShell() {
         }
 
         .hub-card--clients {
-          margin-left: -178px;
-          margin-top: 252px;
-        }
-
-        .hub-card--clients .hub-card {
-          animation: fixedCardSpinB 12.8s ease-in-out infinite;
+          --orbit-x: -178px;
+          --orbit-y: 252px;
+          --orbit-duration: 35s;
+          --orbit-delay: -20s;
         }
 
         .hub-card--clients:hover .hub-card {
@@ -945,12 +959,10 @@ export default function HomeShell() {
         }
 
         .hub-card--instagram {
-          margin-left: 140px;
-          margin-top: 258px;
-        }
-
-        .hub-card--instagram .hub-card {
-          animation: fixedCardSpinA 15s ease-in-out infinite;
+          --orbit-x: 140px;
+          --orbit-y: 258px;
+          --orbit-duration: 33s;
+          --orbit-delay: -25s;
         }
 
         .hub-card--instagram:hover .hub-card {
@@ -997,39 +1009,21 @@ export default function HomeShell() {
           }
         }
 
-        @keyframes fixedCardSpinA {
-          0%, 100% {
-            transform: rotate(-2deg) translateY(0);
+        @keyframes orbitSpin {
+          from {
+            transform: rotate(0deg);
           }
-          50% {
-            transform: rotate(2deg) translateY(-6px);
-          }
-        }
-
-        @keyframes fixedCardSpinB {
-          0%, 100% {
-            transform: rotate(2deg) translateY(0);
-          }
-          50% {
-            transform: rotate(-2deg) translateY(-8px);
+          to {
+            transform: rotate(360deg);
           }
         }
 
-        @keyframes fixedCardSpinC {
-          0%, 100% {
-            transform: rotate(-1deg) translateY(0);
+        @keyframes orbitCounterSpin {
+          from {
+            transform: translate(-50%, -50%) rotate(0deg);
           }
-          50% {
-            transform: rotate(3deg) translateY(-7px);
-          }
-        }
-
-        @keyframes fixedCardSpinD {
-          0%, 100% {
-            transform: rotate(1deg) translateY(0);
-          }
-          50% {
-            transform: rotate(-3deg) translateY(-7px);
+          to {
+            transform: translate(-50%, -50%) rotate(-360deg);
           }
         }
 
@@ -1043,33 +1037,33 @@ export default function HomeShell() {
           }
 
           .hub-card--whatsapp {
-            margin-left: -104px;
-            margin-top: -266px;
+            --orbit-x: -104px;
+            --orbit-y: -266px;
           }
 
           .hub-card--chat {
-            margin-left: 194px;
-            margin-top: -170px;
+            --orbit-x: 194px;
+            --orbit-y: -170px;
           }
 
           .hub-card--jussara {
-            margin-left: -246px;
-            margin-top: -44px;
+            --orbit-x: -246px;
+            --orbit-y: -44px;
           }
 
           .hub-card--tasks {
-            margin-left: 236px;
-            margin-top: 44px;
+            --orbit-x: 236px;
+            --orbit-y: 44px;
           }
 
           .hub-card--clients {
-            margin-left: -152px;
-            margin-top: 214px;
+            --orbit-x: -152px;
+            --orbit-y: 214px;
           }
 
           .hub-card--instagram {
-            margin-left: 118px;
-            margin-top: 224px;
+            --orbit-x: 118px;
+            --orbit-y: 224px;
           }
         }
       `}</style>
