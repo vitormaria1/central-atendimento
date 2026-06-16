@@ -676,33 +676,23 @@ export default function HomeShell() {
               </div>
             ) : (
               <div className="central-enter mx-auto flex min-h-[calc(100vh-6rem)] max-w-[1500px] flex-col justify-center">
-                <div className="grid items-center gap-10 xl:grid-cols-[1.05fr_0.95fr]">
-                  <div className="text-center xl:text-left">
-                    <div className="inline-flex rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_88%,transparent)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--muted)] backdrop-blur">
-                      Núcleo Operacional
-                    </div>
-                    <h1 className="mt-6 text-4xl font-semibold tracking-tight md:text-6xl">
-                      A central gira em torno do seu cérebro operacional.
-                    </h1>
-                    <p className="mx-auto mt-5 max-w-2xl text-sm text-[var(--muted)] md:text-base xl:mx-0">
-                      Abra canais, tarefas, clientes e a J.U.S.S.A.R.A. a partir de um hub visual único. Cada card responde com uma animação própria e a central chega com uma entrada mais imersiva após o login.
-                    </p>
+                <div className="text-center">
+                  <div className="mx-auto inline-flex rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_88%,transparent)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--muted)] backdrop-blur">
+                    Central de Atendimento
                   </div>
+                  <h1 className="mt-5 text-3xl font-semibold tracking-tight md:text-4xl">Hub Operacional</h1>
+                  <p className="mx-auto mt-3 max-w-2xl text-sm text-[var(--muted)] md:text-base">
+                    Escolha um módulo para continuar. A J.U.S.S.A.R.A. mantém conversas persistentes em uma workspace própria.
+                  </p>
+                </div>
 
-                  <div className="relative mx-auto flex h-[680px] w-full max-w-[760px] items-center justify-center overflow-visible">
+                <div className="relative mt-10 hidden xl:block">
+                  <div className="hub-orbit mx-auto">
                     <div className="orbit-ring orbit-ring--outer" />
                     <div className="orbit-ring orbit-ring--mid" />
                     <div className="orbit-ring orbit-ring--inner" />
 
-                    <div className="brain-core group relative z-10 flex h-[250px] w-[250px] items-center justify-center rounded-[44px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_86%,transparent)] shadow-[0_30px_80px_rgba(16,24,40,0.18)] backdrop-blur-xl md:h-[300px] md:w-[300px]">
-                      <div className="brain-pulse absolute inset-5 rounded-[36px] border border-[color-mix(in_srgb,var(--primary)_28%,transparent)]" />
-                      <div className="brain-pulse brain-pulse--alt absolute inset-0 rounded-[44px] border border-[color-mix(in_srgb,var(--accent)_18%,transparent)]" />
-                      <div className="absolute inset-0 rounded-[44px] bg-[radial-gradient(circle_at_30%_30%,color-mix(in_srgb,var(--primary)_18%,transparent),transparent_45%),radial-gradient(circle_at_70%_70%,color-mix(in_srgb,var(--accent)_20%,transparent),transparent_42%)]" />
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src="/logo-mark.png" alt="Central" className="relative z-10 h-36 w-36 object-contain drop-shadow-[0_12px_28px_rgba(35,66,244,0.28)] md:h-44 md:w-44" />
-                    </div>
-
-                    <div className="hidden xl:block">
+                    <div className="hub-grid">
                       {hubCards.map((card) => {
                         const badgeClass =
                           card.badgeTone === "warn"
@@ -723,36 +713,33 @@ export default function HomeShell() {
                         );
 
                         const commonClass = [
-                          "hub-card absolute w-[220px] rounded-[30px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_90%,transparent)] px-5 py-5 text-left backdrop-blur-xl",
+                          "hub-card hub-grid__card rounded-[30px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_90%,transparent)] px-5 py-5 text-left backdrop-blur-xl",
                           card.orbitClass,
                           card.disabled ? "cursor-not-allowed opacity-70" : "cursor-pointer",
                         ].join(" ");
 
                         if (card.href) {
                           return (
-                            <Link
-                              key={card.id}
-                              href={card.href}
-                              onClick={card.onClick}
-                              className={commonClass}
-                            >
+                            <Link key={card.id} href={card.href} onClick={card.onClick} className={commonClass}>
                               {content}
                             </Link>
                           );
                         }
 
                         return (
-                          <button
-                            key={card.id}
-                            type="button"
-                            onClick={card.disabled ? undefined : card.action}
-                            disabled={card.disabled}
-                            className={commonClass}
-                          >
+                          <button key={card.id} type="button" onClick={card.disabled ? undefined : card.action} disabled={card.disabled} className={commonClass}>
                             {content}
                           </button>
                         );
                       })}
+
+                      <div className="brain-core hub-grid__core group relative z-10 flex h-[270px] w-[270px] items-center justify-center rounded-[44px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_86%,transparent)] shadow-[0_30px_80px_rgba(16,24,40,0.18)] backdrop-blur-xl">
+                        <div className="brain-pulse absolute inset-5 rounded-[36px] border border-[color-mix(in_srgb,var(--primary)_28%,transparent)]" />
+                        <div className="brain-pulse brain-pulse--alt absolute inset-0 rounded-[44px] border border-[color-mix(in_srgb,var(--accent)_18%,transparent)]" />
+                        <div className="absolute inset-0 rounded-[44px] bg-[radial-gradient(circle_at_30%_30%,color-mix(in_srgb,var(--primary)_18%,transparent),transparent_45%),radial-gradient(circle_at_70%_70%,color-mix(in_srgb,var(--accent)_20%,transparent),transparent_42%)]" />
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/logo-mark.png" alt="Central" className="relative z-10 h-40 w-40 object-contain drop-shadow-[0_12px_28px_rgba(35,66,244,0.28)]" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -817,6 +804,40 @@ export default function HomeShell() {
           animation-delay: -2.2s;
         }
 
+        .hub-orbit {
+          position: relative;
+          height: 760px;
+          width: 100%;
+          max-width: 1120px;
+          margin: 0 auto;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .hub-grid {
+          position: relative;
+          z-index: 2;
+          display: grid;
+          grid-template-columns: 240px 320px 240px;
+          grid-template-rows: 180px 320px 180px;
+          grid-template-areas:
+            "whatsapp core chat"
+            "jussara core tasks"
+            "clients core instagram";
+          align-items: center;
+          justify-items: center;
+          gap: 28px 34px;
+        }
+
+        .hub-grid__card {
+          width: 220px;
+        }
+
+        .hub-grid__core {
+          grid-area: core;
+        }
+
         .orbit-ring {
           position: absolute;
           border-radius: 9999px;
@@ -826,20 +847,20 @@ export default function HomeShell() {
         }
 
         .orbit-ring--outer {
-          height: 640px;
-          width: 640px;
+          height: 700px;
+          width: 700px;
         }
 
         .orbit-ring--mid {
-          height: 520px;
-          width: 520px;
+          height: 560px;
+          width: 560px;
           animation-direction: reverse;
           animation-duration: 18s;
         }
 
         .orbit-ring--inner {
-          height: 400px;
-          width: 400px;
+          height: 420px;
+          width: 420px;
           animation-duration: 14s;
         }
 
@@ -859,8 +880,7 @@ export default function HomeShell() {
         }
 
         .hub-card--whatsapp {
-          left: 2%;
-          top: 8%;
+          grid-area: whatsapp;
           animation: cardDriftA 9s ease-in-out infinite;
         }
 
@@ -869,8 +889,7 @@ export default function HomeShell() {
         }
 
         .hub-card--chat {
-          right: 1%;
-          top: 11%;
+          grid-area: chat;
           animation: cardDriftB 10s ease-in-out infinite;
         }
 
@@ -879,8 +898,7 @@ export default function HomeShell() {
         }
 
         .hub-card--jussara {
-          left: -1%;
-          bottom: 16%;
+          grid-area: jussara;
           animation: cardDriftC 11s ease-in-out infinite;
         }
 
@@ -889,8 +907,7 @@ export default function HomeShell() {
         }
 
         .hub-card--tasks {
-          right: 3%;
-          bottom: 12%;
+          grid-area: tasks;
           animation: cardDriftD 8.6s ease-in-out infinite;
         }
 
@@ -899,8 +916,7 @@ export default function HomeShell() {
         }
 
         .hub-card--clients {
-          left: 12%;
-          bottom: -1%;
+          grid-area: clients;
           animation: cardDriftB 10.8s ease-in-out infinite;
         }
 
@@ -909,8 +925,7 @@ export default function HomeShell() {
         }
 
         .hub-card--instagram {
-          right: 15%;
-          bottom: -3%;
+          grid-area: instagram;
           animation: cardDriftA 12s ease-in-out infinite;
         }
 
