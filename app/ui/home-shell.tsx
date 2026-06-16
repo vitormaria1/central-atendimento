@@ -36,6 +36,7 @@ function itemClass(disabled: boolean) {
 export default function HomeShell() {
   const [me, setMe] = useState<Agent | null>(null);
   const { whatsappBadge } = useWhatsappNotifyStore();
+  const [currentView, setCurrentView] = useState<"overview" | "jussara">("overview");
   const [aiInput, setAiInput] = useState("");
   const [aiThreads, setAiThreads] = useState<AiThread[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -410,6 +411,27 @@ export default function HomeShell() {
                 Central de Inteligência
               </div>
               <div className="space-y-2">
+                <button
+                  type="button"
+                  className={itemClass(currentView === "jussara" ? false : false)}
+                  onClick={() => setCurrentView("jussara")}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">J.U.S.S.A.R.A.</div>
+                    <div
+                      className={[
+                        "text-[10px] rounded-full px-2 py-1",
+                        currentView === "jussara"
+                          ? "bg-[var(--primary)] text-white"
+                          : "border border-[var(--border)] bg-[var(--surface-1)] text-[var(--muted)]",
+                      ].join(" ")}
+                    >
+                      IA
+                    </div>
+                  </div>
+                  <div className="mt-1 text-xs text-[var(--muted)]">Conversas, memória e geração de documentos</div>
+                </button>
+
                 <Link
                   href="/tasks"
                   className={itemClass(false)}
@@ -447,137 +469,145 @@ export default function HomeShell() {
           </div>
 
           <div className="relative h-full overflow-y-auto px-6 md:px-10 py-10">
-            <div className="w-full max-w-3xl mx-auto">
-              <div className="flex flex-col items-center text-center">
-                <div className="relative">
-                  <div className="absolute inset-0 rounded-[48px] bg-[color-mix(in_srgb,var(--primary)_16%,transparent)] blur-2xl" />
-                  <div className="relative rounded-[48px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_86%,transparent)] p-10">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="/logo-mark.png"
-                      alt="J.U.S.S.A.R.A."
-                      className="h-36 w-36 md:h-52 md:w-52 object-contain"
-                    />
+            {currentView === "jussara" ? (
+              <div className="grid h-full min-h-[calc(100vh-5rem)] grid-cols-1 gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+                <aside className="overflow-hidden rounded-[32px] border border-[var(--border)] bg-[var(--card)]">
+                  <div className="border-b border-[var(--border)] px-5 py-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">J.U.S.S.A.R.A.</div>
+                    <div className="mt-1 text-xl font-semibold">Conversas</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCurrentView("jussara");
+                        void createNewAiThread();
+                      }}
+                      className="mt-4 w-full rounded-2xl bg-[var(--primary)] px-4 py-3 text-sm font-medium text-white"
+                    >
+                      Nova conversa
+                    </button>
                   </div>
-                </div>
 
-                <div className="mt-8 text-2xl md:text-3xl font-semibold tracking-tight">
-                  J.U.S.S.A.R.A.
-                </div>
-                <div className="mt-2 text-sm text-[var(--muted)] max-w-xl">
-                  Seu “cérebro” de IA da operação.
-                </div>
-
-                <div className="mt-8 w-full">
-                  <div className="rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] p-4 md:p-5 text-left">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Conversa</div>
-                        <div className="mt-1 text-sm font-semibold">
-                          {aiThreads.find((item) => item.id === selectedThreadId)?.title ?? "Nova conversa"}
-                        </div>
+                  <div className="max-h-[calc(100vh-13rem)] overflow-y-auto p-3">
+                    {aiThreads.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-1)] px-4 py-5 text-sm text-[var(--muted)]">
+                        Nenhuma conversa criada ainda.
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void createNewAiThread()}
-                        className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-sm hover:bg-[var(--surface-2)]"
-                      >
-                        Nova conversa
-                      </button>
-                    </div>
-
-                    {aiThreads.length > 0 ? (
-                      <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-                        {aiThreads.slice(0, 8).map((thread) => {
+                    ) : (
+                      <div className="space-y-2">
+                        {aiThreads.map((thread) => {
                           const active = thread.id === selectedThreadId;
                           return (
                             <button
                               key={thread.id}
                               type="button"
                               onClick={() => {
+                                setCurrentView("jussara");
                                 setSelectedThreadId(thread.id);
                                 setAiError(null);
                               }}
                               className={[
-                                "min-w-[180px] rounded-2xl border px-3 py-2 text-left transition",
+                                "w-full rounded-[24px] border px-4 py-4 text-left transition",
                                 active
                                   ? "border-[color-mix(in_srgb,var(--primary)_35%,white)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
                                   : "border-[var(--border)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)]",
                               ].join(" ")}
                             >
-                              <div className="truncate text-sm font-medium">{thread.title}</div>
-                              <div className="mt-1 truncate text-xs text-[var(--muted)]">
+                              <div className="truncate text-sm font-semibold">{thread.title}</div>
+                              <div className="mt-1 line-clamp-2 text-xs text-[var(--muted)]">
                                 {thread.lastMessageText || thread.summary || "Sem mensagens ainda."}
                               </div>
                             </button>
                           );
                         })}
                       </div>
-                    ) : null}
+                    )}
+                  </div>
+                </aside>
 
-                    {aiSending ? (
-                      <div className="mt-4 inline-flex rounded-full bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] px-3 py-1 text-xs ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)]">
-                        Aguardando resposta…
+                <div className="overflow-hidden rounded-[32px] border border-[var(--border)] bg-[var(--card)]">
+                  <div className="border-b border-[var(--border)] px-5 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Conversa ativa</div>
+                        <div className="mt-1 text-lg font-semibold">
+                          {aiThreads.find((item) => item.id === selectedThreadId)?.title ?? "Nova conversa"}
+                        </div>
                       </div>
-                    ) : null}
+                      <div className="flex items-center gap-2">
+                        {aiSending ? (
+                          <div className="inline-flex rounded-full bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] px-3 py-1 text-xs ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)]">
+                            Aguardando resposta…
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => setCurrentView("overview")}
+                          className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-sm hover:bg-[var(--surface-2)]"
+                        >
+                          Voltar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
 
-                    <div className="mt-3 flex flex-col min-h-0">
+                  <div className="flex h-[calc(100vh-12rem)] flex-col px-5 py-4">
+                    <div className="flex-1 overflow-y-auto">
                       {aiLoadingHistory ? (
                         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-5 text-sm text-[var(--muted)]">
                           Carregando conversa...
                         </div>
                       ) : aiMsgs.length > 0 ? (
                         <div
-                          className="max-h-[320px] md:max-h-[420px] overflow-y-auto space-y-2 pr-1"
+                          className="space-y-2 pr-1"
                           role="log"
                           aria-live="polite"
                           aria-relevant="additions text"
                           aria-busy={aiSending}
                         >
                           {aiMsgs.map((m, idx) => (
-                          <div
-                            key={`${m.role}:${idx}`}
-                            className={[
-                              "rounded-2xl px-3 py-2 ring-1 text-sm whitespace-pre-wrap",
-                              m.role === "user"
-                                ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
-                                : "bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]",
-                            ].join(" ")}
-                          >
-                            <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
-                              {m.role === "user" ? "Você" : "J.U.S.S.A.R.A."}
-                            </div>
-                            <div className="mt-1">{m.text}</div>
-                            {m.attachments && m.attachments.length ? (
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {m.attachments.map((a, j) => (
-                                  <div
-                                    key={`${a.name}:${j}`}
-                                    className="rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-2 py-1 text-[10px]"
-                                  >
-                                    📎 {a.name}
-                                  </div>
-                                ))}
+                            <div
+                              key={`${m.role}:${m.id ?? idx}`}
+                              className={[
+                                "rounded-2xl px-3 py-2 ring-1 text-sm whitespace-pre-wrap",
+                                m.role === "user"
+                                  ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] ring-[color-mix(in_srgb,var(--primary)_35%,transparent)]"
+                                  : "bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]",
+                              ].join(" ")}
+                            >
+                              <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
+                                {m.role === "user" ? "Você" : "J.U.S.S.A.R.A."}
                               </div>
-                            ) : null}
-                            {m.files && m.files.length ? (
-                              <div className="mt-2 space-y-2">
-                                {m.files.slice(0, 3).map((f, j) => (
-                                  <button
-                                    key={`${f.filename}:${j}`}
-                                    type="button"
-                                    onClick={() => downloadFile(f)}
-                                    className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-left hover:bg-[var(--surface-2)]"
-                                  >
-                                    <div className="flex items-center justify-between gap-3">
-                                      <div className="text-xs font-semibold truncate">⬇ {f.filename}</div>
-                                      <div className="text-[10px] text-[var(--muted)] shrink-0">{f.mimeType}</div>
+                              <div className="mt-1">{m.text}</div>
+                              {m.attachments && m.attachments.length ? (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {m.attachments.map((a, j) => (
+                                    <div
+                                      key={`${a.name}:${j}`}
+                                      className="rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-2 py-1 text-[10px]"
+                                    >
+                                      📎 {a.name}
                                     </div>
-                                  </button>
-                                ))}
-                              </div>
-                            ) : null}
-                          </div>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {m.files && m.files.length ? (
+                                <div className="mt-2 space-y-2">
+                                  {m.files.slice(0, 3).map((f, j) => (
+                                    <button
+                                      key={`${f.filename}:${j}`}
+                                      type="button"
+                                      onClick={() => downloadFile(f)}
+                                      className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-left hover:bg-[var(--surface-2)]"
+                                    >
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div className="truncate text-xs font-semibold">⬇ {f.filename}</div>
+                                        <div className="shrink-0 text-[10px] text-[var(--muted)]">{f.mimeType}</div>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
                           ))}
                         </div>
                       ) : (
@@ -585,20 +615,21 @@ export default function HomeShell() {
                           Comece uma conversa, peça análises mais longas ou gere documentos do escritório por aqui.
                         </div>
                       )}
+                    </div>
 
-                      {aiError ? (
-                        <div
-                          className="mt-3 text-xs text-[color-mix(in_srgb,var(--warning)_80%,white)]"
-                          role="alert"
-                          aria-live="assertive"
-                        >
-                          {aiError}
-                        </div>
-                      ) : null}
+                    {aiError ? (
+                      <div
+                        className="mt-3 text-xs text-[color-mix(in_srgb,var(--warning)_80%,white)]"
+                        role="alert"
+                        aria-live="assertive"
+                      >
+                        {aiError}
+                      </div>
+                    ) : null}
 
-                      <div className="mt-4 border-t border-[var(--border)] pt-4">
-                        <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-4">
-                          <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
+                    <div className="mt-4 border-t border-[var(--border)] pt-4">
+                      <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
                           <input
                             ref={fileInputRef}
                             type="file"
@@ -620,7 +651,7 @@ export default function HomeShell() {
                             <button
                               type="button"
                               onClick={() => setTemplatePickerOpen(true)}
-                              className="text-xs rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-1 hover:bg-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
+                              className="rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] px-3 py-1 text-xs ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
                               aria-haspopup="dialog"
                             >
                               Modelos
@@ -628,9 +659,7 @@ export default function HomeShell() {
                           </div>
 
                           <div className="flex items-center gap-3">
-                            {attachmentsSummary ? (
-                              <div className="text-xs text-[var(--muted)]">{attachmentsSummary}</div>
-                            ) : null}
+                            {attachmentsSummary ? <div className="text-xs text-[var(--muted)]">{attachmentsSummary}</div> : null}
                             {selectedTemplateSlug ? (
                               <button
                                 type="button"
@@ -652,59 +681,96 @@ export default function HomeShell() {
                               </button>
                             ) : null}
                           </div>
-                          </div>
+                        </div>
 
-                          {aiAttachments.length ? (
-                            <div className="pb-2 flex flex-wrap gap-2">
-                              {aiAttachments.map((a, j) => (
-                                <button
-                                  key={`${a.name}:${j}`}
-                                  type="button"
-                                  onClick={() => setAiAttachments((prev) => prev.filter((_, i) => i !== j))}
-                                  className="min-h-[40px] rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[11px] hover:bg-[var(--surface-1)] md:text-xs"
-                                  title="Remover"
-                                >
-                                  📎 {a.name} ✕
-                                </button>
-                              ))}
-                            </div>
-                          ) : null}
-
-                          <div className="flex items-end gap-3">
-                            <textarea
-                              ref={composerRef}
-                              rows={2}
-                              value={aiInput}
-                              onChange={(e) => setAiInput(e.target.value)}
-                              placeholder="Escreva aqui para conversar com a J.U.S.S.A.R.A..."
-                              aria-label="Mensagem para a J.U.S.S.A.R.A."
-                              className="min-h-[84px] flex-1 resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && !e.shiftKey) {
-                                  e.preventDefault();
-                                  void sendToAi();
-                                }
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => void sendToAi()}
-                              disabled={aiSending || !aiInput.trim()}
-                              aria-disabled={aiSending || !aiInput.trim()}
-                              className="h-12 min-w-[110px] rounded-2xl bg-[var(--primary)] px-5 text-sm font-medium text-white shadow-lg shadow-[color-mix(in_srgb,var(--primary)_35%,transparent)] disabled:opacity-60"
-                            >
-                              {aiSending ? "Enviando..." : "Enviar"}
-                            </button>
+                        {aiAttachments.length ? (
+                          <div className="flex flex-wrap gap-2 pb-2">
+                            {aiAttachments.map((a, j) => (
+                              <button
+                                key={`${a.name}:${j}`}
+                                type="button"
+                                onClick={() => setAiAttachments((prev) => prev.filter((_, i) => i !== j))}
+                                className="min-h-[40px] rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[11px] hover:bg-[var(--surface-1)] md:text-xs"
+                                title="Remover"
+                              >
+                                📎 {a.name} ✕
+                              </button>
+                            ))}
                           </div>
+                        ) : null}
+
+                        <div className="flex items-end gap-3">
+                          <textarea
+                            ref={composerRef}
+                            rows={2}
+                            value={aiInput}
+                            onChange={(e) => setAiInput(e.target.value)}
+                            placeholder="Escreva aqui para conversar com a J.U.S.S.A.R.A..."
+                            aria-label="Mensagem para a J.U.S.S.A.R.A."
+                            className="min-h-[84px] flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-[var(--muted)]"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                void sendToAi();
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void sendToAi()}
+                            disabled={aiSending || !aiInput.trim()}
+                            aria-disabled={aiSending || !aiInput.trim()}
+                            className="h-12 min-w-[110px] rounded-2xl bg-[var(--primary)] px-5 text-sm font-medium text-white shadow-lg shadow-[color-mix(in_srgb,var(--primary)_35%,transparent)] disabled:opacity-60"
+                          >
+                            {aiSending ? "Enviando..." : "Enviar"}
+                          </button>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-
-                {/* texto redundante removido */}
               </div>
-            </div>
+            ) : (
+              <div className="mx-auto flex h-full max-w-4xl flex-col items-center justify-center text-center">
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-[48px] bg-[color-mix(in_srgb,var(--primary)_16%,transparent)] blur-2xl" />
+                  <div className="relative rounded-[48px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_86%,transparent)] p-10">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/logo-mark.png" alt="Central" className="h-36 w-36 md:h-52 md:w-52 object-contain" />
+                  </div>
+                </div>
+
+                <div className="mt-8 text-2xl font-semibold tracking-tight md:text-4xl">Central de Atendimento</div>
+                <div className="mt-3 max-w-2xl text-sm text-[var(--muted)] md:text-base">
+                  Use o menu lateral para abrir atendimento, tarefas, clientes ou entrar na aba da J.U.S.S.A.R.A. com conversas persistentes em coluna lateral.
+                </div>
+
+                <div className="mt-8 grid w-full gap-3 text-left md:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView("jussara")}
+                    className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] px-5 py-5 hover:bg-[var(--surface-1)]"
+                  >
+                    <div className="text-sm font-semibold">J.U.S.S.A.R.A.</div>
+                    <div className="mt-2 text-xs text-[var(--muted)]">Abrir a IA com histórico lateral de conversas.</div>
+                  </button>
+                  <Link
+                    href="/tasks"
+                    className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] px-5 py-5 hover:bg-[var(--surface-1)]"
+                  >
+                    <div className="text-sm font-semibold">Tarefas</div>
+                    <div className="mt-2 text-xs text-[var(--muted)]">Gerenciar entregas por departamento.</div>
+                  </Link>
+                  <Link
+                    href="/clients"
+                    className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] px-5 py-5 hover:bg-[var(--surface-1)]"
+                  >
+                    <div className="text-sm font-semibold">Clientes</div>
+                    <div className="mt-2 text-xs text-[var(--muted)]">Consultar e manter dados cadastrais.</div>
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
         </main>
       </div>
