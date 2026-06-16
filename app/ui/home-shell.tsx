@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { clearWhatsappBadge, useWhatsappNotifyStore } from "./whatsapp-notify-store";
 
@@ -20,7 +20,6 @@ function itemClass(disabled: boolean) {
 }
 
 export default function HomeShell() {
-  const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
   const { whatsappBadge } = useWhatsappNotifyStore();
   const [aiInput, setAiInput] = useState("");
@@ -233,11 +232,11 @@ export default function HomeShell() {
                 Central de Atendimento
               </div>
               <div className="space-y-2">
-                <button
+                <Link
+                  href="/whatsapp"
                   className={itemClass(false)}
                   onClick={() => {
                     clearWhatsappBadge();
-                    router.push("/whatsapp");
                   }}
                 >
                   <div className="flex items-center justify-between">
@@ -252,13 +251,11 @@ export default function HomeShell() {
                     <div className="text-[10px] rounded-full bg-[var(--primary)] text-white px-2 py-1">Ativo</div>
                   </div>
                   <div className="mt-1 text-xs text-[var(--muted)]">Atender conversas e enviar documentos</div>
-                </button>
+                </Link>
 
-                <button
+                <Link
+                  href="/team-chat"
                   className={itemClass(false)}
-                  onClick={() => {
-                    router.push("/team-chat");
-                  }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-medium">Chat Interno</div>
@@ -267,7 +264,7 @@ export default function HomeShell() {
                     </div>
                   </div>
                   <div className="mt-1 text-xs text-[var(--muted)]">Comunicação rápida entre atendentes</div>
-                </button>
+                </Link>
 
                 <button className={itemClass(true)} disabled>
                   <div className="flex items-center justify-between">
@@ -294,11 +291,9 @@ export default function HomeShell() {
                 Central de Inteligência
               </div>
               <div className="space-y-2">
-                <button
+                <Link
+                  href="/tasks"
                   className={itemClass(false)}
-                  onClick={() => {
-                    router.push("/tasks");
-                  }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-medium">Tarefas</div>
@@ -307,7 +302,7 @@ export default function HomeShell() {
                     </div>
                   </div>
                   <div className="mt-1 text-xs text-[var(--muted)]">Gerenciar tarefas por departamento</div>
-                </button>
+                </Link>
               </div>
             </div>
           </div>
