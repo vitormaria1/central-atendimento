@@ -5,6 +5,16 @@ import { getSession } from "@/lib/auth";
 import { getEnv } from "@/lib/env";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { readDocTemplateBySlug } from "@/lib/templates";
+import {
+  appendAiMessage,
+  buildAiContext,
+  createAiThread,
+  getAiThread,
+  refreshAiThreadSummary,
+  touchAiThread,
+  type AiStoredAttachment,
+  type AiStoredFile,
+} from "@/lib/ai-memory";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 
@@ -13,6 +23,7 @@ export const runtime = "nodejs";
 
 const bodySchema = z.object({
   prompt: z.string().min(1).max(10_000),
+  threadId: z.string().optional(),
   templateSlug: z.string().min(1).optional(),
   attachments: z
     .array(
@@ -51,8 +62,19 @@ export const POST = withApi(async (req: Request) => {
 
   const history = parsed.data.history ?? [];
   const attachments = parsed.data.attachments ?? [];
+  const threadIdRaw = parsed.data.threadId ?? "";
+  const parsedThreadId = threadIdRaw ? Number.parseInt(threadIdRaw, 10) : Number.NaN;
   const templateSlug = parsed.data.templateSlug ?? null;
   const template = templateSlug ? await readDocTemplateBySlug(templateSlug) : null;
+  const existingThread = Number.isFinite(parsedThreadId) ? await getAiThread(session.agentId, parsedThreadId) : null;
+  const thread = existingThread ?? (await createAiThread(session.agentId, parsed.data.prompt));
+  const threadId = Number.parseInt(thread.id, 10);
+
+  const storedAttachments: AiStoredAttachment[] = attachments.map((item) => ({
+    name: item.name,
+    mimeType: item.mimeType,
+    dataBase64: item.dataBase64,
+  }));
 
   const templateKeys = (() => {
     if (!template) return [];
@@ -86,8 +108,19 @@ export const POST = withApi(async (req: Request) => {
     ? `Anexos: ${attachments.map((a) => a.name).join(", ")}`
     : null;
 
+  const context = await buildAiContext(threadId);
+  const contextHistory = context.recentHistory.length > 0 ? context.recentHistory : history.slice(-12);
+
   const contents = [
-    ...history.slice(-12).map((h) => ({
+    ...(context.olderSummary
+      ? [
+          {
+            role: "user" as const,
+            parts: [{ text: `Resumo da conversa até agora:\n${context.olderSummary}` }],
+          },
+        ]
+      : []),
+    ...contextHistory.map((h) => ({
       role: h.role,
       parts: [{ text: h.text }],
     })),
@@ -166,6 +199,19 @@ export const POST = withApi(async (req: Request) => {
     const data = (await res.json().catch(() => null)) as unknown;
     return { res, data, model };
   }
+
+  const userMessage = await appendAiMessage({
+    threadId,
+    role: "user",
+    content: parsed.data.prompt,
+    attachments: storedAttachments,
+  });
+
+  await touchAiThread({
+    threadId,
+    title: existingThread?.title === "Nova conversa" || !existingThread?.title ? parsed.data.prompt.replace(/\s+/g, " ").trim().slice(0, 72) || "Nova conversa" : undefined,
+    selectedTemplateSlug: templateSlug,
+  });
 
   let attempt = await callGemini(primaryModel);
   const shouldFallback = !attempt.res.ok && fallbackModel && fallbackModel !== primaryModel;
@@ -298,15 +344,41 @@ export const POST = withApi(async (req: Request) => {
       files = [{ filename: "documento.pdf", mimeType: "application/pdf", base64 }];
     }
 
-    return NextResponse.json({ text: json.text, files });
+    const storedFiles: AiStoredFile[] = files.map((file) => ({
+      filename: file.filename,
+      mimeType: file.mimeType,
+      base64: file.base64,
+    }));
+    const modelMessage = await appendAiMessage({
+      threadId,
+      role: "model",
+      content: json.text,
+      files: storedFiles,
+    });
+    await refreshAiThreadSummary(threadId);
+    return NextResponse.json({ threadId: thread.id, text: json.text, files, userMessage, modelMessage });
   }
 
   // Fallback: treat as plain text.
   const wantsPdf = /\bpdf\b/i.test(parsed.data.prompt) || /\bdocumento\b/i.test(parsed.data.prompt) || /não consigo criar um arquivo pdf/i.test(rawText);
   if (wantsPdf) {
     const base64 = await makePdfBase64(rawText);
-    return NextResponse.json({ text: rawText, files: [{ filename: "documento.pdf", mimeType: "application/pdf", base64 }] });
+    const files = [{ filename: "documento.pdf", mimeType: "application/pdf", base64 }];
+    const modelMessage = await appendAiMessage({
+      threadId,
+      role: "model",
+      content: rawText,
+      files,
+    });
+    await refreshAiThreadSummary(threadId);
+    return NextResponse.json({ threadId: thread.id, text: rawText, files, userMessage, modelMessage });
   }
 
-  return NextResponse.json({ text: rawText });
+  const modelMessage = await appendAiMessage({
+    threadId,
+    role: "model",
+    content: rawText,
+  });
+  await refreshAiThreadSummary(threadId);
+  return NextResponse.json({ threadId: thread.id, text: rawText, userMessage, modelMessage });
 });

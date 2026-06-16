@@ -8,7 +8,21 @@ type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gusta
 type AiMsg = { role: "user" | "model"; text: string };
 type AiAttachment = { name: string; mimeType: string; dataBase64: string; sizeBytes: number };
 type AiFile = { filename: string; mimeType: string; base64: string };
-type AiMsgWithFiles = AiMsg & { files?: AiFile[]; attachments?: Array<{ name: string; mimeType: string; sizeBytes: number }> };
+type AiThread = {
+  id: string;
+  title: string;
+  summary: string;
+  selectedTemplateSlug: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastMessageText: string | null;
+};
+type AiMsgWithFiles = AiMsg & {
+  id?: string;
+  createdAt?: string;
+  files?: AiFile[];
+  attachments?: Array<{ name: string; mimeType: string; sizeBytes?: number }>;
+};
 
 function itemClass(disabled: boolean) {
   return [
@@ -23,8 +37,11 @@ export default function HomeShell() {
   const [me, setMe] = useState<Agent | null>(null);
   const { whatsappBadge } = useWhatsappNotifyStore();
   const [aiInput, setAiInput] = useState("");
+  const [aiThreads, setAiThreads] = useState<AiThread[]>([]);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [aiMsgs, setAiMsgs] = useState<AiMsgWithFiles[]>([]);
   const [aiSending, setAiSending] = useState(false);
+  const [aiLoadingHistory, setAiLoadingHistory] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiAnnounce, setAiAnnounce] = useState<string>("");
   const [aiAttachments, setAiAttachments] = useState<AiAttachment[]>([]);
@@ -48,6 +65,94 @@ export default function HomeShell() {
       setMe(data);
     })();
   }, []);
+
+  async function loadAiThreads(preferredThreadId?: string | null) {
+    const res = await fetch("/api/ai/threads", { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as { items: AiThread[] };
+    const items = data.items ?? [];
+    setAiThreads(items);
+    const nextThreadId =
+      preferredThreadId && items.some((item) => item.id === preferredThreadId)
+        ? preferredThreadId
+        : selectedThreadId && items.some((item) => item.id === selectedThreadId)
+          ? selectedThreadId
+          : items[0]?.id ?? null;
+    setSelectedThreadId(nextThreadId);
+    if (!nextThreadId) {
+      setAiMsgs([]);
+      setSelectedTemplateSlug(null);
+    }
+  }
+
+  async function loadAiThreadMessages(threadId: string) {
+    setAiLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/ai/threads/${encodeURIComponent(threadId)}/messages`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Falha ao carregar conversa");
+      const data = (await res.json()) as {
+        thread: AiThread;
+        items: Array<{
+          id: string;
+          role: "user" | "model";
+          text: string;
+          files?: AiFile[];
+          attachments?: Array<{ name: string; mimeType: string; sizeBytes?: number }>;
+          createdAt: string;
+        }>;
+      };
+      setAiMsgs(
+        (data.items ?? []).map((item) => ({
+          id: item.id,
+          role: item.role,
+          text: item.text,
+          files: item.files ?? [],
+          attachments: item.attachments ?? [],
+          createdAt: item.createdAt,
+        })),
+      );
+      setSelectedTemplateSlug(data.thread.selectedTemplateSlug ?? null);
+      setAiThreads((prev) => {
+        const others = prev.filter((item) => item.id !== data.thread.id);
+        return [{ ...data.thread, lastMessageText: data.items.at(-1)?.text ?? data.thread.lastMessageText }, ...others];
+      });
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Falha ao carregar conversa");
+    } finally {
+      setAiLoadingHistory(false);
+    }
+  }
+
+  async function createNewAiThread() {
+    setAiError(null);
+    const res = await fetch("/api/ai/threads", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) {
+      setAiError("Falha ao criar conversa");
+      return;
+    }
+    const data = (await res.json()) as { thread: AiThread };
+    setAiMsgs([]);
+    setAiAttachments([]);
+    setAiInput("");
+    setSelectedTemplateSlug(null);
+    setSelectedThreadId(data.thread.id);
+    setAiThreads((prev) => [data.thread, ...prev.filter((item) => item.id !== data.thread.id)]);
+    queueMicrotask(() => composerRef.current?.focus());
+  }
+
+  useEffect(() => {
+    void loadAiThreads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!selectedThreadId) return;
+    void loadAiThreadMessages(selectedThreadId);
+  }, [selectedThreadId]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -158,15 +263,12 @@ export default function HomeShell() {
     setAiSending(true);
     setAiInput("");
     setAiAnnounce("Enviando para a J.U.S.S.A.R.A...");
-    const nextHistory = [
-      ...aiMsgs,
-      {
-        role: "user",
-        text: prompt,
-        attachments: aiAttachments.map((a) => ({ name: a.name, mimeType: a.mimeType, sizeBytes: a.sizeBytes })),
-      } satisfies AiMsgWithFiles,
-    ];
-    setAiMsgs(nextHistory);
+    const optimisticUserMessage = {
+      role: "user" as const,
+      text: prompt,
+      attachments: aiAttachments.map((a) => ({ name: a.name, mimeType: a.mimeType, sizeBytes: a.sizeBytes })),
+    } satisfies AiMsgWithFiles;
+    setAiMsgs((prev) => [...prev, optimisticUserMessage]);
 
     try {
       const res = await fetch("/api/ai/gemini", {
@@ -174,18 +276,35 @@ export default function HomeShell() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           prompt,
-          history: aiMsgs,
+          threadId: selectedThreadId ?? undefined,
           templateSlug: selectedTemplateSlug ?? undefined,
           attachments: aiAttachments.map(({ name, mimeType, dataBase64 }) => ({ name, mimeType, dataBase64 })),
         }),
       });
-      const data = (await res.json().catch(() => null)) as { text?: string; files?: AiFile[]; error?: string } | null;
+      const data = (await res.json().catch(() => null)) as {
+        threadId?: string;
+        text?: string;
+        files?: AiFile[];
+        error?: string;
+        userMessage?: AiMsgWithFiles;
+        modelMessage?: AiMsgWithFiles;
+      } | null;
       if (!res.ok) throw new Error(data?.error || "Falha ao chamar IA");
       const text = (data?.text ?? "").trim();
       if (!text) throw new Error("IA retornou vazio");
-      setAiMsgs((prev) => [...prev, { role: "model", text, files: data?.files ?? [] }]);
+      setSelectedThreadId(data?.threadId ?? selectedThreadId);
+      setAiMsgs((prev) => {
+        const withoutOptimistic = prev.slice(0, -1);
+        return [
+          ...withoutOptimistic,
+          data?.userMessage ?? optimisticUserMessage,
+          data?.modelMessage ?? { role: "model", text, files: data?.files ?? [] },
+        ];
+      });
+      await loadAiThreads(data?.threadId ?? selectedThreadId ?? undefined);
       setAiAnnounce("Resposta recebida.");
     } catch (err) {
+      setAiMsgs((prev) => prev.slice(0, -1));
       const msg = err instanceof Error ? err.message : "Falha ao chamar IA";
       setAiError(msg);
       setAiAnnounce(msg);
@@ -332,7 +451,7 @@ export default function HomeShell() {
               <div className="flex flex-col items-center text-center">
                 <div className="relative">
                   <div className="absolute inset-0 rounded-[48px] bg-[color-mix(in_srgb,var(--primary)_16%,transparent)] blur-2xl" />
-                  <div className="relative rounded-[48px] bg-white/5 ring-1 ring-white/10 p-10">
+                  <div className="relative rounded-[48px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_86%,transparent)] p-10">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src="/logo-mark.png"
@@ -351,14 +470,63 @@ export default function HomeShell() {
 
                 <div className="mt-8 w-full">
                   <div className="rounded-3xl bg-[var(--card)] ring-1 ring-[var(--border)] p-4 md:p-5 text-left">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Conversa</div>
+                        <div className="mt-1 text-sm font-semibold">
+                          {aiThreads.find((item) => item.id === selectedThreadId)?.title ?? "Nova conversa"}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void createNewAiThread()}
+                        className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-sm hover:bg-[var(--surface-2)]"
+                      >
+                        Nova conversa
+                      </button>
+                    </div>
+
+                    {aiThreads.length > 0 ? (
+                      <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+                        {aiThreads.slice(0, 8).map((thread) => {
+                          const active = thread.id === selectedThreadId;
+                          return (
+                            <button
+                              key={thread.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedThreadId(thread.id);
+                                setAiError(null);
+                              }}
+                              className={[
+                                "min-w-[180px] rounded-2xl border px-3 py-2 text-left transition",
+                                active
+                                  ? "border-[color-mix(in_srgb,var(--primary)_35%,white)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
+                                  : "border-[var(--border)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)]",
+                              ].join(" ")}
+                            >
+                              <div className="truncate text-sm font-medium">{thread.title}</div>
+                              <div className="mt-1 truncate text-xs text-[var(--muted)]">
+                                {thread.lastMessageText || thread.summary || "Sem mensagens ainda."}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+
                     {aiSending ? (
-                      <div className="text-xs rounded-full inline-flex bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)] px-3 py-1">
+                      <div className="mt-4 inline-flex rounded-full bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] px-3 py-1 text-xs ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)]">
                         Aguardando resposta…
                       </div>
                     ) : null}
 
                     <div className="mt-3 flex flex-col min-h-0">
-                      {aiMsgs.length > 0 ? (
+                      {aiLoadingHistory ? (
+                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-5 text-sm text-[var(--muted)]">
+                          Carregando conversa...
+                        </div>
+                      ) : aiMsgs.length > 0 ? (
                         <div
                           className="max-h-[320px] md:max-h-[420px] overflow-y-auto space-y-2 pr-1"
                           role="log"
@@ -385,7 +553,7 @@ export default function HomeShell() {
                                 {m.attachments.map((a, j) => (
                                   <div
                                     key={`${a.name}:${j}`}
-                                    className="text-[10px] rounded-full bg-white/5 ring-1 ring-white/10 px-2 py-1"
+                                    className="rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-2 py-1 text-[10px]"
                                   >
                                     📎 {a.name}
                                   </div>
@@ -399,7 +567,7 @@ export default function HomeShell() {
                                     key={`${f.filename}:${j}`}
                                     type="button"
                                     onClick={() => downloadFile(f)}
-                                    className="w-full text-left rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
+                                    className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-left hover:bg-[var(--surface-2)]"
                                   >
                                     <div className="flex items-center justify-between gap-3">
                                       <div className="text-xs font-semibold truncate">⬇ {f.filename}</div>
@@ -412,7 +580,11 @@ export default function HomeShell() {
                           </div>
                           ))}
                         </div>
-                      ) : null}
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-1)] px-4 py-5 text-sm text-[var(--muted)]">
+                          Comece uma conversa, peça análises mais longas ou gere documentos do escritório por aqui.
+                        </div>
+                      )}
 
                       {aiError ? (
                         <div
@@ -424,8 +596,9 @@ export default function HomeShell() {
                         </div>
                       ) : null}
 
-                      <div className="mt-4 rounded-3xl bg-white/5 ring-1 ring-white/10 px-3 py-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
+                      <div className="mt-4 border-t border-[var(--border)] pt-4">
+                        <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
                           <input
                             ref={fileInputRef}
                             type="file"
@@ -438,7 +611,7 @@ export default function HomeShell() {
                             <button
                               type="button"
                               onClick={() => fileInputRef.current?.click()}
-                              className="text-xs rounded-full bg-white/5 ring-1 ring-white/10 px-3 py-1 hover:bg-white/8"
+                              className="rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-3 py-1 text-xs hover:bg-[var(--surface-2)]"
                               title="Anexar arquivos"
                             >
                               📎 Anexar
@@ -479,49 +652,50 @@ export default function HomeShell() {
                               </button>
                             ) : null}
                           </div>
-                        </div>
-
-                        {aiAttachments.length ? (
-                          <div className="pb-2 flex flex-wrap gap-2">
-                            {aiAttachments.map((a, j) => (
-                              <button
-                                key={`${a.name}:${j}`}
-                                type="button"
-                                onClick={() => setAiAttachments((prev) => prev.filter((_, i) => i !== j))}
-                                className="min-h-[40px] text-[11px] md:text-xs rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 hover:bg-white/8"
-                                title="Remover"
-                              >
-                                📎 {a.name} ✕
-                              </button>
-                            ))}
                           </div>
-                        ) : null}
 
-                        <div className="flex items-end gap-3">
-                          <textarea
-                            ref={composerRef}
-                            rows={2}
-                            value={aiInput}
-                            onChange={(e) => setAiInput(e.target.value)}
-                            placeholder="Escreva aqui para conversar com a J.U.S.S.A.R.A..."
-                            aria-label="Mensagem para a J.U.S.S.A.R.A."
-                            className="flex-1 resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                void sendToAi();
-                              }
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => void sendToAi()}
-                            disabled={aiSending || !aiInput.trim()}
-                            aria-disabled={aiSending || !aiInput.trim()}
-                            className="h-12 min-w-[110px] rounded-2xl bg-[var(--primary)] px-5 text-sm font-medium text-white shadow-lg shadow-[color-mix(in_srgb,var(--primary)_35%,transparent)] disabled:opacity-60"
-                          >
-                            {aiSending ? "Enviando..." : "Enviar"}
-                          </button>
+                          {aiAttachments.length ? (
+                            <div className="pb-2 flex flex-wrap gap-2">
+                              {aiAttachments.map((a, j) => (
+                                <button
+                                  key={`${a.name}:${j}`}
+                                  type="button"
+                                  onClick={() => setAiAttachments((prev) => prev.filter((_, i) => i !== j))}
+                                  className="min-h-[40px] rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[11px] hover:bg-[var(--surface-1)] md:text-xs"
+                                  title="Remover"
+                                >
+                                  📎 {a.name} ✕
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+
+                          <div className="flex items-end gap-3">
+                            <textarea
+                              ref={composerRef}
+                              rows={2}
+                              value={aiInput}
+                              onChange={(e) => setAiInput(e.target.value)}
+                              placeholder="Escreva aqui para conversar com a J.U.S.S.A.R.A..."
+                              aria-label="Mensagem para a J.U.S.S.A.R.A."
+                              className="min-h-[84px] flex-1 resize-none bg-transparent outline-none text-sm placeholder:text-[var(--muted)]"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  void sendToAi();
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void sendToAi()}
+                              disabled={aiSending || !aiInput.trim()}
+                              aria-disabled={aiSending || !aiInput.trim()}
+                              className="h-12 min-w-[110px] rounded-2xl bg-[var(--primary)] px-5 text-sm font-medium text-white shadow-lg shadow-[color-mix(in_srgb,var(--primary)_35%,transparent)] disabled:opacity-60"
+                            >
+                              {aiSending ? "Enviando..." : "Enviar"}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -557,7 +731,7 @@ export default function HomeShell() {
               <button
                 type="button"
                 onClick={() => setTemplatePickerOpen(false)}
-                className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm hover:bg-white/8"
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-sm hover:bg-[var(--surface-2)]"
               >
                 Fechar
               </button>
@@ -570,13 +744,13 @@ export default function HomeShell() {
                 onChange={(e) => setTemplateQuery(e.target.value)}
                 placeholder="Buscar modelo…"
                 aria-label="Buscar modelo de documento"
-                className="h-11 w-full rounded-2xl bg-[color-mix(in_srgb,var(--background)_55%,black)] ring-1 ring-white/10 px-4 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
+                className="h-11 w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
               />
               {selectedTemplateSlug ? (
                 <button
                   type="button"
                   onClick={() => setSelectedTemplateSlug(null)}
-                  className="h-11 shrink-0 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 text-sm hover:bg-white/8"
+                  className="h-11 shrink-0 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 text-sm hover:bg-[var(--surface-2)]"
                   title="Remover modelo selecionado"
                 >
                   Remover
@@ -602,7 +776,7 @@ export default function HomeShell() {
                         "min-h-[52px] text-left rounded-2xl px-4 py-3 ring-1 transition",
                         selected
                           ? "bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] ring-[color-mix(in_srgb,var(--accent)_45%,transparent)]"
-                          : "bg-white/5 ring-white/10 hover:bg-white/8",
+                          : "border-[var(--border)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)]",
                       ].join(" ")}
                     >
                       <div className="text-sm font-medium">{t.name}</div>
