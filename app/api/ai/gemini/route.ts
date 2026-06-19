@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withApi } from "@/lib/api";
 import { extractAssistantPayload, friendlyAiErrorMessage, normalizeAssistantDisplayText } from "@/lib/ai-output";
+import { buildServiceContractDraft, shouldUseServiceContractFlow } from "@/lib/contract-generation";
 import { getSession } from "@/lib/auth";
 import { getEnv } from "@/lib/env";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -213,6 +214,20 @@ export const POST = withApi(async (req: Request) => {
     selectedTemplateSlug: templateSlug,
   });
 
+  if (!template && shouldUseServiceContractFlow(parsed.data.prompt)) {
+    const draft = buildServiceContractDraft(parsed.data.prompt);
+    const base64 = await makePdfBase64(draft.text);
+    const files = [{ filename: draft.filename, mimeType: "application/pdf", base64 }];
+    const modelMessage = await appendAiMessage({
+      threadId,
+      role: "model",
+      content: draft.responseText,
+      files,
+    });
+    await refreshAiThreadSummary(threadId);
+    return NextResponse.json({ threadId: thread.id, text: draft.responseText, files, userMessage, modelMessage });
+  }
+
   let attempt = await callGemini(primaryModel);
   const shouldFallback = !attempt.res.ok && fallbackModel && fallbackModel !== primaryModel;
   if (shouldFallback) {
@@ -241,38 +256,53 @@ export const POST = withApi(async (req: Request) => {
 
   async function makePdfBase64(text: string) {
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595.28, 841.89]); // A4
+    const pageSize: [number, number] = [595.28, 841.89]; // A4
+    let page = pdfDoc.addPage(pageSize);
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontSize = 11;
     const margin = 48;
     const maxWidth = page.getWidth() - margin * 2;
     const lineHeight = fontSize * 1.35;
 
-    const words = text.replaceAll("\r\n", "\n").split(/\s+/);
-    const lines: string[] = [];
-    let cur = "";
-    for (const w of words) {
-      const next = cur ? `${cur} ${w}` : w;
-      const width = font.widthOfTextAtSize(next, fontSize);
-      if (width <= maxWidth) cur = next;
-      else {
-        if (cur) lines.push(cur);
-        cur = w;
+    const wrapParagraph = (paragraph: string) => {
+      const words = paragraph.trim().split(/\s+/);
+      const lines: string[] = [];
+      let cur = "";
+      for (const w of words) {
+        const next = cur ? `${cur} ${w}` : w;
+        const width = font.widthOfTextAtSize(next, fontSize);
+        if (width <= maxWidth) cur = next;
+        else {
+          if (cur) lines.push(cur);
+          cur = w;
+        }
       }
-    }
-    if (cur) lines.push(cur);
+      if (cur) lines.push(cur);
+      return lines;
+    };
+
+    const drawLine = (line: string, y: number) => {
+      if (y < margin + lineHeight) {
+        page = pdfDoc.addPage(pageSize);
+        y = page.getHeight() - margin;
+      }
+      page.drawText(line, { x: margin, y, size: fontSize, font, color: rgb(0, 0, 0) });
+      return y - lineHeight;
+    };
 
     let y = page.getHeight() - margin;
-    for (const line of lines) {
-      if (y < margin + lineHeight) {
-        // new page
-        const p = pdfDoc.addPage([595.28, 841.89]);
-        y = p.getHeight() - margin;
-        p.drawText(line, { x: margin, y, size: fontSize, font, color: rgb(0, 0, 0) });
-        y -= lineHeight;
-      } else {
-        page.drawText(line, { x: margin, y, size: fontSize, font, color: rgb(0, 0, 0) });
-        y -= lineHeight;
+    for (const paragraph of text.replaceAll("\r\n", "\n").split("\n")) {
+      if (!paragraph.trim()) {
+        y -= lineHeight * 0.75;
+        if (y < margin + lineHeight) {
+          page = pdfDoc.addPage(pageSize);
+          y = page.getHeight() - margin;
+        }
+        continue;
+      }
+
+      for (const line of wrapParagraph(paragraph)) {
+        y = drawLine(line, y);
       }
     }
 
