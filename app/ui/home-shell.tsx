@@ -562,12 +562,23 @@ export default function HomeShell() {
                     </div>
 
                     {aiError ? (
-                      <div
-                        className="mt-3 text-xs text-[color-mix(in_srgb,var(--warning)_80%,white)]"
-                        role="alert"
-                        aria-live="assertive"
-                      >
-                        {aiError}
+                      <div className="mt-3 rounded-2xl border border-[color-mix(in_srgb,var(--warning)_24%,var(--border))] bg-[color-mix(in_srgb,var(--surface-2)_88%,var(--warning)_8%)] px-4 py-3 text-sm shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+                              Não foi possível gerar a resposta
+                            </div>
+                            <div className="mt-1 text-sm text-[var(--foreground)]">{aiError}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setAiError(null)}
+                            className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--surface-1)] px-2.5 py-1 text-xs text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
+                            aria-label="Fechar aviso"
+                          >
+                            Fechar
+                          </button>
+                        </div>
                       </div>
                     ) : null}
 

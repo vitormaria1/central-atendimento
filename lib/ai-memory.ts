@@ -1,3 +1,4 @@
+import { normalizeAssistantDisplayText } from "@/lib/ai-output";
 import { dbQuery } from "@/lib/db";
 
 export type AiStoredAttachment = {
@@ -108,7 +109,7 @@ export async function listAiThreads(agentId: "vanderlei" | "gustavo") {
         selectedTemplateSlug: row.selected_template_slug,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-        lastMessageText: row.last_message_text,
+        lastMessageText: row.last_message_text ? normalizeAssistantDisplayText(row.last_message_text) : null,
       }) satisfies AiThread,
   );
 }
@@ -168,7 +169,7 @@ export async function listAiMessages(threadId: number, limit = 80) {
       ({
         id: row.id,
         role: row.role,
-        text: row.content,
+        text: row.role === "model" ? normalizeAssistantDisplayText(row.content) : row.content,
         attachments: Array.isArray(row.attachments) ? (row.attachments as AiStoredAttachment[]) : [],
         files: Array.isArray(row.files) ? (row.files as AiStoredFile[]) : [],
         createdAt: row.created_at,
@@ -199,7 +200,7 @@ export async function appendAiMessage(params: {
     [
       params.threadId,
       params.role,
-      params.content,
+      params.role === "model" ? normalizeAssistantDisplayText(params.content) : params.content,
       JSON.stringify(params.attachments ?? []),
       JSON.stringify(params.files ?? []),
     ],
@@ -209,7 +210,7 @@ export async function appendAiMessage(params: {
   return {
     id: row.id,
     role: row.role,
-    text: row.content,
+    text: row.role === "model" ? normalizeAssistantDisplayText(row.content) : row.content,
     attachments: Array.isArray(row.attachments) ? (row.attachments as AiStoredAttachment[]) : [],
     files: Array.isArray(row.files) ? (row.files as AiStoredFile[]) : [],
     createdAt: row.created_at,
@@ -256,7 +257,7 @@ export async function buildAiContext(threadId: number) {
 
   const recentHistory = recent.map((item) => ({
     role: item.role,
-    text: item.text,
+    text: normalizeAssistantDisplayText(item.text),
   }));
 
   return {

@@ -18,6 +18,8 @@ Variáveis importantes:
 - `SESSION_SECRET=...`
 - `AGENT_VANDERLEI_PIN=...`
 - `AGENT_GUSTAVO_PIN=...`
+- `GEMINI_MODEL=gemini-2.5-flash`
+- `GEMINI_FALLBACK_MODEL=gemini-2.5-pro`
 
 2) Rode em desenvolvimento:
 

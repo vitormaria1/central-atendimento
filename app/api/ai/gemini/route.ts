@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withApi } from "@/lib/api";
+import { extractAssistantPayload, friendlyAiErrorMessage, normalizeAssistantDisplayText } from "@/lib/ai-output";
 import { getSession } from "@/lib/auth";
 import { getEnv } from "@/lib/env";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -225,7 +226,7 @@ export const POST = withApi(async (req: Request) => {
       typeof (data as { error?: { message?: unknown } } | null)?.error?.message === "string"
         ? ((data as { error?: { message?: string } }).error!.message as string)
         : "Falha ao chamar Gemini";
-    return NextResponse.json({ error: message, model: attempt.model }, { status: 502 });
+    return NextResponse.json({ error: friendlyAiErrorMessage(message, attempt.res.status), model: attempt.model }, { status: attempt.res.status === 429 ? 429 : 502 });
   }
 
   const parts = (data as { candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }> } | null)?.candidates?.[0]
@@ -237,14 +238,7 @@ export const POST = withApi(async (req: Request) => {
     .trim();
   if (!rawText) return NextResponse.json({ error: "Resposta vazia" }, { status: 502 });
 
-  // In JSON mode, model returns JSON as text.
-  const parsedJson = (() => {
-    try {
-      return JSON.parse(rawText) as unknown;
-    } catch {
-      return null;
-    }
-  })();
+  const parsedJson = extractAssistantPayload(rawText);
 
   async function makePdfBase64(text: string) {
     const pdfDoc = await PDFDocument.create();
@@ -287,20 +281,8 @@ export const POST = withApi(async (req: Request) => {
     return Buffer.from(bytes).toString("base64");
   }
 
-  if (
-    parsedJson &&
-    typeof (parsedJson as { text?: unknown }).text === "string" &&
-    (() => {
-      const rec = parsedJson as Record<string, unknown>;
-      return !("files" in rec) || Array.isArray(rec.files);
-    })()
-  ) {
-    const json = parsedJson as {
-      text: string;
-      files?: Array<{ filename: string; mimeType: string; base64: string }>;
-      templateData?: Record<string, unknown>;
-      outputFilename?: string;
-    };
+  if (parsedJson) {
+    const json = parsedJson;
     let files = Array.isArray(json.files) ? json.files.slice(0, 3) : [];
 
     // If a template is selected, auto-generate a DOCX from the templateData.
@@ -334,10 +316,7 @@ export const POST = withApi(async (req: Request) => {
       }
     }
 
-    const wantsPdf =
-      /\bpdf\b/i.test(parsed.data.prompt) ||
-      /\bdocumento\b/i.test(parsed.data.prompt) ||
-      /não consigo criar um arquivo pdf/i.test(json.text);
+    const wantsPdf = /\bpdf\b/i.test(parsed.data.prompt) || /\bdocumento\b/i.test(parsed.data.prompt) || /não consigo criar um arquivo pdf/i.test(json.text);
 
     if (wantsPdf && files.length === 0) {
       const base64 = await makePdfBase64(json.text);
@@ -352,11 +331,11 @@ export const POST = withApi(async (req: Request) => {
     const modelMessage = await appendAiMessage({
       threadId,
       role: "model",
-      content: json.text,
+      content: normalizeAssistantDisplayText(json.text),
       files: storedFiles,
     });
     await refreshAiThreadSummary(threadId);
-    return NextResponse.json({ threadId: thread.id, text: json.text, files, userMessage, modelMessage });
+    return NextResponse.json({ threadId: thread.id, text: normalizeAssistantDisplayText(json.text), files, userMessage, modelMessage });
   }
 
   // Fallback: treat as plain text.
@@ -367,18 +346,18 @@ export const POST = withApi(async (req: Request) => {
     const modelMessage = await appendAiMessage({
       threadId,
       role: "model",
-      content: rawText,
+      content: normalizeAssistantDisplayText(rawText),
       files,
     });
     await refreshAiThreadSummary(threadId);
-    return NextResponse.json({ threadId: thread.id, text: rawText, files, userMessage, modelMessage });
+    return NextResponse.json({ threadId: thread.id, text: normalizeAssistantDisplayText(rawText), files, userMessage, modelMessage });
   }
 
   const modelMessage = await appendAiMessage({
     threadId,
     role: "model",
-    content: rawText,
+    content: normalizeAssistantDisplayText(rawText),
   });
   await refreshAiThreadSummary(threadId);
-  return NextResponse.json({ threadId: thread.id, text: rawText, userMessage, modelMessage });
+  return NextResponse.json({ threadId: thread.id, text: normalizeAssistantDisplayText(rawText), userMessage, modelMessage });
 });
