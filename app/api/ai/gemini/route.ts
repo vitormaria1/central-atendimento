@@ -3,9 +3,9 @@ import { z } from "zod";
 import { withApi } from "@/lib/api";
 import { extractAssistantPayload, friendlyAiErrorMessage, normalizeAssistantDisplayText } from "@/lib/ai-output";
 import { buildServiceContractDraft, shouldUseServiceContractFlow } from "@/lib/contract-generation";
+import { renderMarkdownPdfBase64 } from "@/lib/pdf-render";
 import { getSession } from "@/lib/auth";
 import { getEnv } from "@/lib/env";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { readDocTemplateBySlug } from "@/lib/templates";
 import {
   appendAiMessage,
@@ -283,62 +283,6 @@ export const POST = withApi(async (req: Request) => {
     return headings >= 4 || clauses >= 3;
   };
 
-  async function makePdfBase64(text: string) {
-    const pdfDoc = await PDFDocument.create();
-    const pageSize: [number, number] = [595.28, 841.89]; // A4
-    let page = pdfDoc.addPage(pageSize);
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontSize = 11;
-    const margin = 48;
-    const maxWidth = page.getWidth() - margin * 2;
-    const lineHeight = fontSize * 1.35;
-
-    const wrapParagraph = (paragraph: string) => {
-      const words = paragraph.trim().split(/\s+/);
-      const lines: string[] = [];
-      let cur = "";
-      for (const w of words) {
-        const next = cur ? `${cur} ${w}` : w;
-        const width = font.widthOfTextAtSize(next, fontSize);
-        if (width <= maxWidth) cur = next;
-        else {
-          if (cur) lines.push(cur);
-          cur = w;
-        }
-      }
-      if (cur) lines.push(cur);
-      return lines;
-    };
-
-    const drawLine = (line: string, y: number) => {
-      if (y < margin + lineHeight) {
-        page = pdfDoc.addPage(pageSize);
-        y = page.getHeight() - margin;
-      }
-      page.drawText(line, { x: margin, y, size: fontSize, font, color: rgb(0, 0, 0) });
-      return y - lineHeight;
-    };
-
-    let y = page.getHeight() - margin;
-    for (const paragraph of text.replaceAll("\r\n", "\n").split("\n")) {
-      if (!paragraph.trim()) {
-        y -= lineHeight * 0.75;
-        if (y < margin + lineHeight) {
-          page = pdfDoc.addPage(pageSize);
-          y = page.getHeight() - margin;
-        }
-        continue;
-      }
-
-      for (const line of wrapParagraph(paragraph)) {
-        y = drawLine(line, y);
-      }
-    }
-
-    const bytes = await pdfDoc.save();
-    return Buffer.from(bytes).toString("base64");
-  }
-
   function decodeTextFile(base64: string) {
     try {
       return Buffer.from(base64, "base64").toString("utf8");
@@ -434,7 +378,7 @@ export const POST = withApi(async (req: Request) => {
           if (isUsefulDocumentText(strictDocumentText)) {
             const strictFiles = Array.isArray(strictParsed.files) ? strictParsed.files.slice(0, 3) : [];
             const targetPdfBase = strictDocumentText;
-            const base64 = await makePdfBase64(targetPdfBase);
+            const base64 = await renderMarkdownPdfBase64(targetPdfBase);
             const nextFiles = [{ filename: "contrato.pdf", mimeType: "application/pdf", base64 }, ...strictFiles].slice(0, 3);
             const storedFiles: AiStoredFile[] = nextFiles.map((file) => ({
               filename: file.filename,
@@ -454,7 +398,7 @@ export const POST = withApi(async (req: Request) => {
       }
 
       const draft = buildServiceContractDraft(parsed.data.prompt);
-      const base64 = await makePdfBase64(draft.text);
+      const base64 = await renderMarkdownPdfBase64(draft.text);
       const files = [{ filename: draft.filename, mimeType: "application/pdf", base64 }];
       const modelMessage = await appendAiMessage({
         threadId,
@@ -470,7 +414,7 @@ export const POST = withApi(async (req: Request) => {
       const existingPdf = findPdfFile(files);
       if (!existingPdf) {
         const pdfSourceText = pickPdfSourceText(documentText, files);
-        const base64 = await makePdfBase64(pdfSourceText);
+        const base64 = await renderMarkdownPdfBase64(pdfSourceText);
         const pdfFilename = buildPdfFilename(json.outputFilename ?? files[0]?.filename ?? template?.template.name ?? "documento");
         files = [{ filename: pdfFilename, mimeType: "application/pdf", base64 }, ...files].slice(0, 3);
       }
@@ -495,7 +439,7 @@ export const POST = withApi(async (req: Request) => {
   // Fallback: treat as plain text.
   const wantsPdf = /\bpdf\b/i.test(parsed.data.prompt) || /\bdocumento\b/i.test(parsed.data.prompt) || /não consigo criar um arquivo pdf/i.test(rawText);
   if (wantsPdf) {
-    const base64 = await makePdfBase64(rawText);
+    const base64 = await renderMarkdownPdfBase64(rawText);
     const files = [{ filename: "documento.pdf", mimeType: "application/pdf", base64 }];
     const modelMessage = await appendAiMessage({
       threadId,
