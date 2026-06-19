@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { resolvePresenceLabel, type ChatPresenceState } from "@/lib/chat-presence";
 import { clearWhatsappBadge } from "./whatsapp-notify-store";
+import SystemNotifications from "./system-notifications";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
 
@@ -2092,6 +2093,7 @@ export default function AppShell() {
                     >
                       ⋯
                     </button>
+                    <SystemNotifications />
                   </>
                 )}
 

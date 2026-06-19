@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import SystemNotifications from "./system-notifications";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
 
@@ -357,6 +358,7 @@ export default function TeamChatShell() {
               >
                 ← Voltar
               </button>
+              <SystemNotifications />
             </div>
           </div>
 

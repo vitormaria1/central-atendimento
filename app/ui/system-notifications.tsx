@@ -165,105 +165,103 @@ export default function SystemNotifications() {
 
   return (
     <>
-      <div className="relative z-[70] flex justify-end px-4 pt-4">
-        <div className="pointer-events-auto relative">
-          <button
-            ref={bellButtonRef}
-            type="button"
-            onClick={() => setPanelOpen((v) => !v)}
-            className="relative flex h-11 items-center gap-2 rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_86%,transparent)] px-4 text-sm shadow-[0_12px_32px_rgba(15,23,42,0.14)] backdrop-blur hover:bg-[var(--surface-1)]"
-            aria-haspopup="dialog"
-            aria-expanded={panelOpen}
-          >
-            <span className="text-[var(--foreground)]">
-              <BellIcon open={panelOpen} />
+      <div className="pointer-events-auto relative">
+        <button
+          ref={bellButtonRef}
+          type="button"
+          onClick={() => setPanelOpen((v) => !v)}
+          className="relative flex h-10 items-center gap-2 rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_86%,transparent)] px-3 text-sm shadow-[0_12px_32px_rgba(15,23,42,0.14)] backdrop-blur hover:bg-[var(--surface-1)]"
+          aria-haspopup="dialog"
+          aria-expanded={panelOpen}
+        >
+          <span className="text-[var(--foreground)]">
+            <BellIcon open={panelOpen} />
+          </span>
+          <span className="hidden lg:inline">Notificações</span>
+          {unread > 0 ? (
+            <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-[var(--primary)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white shadow">
+              {unread > 9 ? "9+" : unread}
             </span>
-            <span className="hidden sm:inline">Notificações</span>
-            {unread > 0 ? (
-              <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-[var(--primary)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white shadow">
-                {unread > 9 ? "9+" : unread}
-              </span>
-            ) : null}
-          </button>
+          ) : null}
+        </button>
 
-          {panelOpen ? (
-            <div
-              ref={panelRef}
-              className="pointer-events-auto absolute right-0 top-full mt-2 w-[min(390px,calc(100vw-1rem))] overflow-hidden rounded-[28px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_92%,var(--background))] shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur"
-            >
-              <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
-                <div>
-                  <div className="text-sm font-semibold">Notificações</div>
-                  <div className="text-[11px] text-[var(--muted)]">Tarefas e chat interno</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => clearAllNotifications()}
-                    className="rounded-full border border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--muted)] hover:bg-[var(--surface-1)]"
-                  >
-                    Limpar tudo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPanelOpen(false)}
-                    className="rounded-full border border-[var(--border)] px-2.5 py-1.5 text-[11px] text-[var(--muted)] hover:bg-[var(--surface-1)]"
-                  >
-                    Fechar
-                  </button>
-                </div>
+        {panelOpen ? (
+          <div
+            ref={panelRef}
+            className="pointer-events-auto absolute right-0 top-full mt-2 w-[min(390px,calc(100vw-1rem))] overflow-hidden rounded-[28px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_92%,var(--background))] shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur"
+          >
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+              <div>
+                <div className="text-sm font-semibold">Notificações</div>
+                <div className="text-[11px] text-[var(--muted)]">Tarefas e chat interno</div>
               </div>
-              <div className="max-h-[min(70vh,520px)] overflow-y-auto p-2">
-                {notifications.length === 0 ? (
-                  <div className="px-3 py-8 text-center text-sm text-[var(--muted)]">
-                    Nenhuma notificação por enquanto.
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={[
-                          "relative rounded-2xl px-3 py-3 text-left transition hover:bg-[var(--surface-1)]",
-                          notification.read ? "opacity-80" : "bg-[color-mix(in_srgb,var(--primary)_7%,transparent)]",
-                        ].join(" ")}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPanelOpen(false);
-                            if (notification.href) router.push(notification.href);
-                            if (!notification.read) markAllNotificationsRead();
-                          }}
-                          className="w-full text-left pr-10"
-                        >
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium">{notification.title}</div>
-                            <div className="mt-1 text-xs text-[var(--muted)]">{notification.body}</div>
-                            <div className="mt-2 text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
-                              {notification.kind === "task_assigned" ? "Tarefa" : "Chat interno"} • {formatTime(notification.createdAt)}
-                            </div>
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            clearNotification(notification.id);
-                          }}
-                          className="absolute right-2 top-2 rounded-full px-2 py-1 text-[11px] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
-                          aria-label="Remover notificação"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => clearAllNotifications()}
+                  className="rounded-full border border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--muted)] hover:bg-[var(--surface-1)]"
+                >
+                  Limpar tudo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPanelOpen(false)}
+                  className="rounded-full border border-[var(--border)] px-2.5 py-1.5 text-[11px] text-[var(--muted)] hover:bg-[var(--surface-1)]"
+                >
+                  Fechar
+                </button>
               </div>
             </div>
-          ) : null}
-        </div>
+            <div className="max-h-[min(70vh,520px)] overflow-y-auto p-2">
+              {notifications.length === 0 ? (
+                <div className="px-3 py-8 text-center text-sm text-[var(--muted)]">
+                  Nenhuma notificação por enquanto.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {notifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      className={[
+                        "relative rounded-2xl px-3 py-3 text-left transition hover:bg-[var(--surface-1)]",
+                        notification.read ? "opacity-80" : "bg-[color-mix(in_srgb,var(--primary)_7%,transparent)]",
+                      ].join(" ")}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPanelOpen(false);
+                          if (notification.href) router.push(notification.href);
+                          if (!notification.read) markAllNotificationsRead();
+                        }}
+                        className="w-full text-left pr-10"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">{notification.title}</div>
+                          <div className="mt-1 text-xs text-[var(--muted)]">{notification.body}</div>
+                          <div className="mt-2 text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
+                            {notification.kind === "task_assigned" ? "Tarefa" : "Chat interno"} • {formatTime(notification.createdAt)}
+                          </div>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          clearNotification(notification.id);
+                        }}
+                        className="absolute right-2 top-2 rounded-full px-2 py-1 text-[11px] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
+                        aria-label="Remover notificação"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="pointer-events-none fixed right-4 top-24 z-[80] w-[min(360px,calc(100vw-1rem))] space-y-2">

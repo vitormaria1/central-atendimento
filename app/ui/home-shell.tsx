@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { clearWhatsappBadge, useWhatsappNotifyStore } from "./whatsapp-notify-store";
+import SystemNotifications from "./system-notifications";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
 type AiMsg = { role: "user" | "model"; text: string };
@@ -503,6 +504,7 @@ export default function HomeShell() {
               <div className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_88%,transparent)] px-4 py-2 text-sm text-[var(--muted)] backdrop-blur">
                 {me ? me.agentName : "Carregando..."}
               </div>
+              <SystemNotifications />
             </div>
           </header>
 
