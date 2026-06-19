@@ -1,6 +1,19 @@
 type StreamEvent =
   | { type: "chat_updated"; chatId: string }
-  | { type: "message_received"; chatId: string; messageId?: string };
+  | { type: "message_received"; chatId: string; messageId?: string }
+  | {
+      type: "system_notification";
+      kind: "task_assigned" | "team_chat_message";
+      title: string;
+      body: string;
+      href?: string;
+      taskId?: string;
+      channel?: string | null;
+      assigneeAgentId?: string | null;
+      senderAgentId?: string | null;
+      actorName?: string | null;
+      createdAt?: number;
+    };
 
 type Listener = (event: StreamEvent) => void;
 

@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 import { requireTaskAccess } from "@/lib/task-access";
+import { publish } from "@/lib/stream";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -205,6 +206,21 @@ export const POST = withApi(async (req: Request) => {
 
   const row = rows[0];
   if (!row) return NextResponse.json({ error: "Falha ao criar tarefa" }, { status: 500 });
+
+  if (assigneeAgentId) {
+    const assigneeName = assigneeAgentId === "vanderlei" ? "Vanderlei" : "Gustavo";
+    publish({
+      type: "system_notification",
+      kind: "task_assigned",
+      title: `Tarefa atribuída · ${title}`,
+      body: `${session.agentName} atribuiu uma nova tarefa para ${assigneeName}.`,
+      href: `/tasks`,
+      taskId: row.id,
+      assigneeAgentId,
+      actorName: session.agentName,
+      createdAt: Date.now(),
+    });
+  }
 
   return NextResponse.json({ id: row.id });
 });

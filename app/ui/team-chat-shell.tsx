@@ -251,11 +251,6 @@ export default function TeamChatShell() {
     }
   }
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
-  }
-
   function goBack() {
     if (window.history.length > 1) router.back();
     else router.push("/");
@@ -361,12 +356,6 @@ export default function TeamChatShell() {
                 className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,var(--border))] hover:bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
               >
                 ← Voltar
-              </button>
-              <button
-                onClick={logout}
-                className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-              >
-                Sair
               </button>
             </div>
           </div>

@@ -70,11 +70,6 @@ export default function HomeShell() {
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
-  }
-
   useEffect(() => {
     void (async () => {
       const res = await fetch("/api/me", { cache: "no-store" });
@@ -508,13 +503,6 @@ export default function HomeShell() {
               <div className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_88%,transparent)] px-4 py-2 text-sm text-[var(--muted)] backdrop-blur">
                 {me ? me.agentName : "Carregando..."}
               </div>
-              <button
-                type="button"
-                onClick={() => void logout()}
-                className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_88%,transparent)] px-4 py-2 text-sm backdrop-blur hover:bg-[var(--surface-1)]"
-              >
-                Sair
-              </button>
             </div>
           </header>
 

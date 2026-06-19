@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
+import { publish } from "@/lib/stream";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -49,6 +50,19 @@ export const POST = withApi(async (req: Request) => {
 
   const row = rows[0];
   if (!row) return NextResponse.json({ error: "Falha ao salvar" }, { status: 500 });
+
+  const senderLabel = session.agentName;
+  publish({
+    type: "system_notification",
+    kind: "team_chat_message",
+    title: `Chat interno · #${channel}`,
+    body: `${senderLabel}: ${body.slice(0, 120)}${body.length > 120 ? "..." : ""}`,
+    href: `/team-chat?channel=${encodeURIComponent(channel)}`,
+    channel,
+    senderAgentId: session.agentId,
+    actorName: senderLabel,
+    createdAt: Date.now(),
+  });
 
   return NextResponse.json({
     item: {

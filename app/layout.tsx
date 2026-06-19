@@ -5,6 +5,7 @@ import "./globals.css";
 import A11yPreferences from "./ui/a11y-preferences";
 import ThemePreferences from "./ui/theme-preferences";
 import RealtimeWhatsappNotifications from "./ui/realtime-whatsapp-notifications";
+import SystemNotifications from "./ui/system-notifications";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -54,6 +55,7 @@ export default function RootLayout({
         <a href="#main-content" className="skip-link">
           Pular para o conteúdo
         </a>
+        <SystemNotifications />
         <RealtimeWhatsappNotifications />
         <div id="main-content" className="flex-1 min-h-full">
           {children}

@@ -869,11 +869,6 @@ export default function TasksShell() {
     );
   }
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
-  }
-
   function goBack() {
     if (window.history.length > 1) router.back();
     else router.push("/");
@@ -1482,18 +1477,12 @@ export default function TasksShell() {
             </button>
 
             <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={goBack}
+              <button
+                type="button"
+                onClick={goBack}
                 className="rounded-xl border px-3 py-2 text-xs border-[color-mix(in_srgb,var(--accent)_30%,var(--border))] bg-[var(--surface-1)] hover:bg-[color-mix(in_srgb,var(--accent)_12%,transparent)]"
               >
                 ← Voltar
-              </button>
-              <button
-                onClick={() => void logout()}
-                className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2 text-xs hover:bg-[var(--surface-2)]"
-              >
-                Sair
               </button>
             </div>
           </div>

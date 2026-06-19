@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 import { requireTaskAccess } from "@/lib/task-access";
+import { publish } from "@/lib/stream";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -142,12 +143,13 @@ export const PATCH = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/
   const values: unknown[] = [];
 
   const before = await dbQuery<{
+    title: string;
     status: string;
     assignee_agent_id: string | null;
     due_at: string | null;
     priority: string;
     department: string;
-  }>("select status::text, assignee_agent_id, due_at::text, priority::text, department::text from tasks where id = $1", [id]);
+  }>("select title, status::text, assignee_agent_id, due_at::text, priority::text, department::text from tasks where id = $1", [id]);
   if (!before.rows[0]) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   function setField(sql: string, value: unknown) {
@@ -176,12 +178,13 @@ export const PATCH = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/
   await dbQuery(`update tasks set ${fields.join(", ")} where id = $${values.length}`, values);
 
   const after = await dbQuery<{
+    title: string;
     status: string;
     assignee_agent_id: string | null;
     due_at: string | null;
     priority: string;
     department: string;
-  }>("select status::text, assignee_agent_id, due_at::text, priority::text, department::text from tasks where id = $1", [id]);
+  }>("select title, status::text, assignee_agent_id, due_at::text, priority::text, department::text from tasks where id = $1", [id]);
 
   const b = before.rows[0];
   const a = after.rows[0]!;
@@ -200,6 +203,21 @@ export const PATCH = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/
       `,
       [id, session.agentId, session.agentName, "task_updated", JSON.stringify({ changes })],
     );
+  }
+
+  if (changes.assigneeAgentId && a.assignee_agent_id) {
+    const assigneeName = a.assignee_agent_id === "vanderlei" ? "Vanderlei" : "Gustavo";
+    publish({
+      type: "system_notification",
+      kind: "task_assigned",
+      title: `Tarefa atribuída · ${a.title}`,
+      body: `${session.agentName} atribuiu ${a.title} para ${assigneeName}.`,
+      href: `/tasks`,
+      taskId: id.toString(),
+      assigneeAgentId: a.assignee_agent_id,
+      actorName: session.agentName,
+      createdAt: Date.now(),
+    });
   }
 
   return NextResponse.json({ ok: true });
