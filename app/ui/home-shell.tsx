@@ -36,6 +36,20 @@ type HubCard = {
   disabled?: boolean;
 };
 
+function formatDateTime(iso?: string) {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+function escapeMarkdown(text: string) {
+  return text.replace(/\r\n/g, "\n");
+}
+
 export default function HomeShell() {
   const [me, setMe] = useState<Agent | null>(null);
   const { whatsappBadge } = useWhatsappNotifyStore();
@@ -217,6 +231,98 @@ export default function HomeShell() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  function downloadTextFile(filename: string, content: string, mimeType = "text/markdown;charset=utf-8") {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function exportCurrentConversation() {
+    const threadId = selectedThreadId;
+    if (!threadId) {
+      setAiError("Selecione uma conversa antes de exportar.");
+      return;
+    }
+
+    setAiError(null);
+    setAiAnnounce("Exportando conversa...");
+
+    let thread = aiThreads.find((item) => item.id === threadId) ?? null;
+    let messages = aiMsgs;
+
+    if (!messages.length) {
+      try {
+        const res = await fetch(`/api/ai/threads/${encodeURIComponent(threadId)}/messages`, { cache: "no-store" });
+        if (!res.ok) throw new Error("Falha ao carregar conversa para exportação");
+        const data = (await res.json()) as {
+          thread: AiThread;
+          items: Array<{
+            id: string;
+            role: "user" | "model";
+            text: string;
+            files?: AiFile[];
+            attachments?: Array<{ name: string; mimeType: string; sizeBytes?: number }>;
+            createdAt: string;
+          }>;
+        };
+        thread = data.thread;
+        messages = (data.items ?? []).map((item) => ({
+          id: item.id,
+          role: item.role,
+          text: item.text,
+          files: item.files ?? [],
+          attachments: item.attachments ?? [],
+          createdAt: item.createdAt,
+        }));
+      } catch (err) {
+        setAiError(err instanceof Error ? err.message : "Falha ao exportar conversa");
+        setAiAnnounce("Falha ao exportar conversa.");
+        return;
+      }
+    }
+
+    const lines: string[] = [];
+    lines.push(`# Exportação da conversa`);
+    lines.push("");
+    lines.push(`- Título: ${thread?.title ?? "Nova conversa"}`);
+    lines.push(`- Thread ID: ${threadId}`);
+    lines.push(`- Atualizada em: ${formatDateTime(thread?.updatedAt)}`);
+    lines.push(`- Criada em: ${formatDateTime(thread?.createdAt)}`);
+    lines.push(`- Modelo selecionado: ${thread?.selectedTemplateSlug ?? "nenhum"}`);
+    lines.push(`- Resumo: ${thread?.summary?.trim() || "sem resumo"}`);
+    lines.push("");
+
+    for (const [index, message] of messages.entries()) {
+      const label = message.role === "user" ? "Você" : "J.U.S.S.A.R.A.";
+      const timeLabel = message.createdAt ? formatDateTime(message.createdAt) : "—";
+      lines.push(`## ${index + 1}. ${label}`);
+      lines.push(`- Horário: ${timeLabel}`);
+      if (message.attachments?.length) {
+        lines.push(`- Anexos: ${message.attachments.map((a) => a.name).join(", ")}`);
+      }
+      if (message.files?.length) {
+        lines.push(`- Arquivos gerados: ${message.files.map((f) => `${f.filename} (${f.mimeType})`).join(", ")}`);
+      }
+      lines.push("");
+      lines.push(escapeMarkdown(message.text || "").trim() || "_Mensagem vazia_");
+      lines.push("");
+    }
+
+    const safeTitle = (thread?.title ?? "conversa")
+      .replace(/[^\p{L}\p{N}._ -]+/gu, "")
+      .trim()
+      .replace(/\s+/g, "_")
+      .slice(0, 80) || "conversa";
+    downloadTextFile(`jussara-${safeTitle}.md`, lines.join("\n"));
+    setAiAnnounce("Conversa exportada.");
   }
 
   async function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -470,17 +576,26 @@ export default function HomeShell() {
 
                 <div className="overflow-hidden rounded-[32px] border border-[var(--border)] bg-[var(--card)]">
                   <div className="border-b border-[var(--border)] px-5 py-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Conversa ativa</div>
-                        <div className="mt-1 text-lg font-semibold">
-                          {aiThreads.find((item) => item.id === selectedThreadId)?.title ?? "Nova conversa"}
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Conversa ativa</div>
+                          <div className="mt-1 text-lg font-semibold">
+                            {aiThreads.find((item) => item.id === selectedThreadId)?.title ?? "Nova conversa"}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {aiSending ? (
-                          <div className="inline-flex rounded-full bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] px-3 py-1 text-xs ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)]">
-                            Aguardando resposta…
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void exportCurrentConversation()}
+                            disabled={!selectedThreadId || aiSending || aiLoadingHistory}
+                            className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-2 text-sm hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-60"
+                            title="Exportar conversa em Markdown"
+                          >
+                            Exportar
+                          </button>
+                          {aiSending ? (
+                            <div className="inline-flex rounded-full bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] px-3 py-1 text-xs ring-1 ring-[color-mix(in_srgb,var(--accent)_35%,transparent)]">
+                              Aguardando resposta…
                           </div>
                         ) : null}
                         <button
