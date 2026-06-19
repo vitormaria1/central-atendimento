@@ -68,6 +68,7 @@ export const POST = withApi(async (req: Request) => {
   const parsedThreadId = threadIdRaw ? Number.parseInt(threadIdRaw, 10) : Number.NaN;
   const templateSlug = parsed.data.templateSlug ?? null;
   const template = templateSlug ? await readDocTemplateBySlug(templateSlug) : null;
+  const documentMode = !template && shouldUseServiceContractFlow(parsed.data.prompt);
   const existingThread = Number.isFinite(parsedThreadId) ? await getAiThread(session.agentId, parsedThreadId) : null;
   const thread = existingThread ?? (await createAiThread(session.agentId, parsed.data.prompt));
   const threadId = Number.parseInt(thread.id, 10);
@@ -147,8 +148,16 @@ export const POST = withApi(async (req: Request) => {
     parts: [
       {
         text:
-          "Você é a J.U.S.S.A.R.A. Responda de forma direta, sem introduções repetidas, sem explicar limitações internas e sem oferecer formatos alternativos antes de entregar o que foi pedido. Responda sempre em JSON válido no formato {\"text\": string, \"files\"?: [{\"filename\": string, \"mimeType\": string, \"base64\": string}]}. " +
-          "Quando o usuário pedir um arquivo, entregue o arquivo no formato solicitado. Se o pedido for PDF, gere o PDF real. Se houver um conteúdo textual, arquivo Markdown ou outro texto gerado, converta esse conteúdo em PDF quando necessário. " +
+          (
+            documentMode
+              ? "Você é a J.U.S.S.A.R.A. Quando o usuário pedir um contrato ou documento, entregue um corpo completo e útil, com estrutura profissional, títulos, seções e cláusulas numeradas. Não responda com frases curtas, introduções repetidas, ou avisos sobre limitações. " +
+                "Responda sempre em JSON válido no formato {\"text\": string, \"documentMarkdown\"?: string, \"files\"?: [{\"filename\": string, \"mimeType\": string, \"base64\": string}]}. " +
+                "Para documentos, preencha documentMarkdown com o conteúdo completo do documento em Markdown limpo. Se o usuário pedir PDF, esse conteúdo será convertido em PDF pelo sistema, então ele precisa estar completo e pronto para publicação. " +
+                "Se o pedido for um contrato de prestação de serviços de desenvolvimento de software, gere um contrato completo com: partes, objeto, obrigações, prazo, remuneração, propriedade intelectual, confidencialidade, aceitação, rescisão, disposições gerais e foro. " +
+                "Use campos em branco entre colchetes apenas para os dados que o usuário pediu para deixar em aberto."
+              : "Você é a J.U.S.S.A.R.A. Responda de forma direta, sem introduções repetidas, sem explicar limitações internas e sem oferecer formatos alternativos antes de entregar o que foi pedido. Responda sempre em JSON válido no formato {\"text\": string, \"files\"?: [{\"filename\": string, \"mimeType\": string, \"base64\": string}]}. " +
+                "Quando o usuário pedir um arquivo, entregue o arquivo no formato solicitado. Se o pedido for PDF, gere o PDF real. Se houver um conteúdo textual, arquivo Markdown ou outro texto gerado, converta esse conteúdo em PDF quando necessário. "
+          ) +
           "Quando houver um 'Modelo selecionado', extraia os dados do usuário para preencher os placeholders e devolva também um objeto \"templateData\" com chaves exatas dos placeholders (strings).",
       },
     ],
@@ -158,13 +167,14 @@ export const POST = withApi(async (req: Request) => {
     systemInstruction,
     contents,
     generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: 800,
+      temperature: documentMode ? 0.2 : 0.3,
+      maxOutputTokens: documentMode ? 2400 : 800,
       responseMimeType: "application/json",
       responseSchema: {
         type: "object",
         properties: {
           text: { type: "string" },
+          documentMarkdown: { type: "string" },
           templateData: { type: "object" },
           outputFilename: { type: "string" },
           files: {
@@ -185,7 +195,31 @@ export const POST = withApi(async (req: Request) => {
     },
   };
 
-  async function callGemini(model: string) {
+  async function callGemini(model: string, strict = false) {
+    const retryRequestBody = strict
+      ? {
+          ...requestBody,
+          generationConfig: {
+            ...requestBody.generationConfig,
+            temperature: 0.1,
+            maxOutputTokens: 3200,
+          },
+          contents: [
+            ...contents,
+            {
+              role: "user" as const,
+              parts: [
+                {
+                  text:
+                    "Reescreva a resposta anterior como um documento completo e pronto para uso. Não use frases como 'segue o PDF solicitado'. " +
+                    "Para contratos, inclua texto substancial em todas as seções e preserve os campos em branco solicitados.",
+                },
+              ],
+            },
+          ],
+        }
+      : requestBody;
+
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
       {
@@ -194,7 +228,7 @@ export const POST = withApi(async (req: Request) => {
           "content-type": "application/json",
           "x-goog-api-key": apiKeyHeader,
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify(retryRequestBody),
       },
     );
     const data = (await res.json().catch(() => null)) as unknown;
@@ -213,20 +247,6 @@ export const POST = withApi(async (req: Request) => {
     title: existingThread?.title === "Nova conversa" || !existingThread?.title ? parsed.data.prompt.replace(/\s+/g, " ").trim().slice(0, 72) || "Nova conversa" : undefined,
     selectedTemplateSlug: templateSlug,
   });
-
-  if (!template && shouldUseServiceContractFlow(parsed.data.prompt)) {
-    const draft = buildServiceContractDraft(parsed.data.prompt);
-    const base64 = await makePdfBase64(draft.text);
-    const files = [{ filename: draft.filename, mimeType: "application/pdf", base64 }];
-    const modelMessage = await appendAiMessage({
-      threadId,
-      role: "model",
-      content: draft.responseText,
-      files,
-    });
-    await refreshAiThreadSummary(threadId);
-    return NextResponse.json({ threadId: thread.id, text: draft.responseText, files, userMessage, modelMessage });
-  }
 
   let attempt = await callGemini(primaryModel);
   const shouldFallback = !attempt.res.ok && fallbackModel && fallbackModel !== primaryModel;
@@ -253,6 +273,15 @@ export const POST = withApi(async (req: Request) => {
   if (!rawText) return NextResponse.json({ error: "Resposta vazia" }, { status: 502 });
 
   const parsedJson = extractAssistantPayload(rawText);
+  const isUsefulDocumentText = (text: string) => {
+    const clean = text.trim();
+    if (clean.length < 900) return false;
+    if (/^segue o/i.test(clean)) return false;
+    if (/^não consegui/i.test(clean)) return false;
+    const headings = (clean.match(/^\s*(\d+\.|#+\s)/gm) ?? []).length;
+    const clauses = (clean.match(/cl[aá]usula/gi) ?? []).length;
+    return headings >= 4 || clauses >= 3;
+  };
 
   async function makePdfBase64(text: string) {
     const pdfDoc = await PDFDocument.create();
@@ -349,7 +378,10 @@ export const POST = withApi(async (req: Request) => {
   if (parsedJson) {
     const json = parsedJson;
     let files = Array.isArray(json.files) ? json.files.slice(0, 3) : [];
-    let responseText = normalizeAssistantDisplayText(json.text);
+    const documentText = documentMode
+      ? normalizeAssistantDisplayText((json as { documentMarkdown?: string; text?: string }).documentMarkdown ?? json.text)
+      : normalizeAssistantDisplayText(json.text);
+    let responseText = documentMode ? "Segue o contrato em PDF." : normalizeAssistantDisplayText(json.text);
 
     // If a template is selected, auto-generate a DOCX from the templateData.
     if (template && json.templateData && typeof json.templateData === "object") {
@@ -382,17 +414,67 @@ export const POST = withApi(async (req: Request) => {
       }
     }
 
-    const wantsPdf = /\bpdf\b/i.test(parsed.data.prompt) || /\bdocumento\b/i.test(parsed.data.prompt) || /não consigo criar um arquivo pdf/i.test(json.text);
+    const wantsPdf = documentMode || /\bpdf\b/i.test(parsed.data.prompt) || /\bdocumento\b/i.test(parsed.data.prompt) || /não consigo criar um arquivo pdf/i.test(documentText);
+
+    if (documentMode && !isUsefulDocumentText(documentText)) {
+      const strictAttempt = await callGemini(fallbackModel, true);
+      if (strictAttempt.res.ok) {
+        const strictParts = (strictAttempt.data as { candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }> } | null)?.candidates?.[0]
+          ?.content?.parts;
+        const strictRawText = (strictParts ?? [])
+          .map((p) => (typeof p?.text === "string" ? p.text : ""))
+          .filter(Boolean)
+          .join("\n")
+          .trim();
+        const strictParsed = strictRawText ? extractAssistantPayload(strictRawText) : null;
+        if (strictParsed) {
+          const strictDocumentText = normalizeAssistantDisplayText(
+            (strictParsed as { documentMarkdown?: string; text?: string }).documentMarkdown ?? strictParsed.text,
+          );
+          if (isUsefulDocumentText(strictDocumentText)) {
+            files = Array.isArray(strictParsed.files) ? strictParsed.files.slice(0, 3) : files;
+            const targetPdfBase = strictDocumentText;
+            const base64 = await makePdfBase64(targetPdfBase);
+            files = [{ filename: "contrato.pdf", mimeType: "application/pdf", base64 }, ...files].slice(0, 3);
+            const storedFiles: AiStoredFile[] = files.map((file) => ({
+              filename: file.filename,
+              mimeType: file.mimeType,
+              base64: file.base64,
+            }));
+            const modelMessage = await appendAiMessage({
+              threadId,
+              role: "model",
+              content: "Segue o contrato em PDF.",
+              files: storedFiles,
+            });
+            await refreshAiThreadSummary(threadId);
+            return NextResponse.json({ threadId: thread.id, text: "Segue o contrato em PDF.", files, userMessage, modelMessage });
+          }
+        }
+      }
+
+      const draft = buildServiceContractDraft(parsed.data.prompt);
+      const base64 = await makePdfBase64(draft.text);
+      const files = [{ filename: draft.filename, mimeType: "application/pdf", base64 }];
+      const modelMessage = await appendAiMessage({
+        threadId,
+        role: "model",
+        content: draft.responseText,
+        files,
+      });
+      await refreshAiThreadSummary(threadId);
+      return NextResponse.json({ threadId: thread.id, text: draft.responseText, files, userMessage, modelMessage });
+    }
 
     if (wantsPdf) {
       const existingPdf = findPdfFile(files);
       if (!existingPdf) {
-        const pdfSourceText = pickPdfSourceText(json.text, files);
+        const pdfSourceText = pickPdfSourceText(documentText, files);
         const base64 = await makePdfBase64(pdfSourceText);
-        const pdfFilename = buildPdfFilename(json.outputFilename ?? files[0]?.filename ?? template?.template.name ?? null);
+        const pdfFilename = buildPdfFilename(json.outputFilename ?? files[0]?.filename ?? template?.template.name ?? "documento");
         files = [{ filename: pdfFilename, mimeType: "application/pdf", base64 }, ...files].slice(0, 3);
       }
-      responseText = "Segue o PDF solicitado.";
+      responseText = documentMode ? "Segue o contrato em PDF." : "Segue o PDF solicitado.";
     }
 
     const storedFiles: AiStoredFile[] = files.map((file) => ({
@@ -418,11 +500,11 @@ export const POST = withApi(async (req: Request) => {
     const modelMessage = await appendAiMessage({
       threadId,
       role: "model",
-      content: "Segue o PDF solicitado.",
+      content: documentMode ? "Segue o contrato em PDF." : "Segue o PDF solicitado.",
       files,
     });
     await refreshAiThreadSummary(threadId);
-    return NextResponse.json({ threadId: thread.id, text: "Segue o PDF solicitado.", files, userMessage, modelMessage });
+    return NextResponse.json({ threadId: thread.id, text: documentMode ? "Segue o contrato em PDF." : "Segue o PDF solicitado.", files, userMessage, modelMessage });
   }
 
   const modelMessage = await appendAiMessage({
