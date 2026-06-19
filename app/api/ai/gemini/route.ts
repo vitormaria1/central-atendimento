@@ -146,9 +146,8 @@ export const POST = withApi(async (req: Request) => {
     parts: [
       {
         text:
-          "Você é a J.U.S.S.A.R.A. Responda SEMPRE em JSON válido no formato {\"text\": string, \"files\"?: [{\"filename\": string, \"mimeType\": string, \"base64\": string}]}. " +
-          "Quando o usuário pedir para criar/gerar um arquivo (PDF, DOC, planilha, etc.), inclua o arquivo em \"files\" com base64 do conteúdo do arquivo e um nome em \"filename\". " +
-          "Se não for possível gerar um binário real, gere o arquivo como texto/markdown/csv/json (conforme solicitado) e coloque em files com mimeType apropriado (ex.: text/plain, text/markdown, text/csv, application/json). " +
+          "Você é a J.U.S.S.A.R.A. Responda de forma direta, sem introduções repetidas, sem explicar limitações internas e sem oferecer formatos alternativos antes de entregar o que foi pedido. Responda sempre em JSON válido no formato {\"text\": string, \"files\"?: [{\"filename\": string, \"mimeType\": string, \"base64\": string}]}. " +
+          "Quando o usuário pedir um arquivo, entregue o arquivo no formato solicitado. Se o pedido for PDF, gere o PDF real. Se houver um conteúdo textual, arquivo Markdown ou outro texto gerado, converta esse conteúdo em PDF quando necessário. " +
           "Quando houver um 'Modelo selecionado', extraia os dados do usuário para preencher os placeholders e devolva também um objeto \"templateData\" com chaves exatas dos placeholders (strings).",
       },
     ],
@@ -281,9 +280,46 @@ export const POST = withApi(async (req: Request) => {
     return Buffer.from(bytes).toString("base64");
   }
 
+  function decodeTextFile(base64: string) {
+    try {
+      return Buffer.from(base64, "base64").toString("utf8");
+    } catch {
+      return "";
+    }
+  }
+
+  function isTextualMimeType(mimeType: string) {
+    const normalized = mimeType.toLowerCase().trim();
+    return (
+      normalized.startsWith("text/") ||
+      normalized === "application/json" ||
+      normalized === "application/xml" ||
+      normalized === "application/xhtml+xml"
+    );
+  }
+
+  function buildPdfFilename(sourceName?: string | null) {
+    const base = (sourceName ?? "documento").trim().replace(/\.[^.]+$/, "") || "documento";
+    return `${base}.pdf`;
+  }
+
+  function findPdfFile(files: AiStoredFile[]) {
+    return files.find((file) => file.mimeType.toLowerCase() === "application/pdf" || file.filename.toLowerCase().endsWith(".pdf")) ?? null;
+  }
+
+  function pickPdfSourceText(sourceText: string, files: AiStoredFile[]) {
+    const textualFile = files.find((file) => isTextualMimeType(file.mimeType));
+    if (textualFile) {
+      const decoded = decodeTextFile(textualFile.base64).trim();
+      if (decoded) return decoded;
+    }
+    return sourceText.trim();
+  }
+
   if (parsedJson) {
     const json = parsedJson;
     let files = Array.isArray(json.files) ? json.files.slice(0, 3) : [];
+    let responseText = normalizeAssistantDisplayText(json.text);
 
     // If a template is selected, auto-generate a DOCX from the templateData.
     if (template && json.templateData && typeof json.templateData === "object") {
@@ -318,9 +354,15 @@ export const POST = withApi(async (req: Request) => {
 
     const wantsPdf = /\bpdf\b/i.test(parsed.data.prompt) || /\bdocumento\b/i.test(parsed.data.prompt) || /não consigo criar um arquivo pdf/i.test(json.text);
 
-    if (wantsPdf && files.length === 0) {
-      const base64 = await makePdfBase64(json.text);
-      files = [{ filename: "documento.pdf", mimeType: "application/pdf", base64 }];
+    if (wantsPdf) {
+      const existingPdf = findPdfFile(files);
+      if (!existingPdf) {
+        const pdfSourceText = pickPdfSourceText(json.text, files);
+        const base64 = await makePdfBase64(pdfSourceText);
+        const pdfFilename = buildPdfFilename(json.outputFilename ?? files[0]?.filename ?? template?.template.name ?? null);
+        files = [{ filename: pdfFilename, mimeType: "application/pdf", base64 }, ...files].slice(0, 3);
+      }
+      responseText = "Segue o PDF solicitado.";
     }
 
     const storedFiles: AiStoredFile[] = files.map((file) => ({
@@ -331,11 +373,11 @@ export const POST = withApi(async (req: Request) => {
     const modelMessage = await appendAiMessage({
       threadId,
       role: "model",
-      content: normalizeAssistantDisplayText(json.text),
+      content: responseText,
       files: storedFiles,
     });
     await refreshAiThreadSummary(threadId);
-    return NextResponse.json({ threadId: thread.id, text: normalizeAssistantDisplayText(json.text), files, userMessage, modelMessage });
+    return NextResponse.json({ threadId: thread.id, text: responseText, files, userMessage, modelMessage });
   }
 
   // Fallback: treat as plain text.
@@ -346,11 +388,11 @@ export const POST = withApi(async (req: Request) => {
     const modelMessage = await appendAiMessage({
       threadId,
       role: "model",
-      content: normalizeAssistantDisplayText(rawText),
+      content: "Segue o PDF solicitado.",
       files,
     });
     await refreshAiThreadSummary(threadId);
-    return NextResponse.json({ threadId: thread.id, text: normalizeAssistantDisplayText(rawText), files, userMessage, modelMessage });
+    return NextResponse.json({ threadId: thread.id, text: "Segue o PDF solicitado.", files, userMessage, modelMessage });
   }
 
   const modelMessage = await appendAiMessage({
