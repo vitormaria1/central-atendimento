@@ -432,7 +432,7 @@ export const POST = withApi(async (req: Request) => {
             (strictParsed as { documentMarkdown?: string; text?: string }).documentMarkdown ?? strictParsed.text,
           );
           if (isUsefulDocumentText(strictDocumentText)) {
-            const strictFiles = Array.isArray(strictParsed.files) ? strictParsed.files.slice(0, 3) : files;
+            const strictFiles = Array.isArray(strictParsed.files) ? strictParsed.files.slice(0, 3) : [];
             const targetPdfBase = strictDocumentText;
             const base64 = await makePdfBase64(targetPdfBase);
             const nextFiles = [{ filename: "contrato.pdf", mimeType: "application/pdf", base64 }, ...strictFiles].slice(0, 3);
