@@ -432,11 +432,11 @@ export const POST = withApi(async (req: Request) => {
             (strictParsed as { documentMarkdown?: string; text?: string }).documentMarkdown ?? strictParsed.text,
           );
           if (isUsefulDocumentText(strictDocumentText)) {
-            files = Array.isArray(strictParsed.files) ? strictParsed.files.slice(0, 3) : files;
+            const strictFiles = Array.isArray(strictParsed.files) ? strictParsed.files.slice(0, 3) : files;
             const targetPdfBase = strictDocumentText;
             const base64 = await makePdfBase64(targetPdfBase);
-            files = [{ filename: "contrato.pdf", mimeType: "application/pdf", base64 }, ...files].slice(0, 3);
-            const storedFiles: AiStoredFile[] = files.map((file) => ({
+            const nextFiles = [{ filename: "contrato.pdf", mimeType: "application/pdf", base64 }, ...strictFiles].slice(0, 3);
+            const storedFiles: AiStoredFile[] = nextFiles.map((file) => ({
               filename: file.filename,
               mimeType: file.mimeType,
               base64: file.base64,
@@ -448,7 +448,7 @@ export const POST = withApi(async (req: Request) => {
               files: storedFiles,
             });
             await refreshAiThreadSummary(threadId);
-            return NextResponse.json({ threadId: thread.id, text: "Segue o contrato em PDF.", files, userMessage, modelMessage });
+            return NextResponse.json({ threadId: thread.id, text: "Segue o contrato em PDF.", files: nextFiles, userMessage, modelMessage });
           }
         }
       }
