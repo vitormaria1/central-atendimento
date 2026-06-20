@@ -224,6 +224,96 @@ function priorityTone(priority: TaskPriority) {
   }
 }
 
+type ChoiceOption = {
+  value: string;
+  label: string;
+};
+
+function ChoiceSelect({
+  value,
+  options,
+  placeholder,
+  onChange,
+  title,
+}: {
+  value: string;
+  options: ChoiceOption[];
+  placeholder: string;
+  onChange: (value: string) => void;
+  title?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (rootRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
+  const selected = options.find((opt) => opt.value === value) ?? null;
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        title={title}
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-left text-sm text-[var(--foreground)] shadow-sm outline-none hover:bg-[var(--surface-2)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--accent)_55%,transparent)]"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className={selected ? "" : "text-[var(--muted)]"}>{selected?.label ?? placeholder}</span>
+        <span className="ml-3 text-[var(--muted)]">▾</span>
+      </button>
+
+      {open ? (
+        <div
+          role="listbox"
+          className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl"
+        >
+          {options.map((opt) => {
+            const active = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={[
+                  "flex w-full items-center justify-between px-4 py-3 text-left text-sm transition hover:bg-[var(--surface-1)]",
+                  active ? "bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-[var(--foreground)]" : "text-[var(--foreground)]",
+                ].join(" ")}
+              >
+                <span>{opt.label}</span>
+                {active ? <span className="text-[var(--primary)]">✓</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function TasksShell() {
   const router = useRouter();
   const [me, setMe] = useState<Agent | null>(null);
@@ -1444,6 +1534,30 @@ export default function TasksShell() {
       })),
   );
   const visibleTaskIdsKey = visibleTasks.map((task) => task.id).join(",");
+  const createTaskDepartmentOptions = (
+    departmentMeta.length
+      ? departmentMeta
+      : [
+          { id: "fiscal", name: "Fiscal" },
+          { id: "contabil", name: "Contábil" },
+          { id: "pessoal", name: "Pessoal" },
+          { id: "societario_paralegal", name: "Societário/Paralegal" },
+          { id: "administrativo", name: "Administrativo" },
+        ]
+  ).map((d) => ({ value: d.id, label: d.name }));
+  const createTaskTypeOptions =
+    taskTypes.length > 0 ? taskTypes.map((t) => ({ value: t.id, label: t.name })) : [{ value: "outros", label: "Outros" }];
+  const createTaskAssigneeOptions = [
+    { value: "none", label: "Sem responsável" },
+    { value: "vanderlei", label: "Vanderlei" },
+    { value: "gustavo", label: "Gustavo" },
+  ];
+  const createTaskPriorityOptions = [
+    { value: "low", label: "Baixa" },
+    { value: "normal", label: "Normal" },
+    { value: "high", label: "Alta" },
+    { value: "urgent", label: "Urgente" },
+  ];
 
   useEffect(() => {
     if (showTaskModal) return;
@@ -2457,41 +2571,24 @@ export default function TasksShell() {
                   </div>
 
                   <div className="mt-4 grid gap-3">
-                    <select
+                    <ChoiceSelect
                       value={newDepartment}
-                      onChange={(e) => setNewDepartment(e.target.value as Department)}
-                      className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                    >
-                      {(departmentMeta.length
-                        ? departmentMeta
-                        : [
-                            { id: "fiscal", name: "Fiscal" },
-                            { id: "contabil", name: "Contábil" },
-                            { id: "pessoal", name: "Pessoal" },
-                            { id: "societario_paralegal", name: "Societário/Paralegal" },
-                            { id: "administrativo", name: "Administrativo" },
-                          ]
-                      ).map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(v) => setNewDepartment(v as Department)}
+                      options={createTaskDepartmentOptions}
+                      placeholder="Selecione o departamento"
+                      title="Departamento"
+                    />
 
                     <div className="grid grid-cols-3 gap-2">
-                      <select
-                        value={newTaskTypeId}
-                        onChange={(e) => setNewTaskTypeId(e.target.value)}
-                        className="col-span-2 rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                        title="Tipo de tarefa"
-                      >
-                        {taskTypes.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name}
-                          </option>
-                        ))}
-                        {taskTypes.length === 0 ? <option value="outros">Outros</option> : null}
-                      </select>
+                      <div className="col-span-2">
+                        <ChoiceSelect
+                          value={newTaskTypeId}
+                          onChange={setNewTaskTypeId}
+                          options={createTaskTypeOptions}
+                          placeholder="Tipo de tarefa"
+                          title="Tipo de tarefa"
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => {
@@ -2536,25 +2633,20 @@ export default function TasksShell() {
                         placeholder="Cliente (nome)"
                         className="w-full rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
                       />
-                      <select
+                      <ChoiceSelect
                         value={newAssignee}
-                        onChange={(e) => setNewAssignee(e.target.value as typeof newAssignee)}
-                        className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                      >
-                        <option value="none">Sem responsável</option>
-                        <option value="vanderlei">Vanderlei</option>
-                        <option value="gustavo">Gustavo</option>
-                      </select>
-                      <select
+                        onChange={(v) => setNewAssignee(v as typeof newAssignee)}
+                        options={createTaskAssigneeOptions}
+                        placeholder="Responsável"
+                        title="Responsável"
+                      />
+                      <ChoiceSelect
                         value={newPriority}
-                        onChange={(e) => setNewPriority(e.target.value as TaskPriority)}
-                        className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm outline-none"
-                      >
-                        <option value="low">Baixa</option>
-                        <option value="normal">Normal</option>
-                        <option value="high">Alta</option>
-                        <option value="urgent">Urgente</option>
-                      </select>
+                        onChange={(v) => setNewPriority(v as TaskPriority)}
+                        options={createTaskPriorityOptions}
+                        placeholder="Prioridade"
+                        title="Prioridade"
+                      />
                       <input
                         type="datetime-local"
                         value={newDueAt}
