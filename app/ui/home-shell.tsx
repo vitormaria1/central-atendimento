@@ -1041,7 +1041,7 @@ export default function HomeShell() {
 
         .hub-card--whatsapp {
           --orbit-x: -240px;
-          --orbit-y: -250px;
+          --orbit-y: -240px;
           z-index: 3;
         }
 
@@ -1050,8 +1050,8 @@ export default function HomeShell() {
         }
 
         .hub-card--chat {
-          --orbit-x: 340px;
-          --orbit-y: 0px;
+          --orbit-x: 0px;
+          --orbit-y: -340px;
           z-index: 5;
         }
 
@@ -1060,8 +1060,8 @@ export default function HomeShell() {
         }
 
         .hub-card--jussara {
-          --orbit-x: -340px;
-          --orbit-y: 0px;
+          --orbit-x: 240px;
+          --orbit-y: -240px;
           z-index: 7;
         }
 
@@ -1070,8 +1070,8 @@ export default function HomeShell() {
         }
 
         .hub-card--tasks {
-          --orbit-x: 240px;
-          --orbit-y: -250px;
+          --orbit-x: 340px;
+          --orbit-y: 0px;
           z-index: 3;
         }
 
@@ -1080,8 +1080,8 @@ export default function HomeShell() {
         }
 
         .hub-card--clients {
-          --orbit-x: -240px;
-          --orbit-y: 250px;
+          --orbit-x: -340px;
+          --orbit-y: 0px;
           z-index: 5;
         }
 
@@ -1090,8 +1090,8 @@ export default function HomeShell() {
         }
 
         .hub-card--fiscal {
-          --orbit-x: -340px;
-          --orbit-y: 250px;
+          --orbit-x: -240px;
+          --orbit-y: 240px;
           z-index: 4;
         }
 
@@ -1100,8 +1100,8 @@ export default function HomeShell() {
         }
 
         .hub-card--financeiro {
-          --orbit-x: 340px;
-          --orbit-y: 250px;
+          --orbit-x: 240px;
+          --orbit-y: 240px;
           z-index: 7;
         }
 
@@ -1111,7 +1111,7 @@ export default function HomeShell() {
 
         .hub-card--instagram {
           --orbit-x: 0px;
-          --orbit-y: 320px;
+          --orbit-y: 340px;
           z-index: 6;
         }
 
@@ -1187,43 +1187,43 @@ export default function HomeShell() {
           }
 
           .hub-card--whatsapp {
-            --orbit-x: -196px;
+            --orbit-x: -220px;
             --orbit-y: -220px;
           }
 
           .hub-card--chat {
+            --orbit-x: 0px;
+            --orbit-y: -274px;
+          }
+
+          .hub-card--jussara {
+            --orbit-x: 220px;
+            --orbit-y: -220px;
+          }
+
+          .hub-card--tasks {
             --orbit-x: 274px;
             --orbit-y: 0px;
           }
 
-          .hub-card--jussara {
+          .hub-card--clients {
             --orbit-x: -274px;
             --orbit-y: 0px;
           }
 
-          .hub-card--tasks {
-            --orbit-x: 196px;
-            --orbit-y: -220px;
-          }
-
-          .hub-card--clients {
-            --orbit-x: -196px;
-            --orbit-y: 220px;
-          }
-
           .hub-card--fiscal {
-            --orbit-x: -274px;
+            --orbit-x: -220px;
             --orbit-y: 220px;
           }
 
           .hub-card--financeiro {
-            --orbit-x: 274px;
+            --orbit-x: 220px;
             --orbit-y: 220px;
           }
 
           .hub-card--instagram {
-            --orbit-x: 0px;
-            --orbit-y: 270px;
+          --orbit-x: 0px;
+            --orbit-y: 274px;
           }
         }
       `}</style>
