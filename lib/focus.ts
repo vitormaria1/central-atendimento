@@ -1,4 +1,5 @@
 import { getEnv } from "./env";
+import { OFFICE } from "./office";
 
 type FocusResponse = Record<string, unknown>;
 
@@ -35,9 +36,9 @@ export async function createFocusInvoice(payload: {
 }) {
   return createFocusNfse({
     prestador: {
-      cnpj: "",
-      inscricaoMunicipal: "",
-      codigoMunicipio: 4205704,
+      cnpj: OFFICE.cnpj,
+      inscricaoMunicipal: OFFICE.municipalRegistration,
+      codigoMunicipio: OFFICE.ibgeCityCode,
     },
     tomador: {
       nome: payload.clientName,
@@ -46,7 +47,7 @@ export async function createFocusInvoice(payload: {
         logradouro: "",
         numero: "",
         bairro: "",
-        codigoMunicipio: 4205704,
+        codigoMunicipio: OFFICE.ibgeCityCode,
         uf: "SC",
         cep: "",
       },

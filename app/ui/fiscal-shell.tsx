@@ -92,9 +92,6 @@ const emptyInvoice = {
   amount: "",
   serviceDescription: "",
   itemListaServico: "4.12",
-  prestadorCnpj: "",
-  prestadorInscricaoMunicipal: "",
-  prestadorCodigoMunicipio: "4205704",
   tomadorNome: "",
   tomadorDocumento: "",
   tomadorEmail: "",
@@ -189,10 +186,6 @@ export default function FiscalShell() {
       setToast("Selecione um cliente.");
       return;
     }
-    if (!invoiceForm.prestadorCnpj.trim() || !invoiceForm.prestadorInscricaoMunicipal.trim()) {
-      setToast("Preencha os dados do prestador.");
-      return;
-    }
     setSavingInvoice(true);
     setToast(null);
     try {
@@ -205,9 +198,6 @@ export default function FiscalShell() {
           amountCents: invoiceForm.amount ? Math.round(Number.parseFloat(invoiceForm.amount.replace(",", ".")) * 100) : undefined,
           serviceDescription: invoiceForm.serviceDescription || null,
           itemListaServico: invoiceForm.itemListaServico || null,
-          prestadorCnpj: invoiceForm.prestadorCnpj,
-          prestadorInscricaoMunicipal: invoiceForm.prestadorInscricaoMunicipal,
-          prestadorCodigoMunicipio: Number(invoiceForm.prestadorCodigoMunicipio || "4205704"),
           tomadorNome: invoiceForm.tomadorNome || null,
           tomadorDocumento: invoiceForm.tomadorDocumento || null,
           tomadorEmail: invoiceForm.tomadorEmail || null,
@@ -457,9 +447,6 @@ export default function FiscalShell() {
                 <Field label="Competência" value={invoiceForm.competenceMonth} onChange={(v) => setInvoiceForm((prev) => ({ ...prev, competenceMonth: v }))} />
                 <Field label="Valor" value={invoiceForm.amount} onChange={(v) => setInvoiceForm((prev) => ({ ...prev, amount: v }))} placeholder="Ex.: 2500,00" />
                 <Field label="Item" value={invoiceForm.itemListaServico} onChange={(v) => setInvoiceForm((prev) => ({ ...prev, itemListaServico: v }))} />
-                <Field label="Prestador CNPJ" value={invoiceForm.prestadorCnpj} onChange={(v) => setInvoiceForm((prev) => ({ ...prev, prestadorCnpj: v }))} />
-                <Field label="Inscrição municipal" value={invoiceForm.prestadorInscricaoMunicipal} onChange={(v) => setInvoiceForm((prev) => ({ ...prev, prestadorInscricaoMunicipal: v }))} />
-                <Field label="Cód. município" value={invoiceForm.prestadorCodigoMunicipio} onChange={(v) => setInvoiceForm((prev) => ({ ...prev, prestadorCodigoMunicipio: v }))} />
                 <Field label="Data" value={invoiceForm.dataEmissao} onChange={(v) => setInvoiceForm((prev) => ({ ...prev, dataEmissao: v }))} />
                 <textarea
                   value={invoiceForm.serviceDescription}

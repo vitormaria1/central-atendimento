@@ -1,0 +1,16 @@
+export const OFFICE = {
+  legalName: "PRAZER, EU SOU SEU CONTADOR LTDA",
+  tradeName: "PRAZER, EU SOU SEU CONTADOR",
+  cnpj: "53.179.709/0001-62",
+  municipalRegistration: process.env.OFFICE_MUNICIPAL_REGISTRATION ?? "",
+  addressLine: "R HILARIO FERNANDES PACHECO",
+  addressNumber: "198",
+  addressComplement: "CASA",
+  neighborhood: "AREIAS DE PALHOCINHA",
+  city: "GAROPABA",
+  state: "SC",
+  zipCode: "88495-000",
+  email: "sirinoemaria@gmail.com",
+  phone: "(48) 8465-9723",
+  ibgeCityCode: 4205704,
+};

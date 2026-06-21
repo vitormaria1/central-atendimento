@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 import { createFocusNfse } from "@/lib/focus";
+import { OFFICE } from "@/lib/office";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,9 +15,6 @@ const createSchema = z.object({
   amountCents: z.coerce.number().int().min(0).optional(),
   serviceDescription: z.string().min(1).max(1000).optional(),
   itemListaServico: z.string().min(1).max(20).optional(),
-  prestadorCnpj: z.string().min(1).max(20),
-  prestadorInscricaoMunicipal: z.string().min(1).max(80),
-  prestadorCodigoMunicipio: z.coerce.number().int().positive().default(4205704),
   tomadorNome: z.string().min(1).max(160).optional(),
   tomadorDocumento: z.string().max(80).optional(),
   tomadorEmail: z.string().email().optional().nullable(),
@@ -86,9 +84,9 @@ export const POST = withApi(async (req: Request) => {
 
   const providerResponse = await createFocusNfse({
     prestador: {
-      cnpj: body.prestadorCnpj.trim(),
-      inscricaoMunicipal: body.prestadorInscricaoMunicipal.trim(),
-      codigoMunicipio: body.prestadorCodigoMunicipio,
+      cnpj: OFFICE.cnpj,
+      inscricaoMunicipal: OFFICE.municipalRegistration,
+      codigoMunicipio: OFFICE.ibgeCityCode,
     },
     tomador: {
       nome: (body.tomadorNome?.trim() || client.client_name).trim(),
