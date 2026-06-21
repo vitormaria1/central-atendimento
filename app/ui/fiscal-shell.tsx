@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { centsToCurrency } from "@/lib/finance";
-
-type ClientItem = { id: string; name: string };
 type Overview = {
   metrics: {
     activeContracts: number;
@@ -52,29 +50,6 @@ type Overview = {
   }>;
 };
 
-const emptyContract = {
-  clientId: "",
-  status: "draft",
-  monthlyFee: "",
-  dueDay: "1",
-  contractStartDate: "",
-  contractEndDate: "",
-  billingEmail: "",
-  billingWhatsapp: "",
-  sendEmail: true,
-  sendWhatsapp: true,
-  generateInvoice: true,
-  generateBoleto: true,
-  focusCustomerId: "",
-  focusServiceId: "",
-  interCustomerId: "",
-  interWalletId: "",
-  invoiceServiceCode: "",
-  invoiceServiceDescription: "",
-  invoiceNature: "",
-  notes: "",
-};
-
 const emptyService = {
   code: "",
   name: "",
@@ -94,27 +69,19 @@ function formatDate(iso: string) {
 export default function FiscalShell() {
   const [me, setMe] = useState<{ agentName: string } | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [clients, setClients] = useState<ClientItem[]>([]);
-  const [contractForm, setContractForm] = useState(emptyContract);
   const [serviceForm, setServiceForm] = useState(emptyService);
   const [loading, setLoading] = useState(true);
-  const [savingContract, setSavingContract] = useState(false);
   const [savingService, setSavingService] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   async function loadData() {
     setLoading(true);
     try {
-      const [overviewRes, clientsRes, meRes] = await Promise.all([
+      const [overviewRes, meRes] = await Promise.all([
         fetch("/api/fiscal/overview", { cache: "no-store" }),
-        fetch("/api/clients?limit=200", { cache: "no-store" }),
         fetch("/api/me", { cache: "no-store" }),
       ]);
       if (overviewRes.ok) setOverview((await overviewRes.json()) as Overview);
-      if (clientsRes.ok) {
-        const data = (await clientsRes.json()) as { items: ClientItem[] };
-        setClients(data.items ?? []);
-      }
       if (meRes.ok) setMe((await meRes.json()) as { agentName: string });
     } finally {
       setLoading(false);
@@ -124,56 +91,6 @@ export default function FiscalShell() {
   useEffect(() => {
     void loadData();
   }, []);
-
-  async function saveContract() {
-    if (!contractForm.clientId) {
-      setToast("Selecione um cliente.");
-      return;
-    }
-    if (!contractForm.monthlyFee.trim()) {
-      setToast("Informe o honorário mensal.");
-      return;
-    }
-
-    setSavingContract(true);
-    setToast(null);
-    try {
-      const res = await fetch("/api/fiscal/contracts", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          clientId: Number(contractForm.clientId),
-          status: contractForm.status,
-          monthlyFeeCents: Math.round(Number.parseFloat(contractForm.monthlyFee.replace(",", ".")) * 100),
-          dueDay: Number(contractForm.dueDay || "1"),
-          contractStartDate: contractForm.contractStartDate || null,
-          contractEndDate: contractForm.contractEndDate || null,
-          billingEmail: contractForm.billingEmail || null,
-          billingWhatsapp: contractForm.billingWhatsapp || null,
-          sendEmail: contractForm.sendEmail,
-          sendWhatsapp: contractForm.sendWhatsapp,
-          generateInvoice: contractForm.generateInvoice,
-          generateBoleto: contractForm.generateBoleto,
-          focusCustomerId: contractForm.focusCustomerId || null,
-          focusServiceId: contractForm.focusServiceId || null,
-          interCustomerId: contractForm.interCustomerId || null,
-          interWalletId: contractForm.interWalletId || null,
-          invoiceServiceCode: contractForm.invoiceServiceCode || null,
-          invoiceServiceDescription: contractForm.invoiceServiceDescription || null,
-          invoiceNature: contractForm.invoiceNature || null,
-          notes: contractForm.notes || null,
-        }),
-      });
-      if (!res.ok) throw new Error("Falha ao salvar contrato");
-      setToast("Contrato salvo.");
-      setContractForm(emptyContract);
-      await loadData();
-    } catch (err) {
-      setToast(err instanceof Error ? err.message : "Falha ao salvar contrato");
-    } finally {
-      setSavingContract(false);
-    }
-  }
 
   async function saveService() {
     if (!serviceForm.code.trim() || !serviceForm.name.trim()) {
@@ -248,90 +165,66 @@ export default function FiscalShell() {
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.95fr)]">
           <section className="rounded-[32px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Contratos</div>
-                <div className="mt-1 text-xl font-semibold">Contrato por cliente</div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Fluxo fiscal</div>
+                <div className="mt-1 text-xl font-semibold">Navegação operacional</div>
               </div>
               <div className="text-sm text-[var(--muted)]">Próximo ciclo: {overview?.metrics.nextCompetenceMonth ?? "—"}</div>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <select
-                value={contractForm.clientId}
-                onChange={(e) => setContractForm((prev) => ({ ...prev, clientId: e.target.value }))}
-                className="h-11 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 text-sm"
-              >
-                <option value="">Selecionar cliente</option>
-                {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={contractForm.status}
-                onChange={(e) => setContractForm((prev) => ({ ...prev, status: e.target.value }))}
-                className="h-11 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 text-sm"
-              >
-                <option value="draft">Rascunho</option>
-                <option value="active">Ativo</option>
-                <option value="paused">Pausado</option>
-                <option value="closed">Encerrado</option>
-              </select>
-              <Field label="Honorário mensal" value={contractForm.monthlyFee} onChange={(v) => setContractForm((prev) => ({ ...prev, monthlyFee: v }))} placeholder="Ex.: 2500,00" />
-              <Field label="Dia do vencimento" value={contractForm.dueDay} onChange={(v) => setContractForm((prev) => ({ ...prev, dueDay: v }))} placeholder="1" />
-              <Field label="E-mail de cobrança" value={contractForm.billingEmail} onChange={(v) => setContractForm((prev) => ({ ...prev, billingEmail: v }))} />
-              <Field label="WhatsApp de cobrança" value={contractForm.billingWhatsapp} onChange={(v) => setContractForm((prev) => ({ ...prev, billingWhatsapp: v }))} />
-              <Field label="Início do contrato" value={contractForm.contractStartDate} onChange={(v) => setContractForm((prev) => ({ ...prev, contractStartDate: v }))} />
-              <Field label="Fim do contrato" value={contractForm.contractEndDate} onChange={(v) => setContractForm((prev) => ({ ...prev, contractEndDate: v }))} />
-              <Field label="Serviço Focus" value={contractForm.focusServiceId} onChange={(v) => setContractForm((prev) => ({ ...prev, focusServiceId: v }))} />
-              <Field label="Serviço Inter" value={contractForm.interWalletId} onChange={(v) => setContractForm((prev) => ({ ...prev, interWalletId: v }))} />
-              <Field label="Código do serviço" value={contractForm.invoiceServiceCode} onChange={(v) => setContractForm((prev) => ({ ...prev, invoiceServiceCode: v }))} />
-              <Field label="Descrição do serviço" value={contractForm.invoiceServiceDescription} onChange={(v) => setContractForm((prev) => ({ ...prev, invoiceServiceDescription: v }))} />
-              <textarea
-                value={contractForm.notes}
-                onChange={(e) => setContractForm((prev) => ({ ...prev, notes: e.target.value }))}
-                placeholder="Observações do contrato"
-                className="min-h-[92px] rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm md:col-span-2"
-              />
-              <div className="flex flex-wrap gap-3 md:col-span-2">
-                <Toggle label="Gerar nota" checked={contractForm.generateInvoice} onChange={(checked) => setContractForm((prev) => ({ ...prev, generateInvoice: checked }))} />
-                <Toggle label="Gerar boleto" checked={contractForm.generateBoleto} onChange={(checked) => setContractForm((prev) => ({ ...prev, generateBoleto: checked }))} />
-                <Toggle label="Enviar e-mail" checked={contractForm.sendEmail} onChange={(checked) => setContractForm((prev) => ({ ...prev, sendEmail: checked }))} />
-                <Toggle label="Enviar WhatsApp" checked={contractForm.sendWhatsapp} onChange={(checked) => setContractForm((prev) => ({ ...prev, sendWhatsapp: checked }))} />
-              </div>
-              <button
-                type="button"
-                onClick={() => void saveContract()}
-                disabled={savingContract}
-                className="rounded-2xl bg-[var(--primary)] px-4 py-3 text-sm font-medium text-white disabled:opacity-60 md:col-span-2"
-              >
-                {savingContract ? "Salvando..." : "Salvar contrato"}
-              </button>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <NavCard href="/clients" title="Clientes" desc="Cadastro fiscal completo, contato e endereços." />
+              <NavCard href="/financeiro" title="Contrato e cobrança" desc="Honorário mensal, boleto e execução do ciclo." />
+              <NavCard href="#servicos-fiscais" title="Serviços fiscais" desc="Catálogo de serviços e códigos para emissão." />
+              <NavCard href="#emissao" title="Emissão" desc="Fila, prévia, autorização e reprocessamento." />
+              <NavCard href="#alertas" title="Alertas" desc="Pendências, erro de emissão e clientes incompletos." />
+              <NavCard href="#integracoes" title="Integrações" desc="Focus, prefeituras, envio e rastreio de retorno." />
             </div>
 
-            <div className="mt-6 overflow-hidden rounded-[26px] border border-[var(--border)]">
-              <div className="border-b border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm font-semibold">Contratos cadastrados</div>
-              <div className="max-h-[440px] overflow-auto">
-                {(overview?.contracts ?? []).map((contract) => (
-                  <div key={contract.id} className="grid gap-2 border-b border-[var(--border)] px-4 py-4 md:grid-cols-[1.3fr_0.7fr_0.7fr]">
-                    <div>
-                      <div className="font-semibold">{contract.clientName}</div>
-                      <div className="text-xs text-[var(--muted)]">{contract.status} · vence dia {contract.dueDay}</div>
-                    </div>
-                    <div className="text-sm">{centsToCurrency(contract.monthlyFeeCents)}</div>
-                    <div className="text-xs text-[var(--muted)]">
-                      {contract.generateInvoice ? "NF" : "Sem NF"} · {contract.generateBoleto ? "boleto" : "sem boleto"}
-                    </div>
-                  </div>
-                ))}
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <PlaceholderCard
+                title="Cadastro fiscal do cliente"
+                text="Os campos fiscais ficam na aba Clientes. Esta área só aponta o fluxo e o estado operacional."
+              />
+              <PlaceholderCard
+                title="Contrato financeiro"
+                text="A gestão do contrato, honorário e vencimento foi centralizada no Financeiro."
+              />
+            </div>
+
+            <div className="mt-6 rounded-[28px] border border-[var(--border)] bg-[var(--surface-1)] p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Enriquecimento de dados</div>
+              <div className="mt-1 text-xl font-semibold">Base fiscal pronta para crescer</div>
+              <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
+                O escritório pode ampliar o cadastro sem mudar a navegação: os dados mestre vivem no cliente, o contrato no financeiro e o operacional fiscal só consome essas informações.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <DataChip label="CNPJ/CPF" />
+                <DataChip label="Inscrição municipal" />
+                <DataChip label="Inscrição estadual" />
+                <DataChip label="Regime tributário" />
+                <DataChip label="Município fiscal" />
+                <DataChip label="UF fiscal" />
+                <DataChip label="E-mail NFS-e" />
+                <DataChip label="Código e descrição do serviço" />
+                <DataChip label="WhatsApp e contato" />
+                <DataChip label="Status do contrato" />
               </div>
             </div>
           </section>
 
           <section className="space-y-6">
-            <div className="rounded-[32px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+            <div id="integracoes" className="rounded-[32px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Integrações</div>
+              <div className="mt-1 text-xl font-semibold">Focus, prefeitura e envio</div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <PlaceholderCard title="Focus NFS-e" text="Emissão, autorização, retorno e rastreio de documentos fiscais." />
+                <PlaceholderCard title="Disparo de saída" text="Preparado para e-mail e WhatsApp quando o fluxo estiver conectado." />
+              </div>
+            </div>
+
+            <div id="servicos-fiscais" className="rounded-[32px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Serviços fiscais</div>
               <div className="mt-1 text-xl font-semibold">Catálogo de serviços</div>
               <div className="mt-4 grid gap-3">
@@ -374,7 +267,16 @@ export default function FiscalShell() {
               </div>
             </div>
 
-            <div className="rounded-[32px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+            <div id="alertas" className="rounded-[32px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Alertas</div>
+              <div className="mt-1 text-xl font-semibold">Pendências e qualidade dos dados</div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <PlaceholderCard title="Cadastro incompleto" text="Sem CNPJ, município, regime ou serviço padrão." />
+                <PlaceholderCard title="Emissão com erro" text="Fila preparada para rejeição, reprocessamento e auditoria." />
+              </div>
+            </div>
+
+            <div id="emissao" className="rounded-[32px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Ciclos</div>
               <div className="mt-1 text-xl font-semibold">Execuções mensais</div>
               <div className="mt-4 space-y-3">
@@ -431,19 +333,24 @@ function Field({
   );
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (next: boolean) => void }) {
+function NavCard({ href, title, desc }: { href: string; title: string; desc: string }) {
   return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={[
-        "rounded-full border px-3 py-2 text-xs transition",
-        checked
-          ? "border-[color-mix(in_srgb,var(--primary)_35%,transparent)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] text-[var(--foreground)]"
-          : "border-[var(--border)] bg-[var(--surface-1)] text-[var(--muted)]",
-      ].join(" ")}
-    >
-      {label}
-    </button>
+    <Link href={href} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-4 hover:bg-[var(--surface-2)]">
+      <div className="text-sm font-semibold">{title}</div>
+      <div className="mt-1 text-xs leading-5 text-[var(--muted)]">{desc}</div>
+    </Link>
   );
+}
+
+function PlaceholderCard({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-1)] px-4 py-4">
+      <div className="text-sm font-semibold">{title}</div>
+      <div className="mt-1 text-xs leading-5 text-[var(--muted)]">{text}</div>
+    </div>
+  );
+}
+
+function DataChip({ label }: { label: string }) {
+  return <span className="rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs text-[var(--muted)]">{label}</span>;
 }

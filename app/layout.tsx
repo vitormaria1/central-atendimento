@@ -1,20 +1,9 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import A11yPreferences from "./ui/a11y-preferences";
 import ThemePreferences from "./ui/theme-preferences";
 import RealtimeWhatsappNotifications from "./ui/realtime-whatsapp-notifications";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "Central de Atendimento",
@@ -42,12 +31,8 @@ export default function RootLayout({
   `;
 
   return (
-    <html
-      lang="pt-BR"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      suppressHydrationWarning
-    >
-      <body className="min-h-full flex flex-col">
+    <html lang="pt-BR" className="h-full antialiased" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col font-sans">
         <Script id="theme-init" strategy="beforeInteractive">
           {themeInitScript}
         </Script>

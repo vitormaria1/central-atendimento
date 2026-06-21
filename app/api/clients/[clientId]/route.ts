@@ -22,6 +22,14 @@ const patchSchema = z.object({
   city: z.string().max(120).nullable().optional(),
   state: z.string().max(80).nullable().optional(),
   zipCode: z.string().max(30).nullable().optional(),
+  municipalRegistration: z.string().max(80).nullable().optional(),
+  stateRegistration: z.string().max(80).nullable().optional(),
+  taxRegime: z.string().max(120).nullable().optional(),
+  fiscalCity: z.string().max(120).nullable().optional(),
+  fiscalState: z.string().max(80).nullable().optional(),
+  invoiceEmail: z.string().max(160).nullable().optional(),
+  serviceCode: z.string().max(80).nullable().optional(),
+  serviceDescription: z.string().max(500).nullable().optional(),
   notes: z.string().max(4000).nullable().optional(),
 });
 
@@ -65,6 +73,14 @@ export const PATCH = withApi(async (req: Request, ctx?: { params?: Promise<{ cli
   if (patch.city !== undefined) setField("city", normalizeOptional(patch.city));
   if (patch.state !== undefined) setField("state", normalizeOptional(patch.state));
   if (patch.zipCode !== undefined) setField("zip_code", normalizeOptional(patch.zipCode));
+  if (patch.municipalRegistration !== undefined) setField("municipal_registration", normalizeOptional(patch.municipalRegistration));
+  if (patch.stateRegistration !== undefined) setField("state_registration", normalizeOptional(patch.stateRegistration));
+  if (patch.taxRegime !== undefined) setField("tax_regime", normalizeOptional(patch.taxRegime));
+  if (patch.fiscalCity !== undefined) setField("fiscal_city", normalizeOptional(patch.fiscalCity));
+  if (patch.fiscalState !== undefined) setField("fiscal_state", normalizeOptional(patch.fiscalState));
+  if (patch.invoiceEmail !== undefined) setField("invoice_email", normalizeOptional(patch.invoiceEmail));
+  if (patch.serviceCode !== undefined) setField("service_code", normalizeOptional(patch.serviceCode));
+  if (patch.serviceDescription !== undefined) setField("service_description", normalizeOptional(patch.serviceDescription));
   if (patch.notes !== undefined) setField("notes", normalizeOptional(patch.notes));
 
   if (setParts.length === 0) return NextResponse.json({ error: "No changes" }, { status: 400 });

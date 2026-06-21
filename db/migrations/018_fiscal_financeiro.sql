@@ -110,8 +110,6 @@ create table if not exists billing_cycle_items (
 );
 
 create unique index if not exists billing_cycle_items_cycle_contract_idx on billing_cycle_items (cycle_id, contract_id);
-create unique index if not exists billing_cycle_items_billing_cycle_item_id_idx on financial_entries (billing_cycle_item_id) where billing_cycle_item_id is not null;
-create unique index if not exists financial_entries_extra_service_id_idx on financial_entries (extra_service_id) where extra_service_id is not null;
 create index if not exists billing_cycle_items_payment_status_idx on billing_cycle_items (payment_status, due_date);
 
 create table if not exists extra_services (
@@ -153,6 +151,8 @@ create table if not exists financial_entries (
 
 create index if not exists financial_entries_status_due_idx on financial_entries (status, due_date, id);
 create index if not exists financial_entries_kind_idx on financial_entries (kind, status, id);
+create unique index if not exists billing_cycle_items_billing_cycle_item_id_idx on financial_entries (billing_cycle_item_id) where billing_cycle_item_id is not null;
+create unique index if not exists financial_entries_extra_service_id_idx on financial_entries (extra_service_id) where extra_service_id is not null;
 
 create table if not exists financial_bank_connections (
   id bigint generated always as identity primary key,

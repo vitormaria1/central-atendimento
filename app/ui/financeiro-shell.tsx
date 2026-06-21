@@ -4,7 +4,19 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { centsToCurrency, monthStartIso, todayIso } from "@/lib/finance";
 
-type ClientItem = { id: string; name: string };
+type ClientItem = {
+  id: string;
+  name: string;
+  document: string | null;
+  taxRegime: string | null;
+  fiscalCity: string | null;
+  fiscalState: string | null;
+  invoiceEmail: string | null;
+  municipalRegistration: string | null;
+  stateRegistration: string | null;
+  serviceCode: string | null;
+  serviceDescription: string | null;
+};
 
 type Overview = {
   metrics: {
@@ -66,6 +78,29 @@ type Overview = {
   }>;
 };
 
+const emptyContract = {
+  clientId: "",
+  status: "draft",
+  monthlyFee: "",
+  dueDay: "1",
+  contractStartDate: "",
+  contractEndDate: "",
+  billingEmail: "",
+  billingWhatsapp: "",
+  sendEmail: true,
+  sendWhatsapp: true,
+  generateInvoice: true,
+  generateBoleto: true,
+  focusCustomerId: "",
+  focusServiceId: "",
+  interCustomerId: "",
+  interWalletId: "",
+  invoiceServiceCode: "",
+  invoiceServiceDescription: "",
+  invoiceNature: "",
+  notes: "",
+};
+
 const emptyAvulso = {
   clientId: "",
   description: "",
@@ -78,12 +113,15 @@ export default function FinanceiroShell() {
   const [me, setMe] = useState<{ agentName: string } | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [clients, setClients] = useState<ClientItem[]>([]);
+  const [contractForm, setContractForm] = useState(emptyContract);
   const [avulso, setAvulso] = useState(emptyAvulso);
   const [loading, setLoading] = useState(true);
+  const [savingContract, setSavingContract] = useState(false);
   const [savingAvulso, setSavingAvulso] = useState(false);
   const [runningCycle, setRunningCycle] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const selectedClient = clients.find((client) => client.id === contractForm.clientId) ?? null;
 
   async function loadData() {
     setLoading(true);
@@ -136,6 +174,56 @@ export default function FinanceiroShell() {
       setToast(err instanceof Error ? err.message : "Falha ao registrar serviço avulso");
     } finally {
       setSavingAvulso(false);
+    }
+  }
+
+  async function saveContract() {
+    if (!contractForm.clientId) {
+      setToast("Selecione um cliente.");
+      return;
+    }
+    if (!contractForm.monthlyFee.trim()) {
+      setToast("Informe o honorário mensal.");
+      return;
+    }
+
+    setSavingContract(true);
+    setToast(null);
+    try {
+      const res = await fetch("/api/fiscal/contracts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientId: Number(contractForm.clientId),
+          status: contractForm.status,
+          monthlyFeeCents: Math.round(Number.parseFloat(contractForm.monthlyFee.replace(",", ".")) * 100),
+          dueDay: Number(contractForm.dueDay || "1"),
+          contractStartDate: contractForm.contractStartDate || null,
+          contractEndDate: contractForm.contractEndDate || null,
+          billingEmail: contractForm.billingEmail || null,
+          billingWhatsapp: contractForm.billingWhatsapp || null,
+          sendEmail: contractForm.sendEmail,
+          sendWhatsapp: contractForm.sendWhatsapp,
+          generateInvoice: contractForm.generateInvoice,
+          generateBoleto: contractForm.generateBoleto,
+          focusCustomerId: contractForm.focusCustomerId || null,
+          focusServiceId: contractForm.focusServiceId || null,
+          interCustomerId: contractForm.interCustomerId || null,
+          interWalletId: contractForm.interWalletId || null,
+          invoiceServiceCode: contractForm.invoiceServiceCode || null,
+          invoiceServiceDescription: contractForm.invoiceServiceDescription || null,
+          invoiceNature: contractForm.invoiceNature || null,
+          notes: contractForm.notes || null,
+        }),
+      });
+      if (!res.ok) throw new Error("Falha ao salvar contrato");
+      setToast("Contrato salvo.");
+      setContractForm(emptyContract);
+      await loadData();
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Falha ao salvar contrato");
+    } finally {
+      setSavingContract(false);
     }
   }
 
@@ -218,6 +306,98 @@ export default function FinanceiroShell() {
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.15fr)]">
           <section className="rounded-[32px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Contratos</div>
+            <div className="mt-1 text-xl font-semibold">Gestão de contrato por cliente</div>
+            <div className="mt-2 text-sm text-[var(--muted)]">
+              O contrato define honorário mensal, vencimento, emissão de nota e boleto.
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <select
+                value={contractForm.clientId}
+                onChange={(e) => setContractForm((prev) => ({ ...prev, clientId: e.target.value }))}
+                className="h-11 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 text-sm"
+              >
+                <option value="">Selecionar cliente</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={contractForm.status}
+                onChange={(e) => setContractForm((prev) => ({ ...prev, status: e.target.value }))}
+                className="h-11 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-3 text-sm"
+              >
+                <option value="draft">Rascunho</option>
+                <option value="active">Ativo</option>
+                <option value="paused">Pausado</option>
+                <option value="closed">Encerrado</option>
+              </select>
+              <Field label="Honorário mensal" value={contractForm.monthlyFee} onChange={(v) => setContractForm((prev) => ({ ...prev, monthlyFee: v }))} placeholder="Ex.: 2500,00" />
+              <Field label="Dia do vencimento" value={contractForm.dueDay} onChange={(v) => setContractForm((prev) => ({ ...prev, dueDay: v }))} placeholder="1" />
+              <Field label="E-mail de cobrança" value={contractForm.billingEmail} onChange={(v) => setContractForm((prev) => ({ ...prev, billingEmail: v }))} />
+              <Field label="WhatsApp de cobrança" value={contractForm.billingWhatsapp} onChange={(v) => setContractForm((prev) => ({ ...prev, billingWhatsapp: v }))} />
+              <Field label="Início do contrato" value={contractForm.contractStartDate} onChange={(v) => setContractForm((prev) => ({ ...prev, contractStartDate: v }))} />
+              <Field label="Fim do contrato" value={contractForm.contractEndDate} onChange={(v) => setContractForm((prev) => ({ ...prev, contractEndDate: v }))} />
+              <Field label="Serviço Focus" value={contractForm.focusServiceId} onChange={(v) => setContractForm((prev) => ({ ...prev, focusServiceId: v }))} />
+              <Field label="Conta/Carteira Inter" value={contractForm.interWalletId} onChange={(v) => setContractForm((prev) => ({ ...prev, interWalletId: v }))} />
+              <Field label="Código do serviço" value={contractForm.invoiceServiceCode} onChange={(v) => setContractForm((prev) => ({ ...prev, invoiceServiceCode: v }))} />
+              <Field label="Descrição do serviço" value={contractForm.invoiceServiceDescription} onChange={(v) => setContractForm((prev) => ({ ...prev, invoiceServiceDescription: v }))} />
+              <textarea
+                value={contractForm.notes}
+                onChange={(e) => setContractForm((prev) => ({ ...prev, notes: e.target.value }))}
+                placeholder="Observações do contrato"
+                className="min-h-[92px] rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm md:col-span-2"
+              />
+              <div className="flex flex-wrap gap-3 md:col-span-2">
+                <Toggle label="Gerar nota" checked={contractForm.generateInvoice} onChange={(checked) => setContractForm((prev) => ({ ...prev, generateInvoice: checked }))} />
+                <Toggle label="Gerar boleto" checked={contractForm.generateBoleto} onChange={(checked) => setContractForm((prev) => ({ ...prev, generateBoleto: checked }))} />
+                <Toggle label="Enviar e-mail" checked={contractForm.sendEmail} onChange={(checked) => setContractForm((prev) => ({ ...prev, sendEmail: checked }))} />
+                <Toggle label="Enviar WhatsApp" checked={contractForm.sendWhatsapp} onChange={(checked) => setContractForm((prev) => ({ ...prev, sendWhatsapp: checked }))} />
+              </div>
+              <button
+                type="button"
+                onClick={() => void saveContract()}
+                disabled={savingContract}
+                className="rounded-2xl bg-[var(--primary)] px-4 py-3 text-sm font-medium text-white disabled:opacity-60 md:col-span-2"
+              >
+                {savingContract ? "Salvando..." : "Salvar contrato"}
+              </button>
+            </div>
+
+            {selectedClient ? (
+              <div className="mt-4 rounded-[26px] border border-[var(--border)] bg-[var(--surface-1)] p-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Perfil fiscal do cliente</div>
+                <div className="mt-1 text-base font-semibold">{selectedClient.name}</div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <InfoChip label="Documento" value={selectedClient.document ?? "Sem cadastro"} />
+                  <InfoChip label="Município fiscal" value={selectedClient.fiscalCity && selectedClient.fiscalState ? `${selectedClient.fiscalCity}/${selectedClient.fiscalState}` : "Sem cadastro"} />
+                  <InfoChip label="Regime tributário" value={selectedClient.taxRegime ?? "Sem cadastro"} />
+                  <InfoChip label="Inscrição municipal" value={selectedClient.municipalRegistration ?? "Sem cadastro"} />
+                  <InfoChip label="Inscrição estadual" value={selectedClient.stateRegistration ?? "Sem cadastro"} />
+                  <InfoChip label="E-mail NF" value={selectedClient.invoiceEmail ?? "Sem cadastro"} />
+                  <InfoChip label="Código do serviço" value={selectedClient.serviceCode ?? "Sem cadastro"} />
+                  <InfoChip label="Descrição do serviço" value={selectedClient.serviceDescription ?? "Sem cadastro"} />
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-6 overflow-hidden rounded-[26px] border border-[var(--border)]">
+              <div className="border-b border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm font-semibold">Contratos ativos</div>
+              <div className="max-h-[260px] overflow-auto">
+                {(overview?.contracts ?? []).map((contract) => (
+                  <div key={contract.id} className="grid gap-2 border-b border-[var(--border)] px-4 py-4 md:grid-cols-[1.2fr_0.7fr]">
+                    <div>
+                      <div className="font-semibold">{contract.clientName}</div>
+                      <div className="text-xs text-[var(--muted)]">vence dia {contract.dueDay} · {contract.status}</div>
+                    </div>
+                    <div className="text-sm font-semibold">{centsToCurrency(contract.monthlyFeeCents)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Serviço avulso</div>
             <div className="mt-1 text-xl font-semibold">Adicionar ao honorário do mês</div>
             <div className="mt-4 grid gap-3">
@@ -384,5 +564,31 @@ function Field({
         className="h-11 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 text-sm outline-none"
       />
     </label>
+  );
+}
+
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (next: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={[
+        "rounded-full border px-3 py-2 text-xs transition",
+        checked
+          ? "border-[color-mix(in_srgb,var(--primary)_35%,transparent)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] text-[var(--foreground)]"
+          : "border-[var(--border)] bg-[var(--surface-1)] text-[var(--muted)]",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
+}
+
+function InfoChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+      <div className="mt-1 text-sm font-medium">{value}</div>
+    </div>
   );
 }

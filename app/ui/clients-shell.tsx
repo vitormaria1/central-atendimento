@@ -21,6 +21,14 @@ type ClientItem = {
   city: string | null;
   state: string | null;
   zipCode: string | null;
+  municipalRegistration: string | null;
+  stateRegistration: string | null;
+  taxRegime: string | null;
+  fiscalCity: string | null;
+  fiscalState: string | null;
+  invoiceEmail: string | null;
+  serviceCode: string | null;
+  serviceDescription: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -41,6 +49,14 @@ type ClientDraft = {
   city: string;
   state: string;
   zipCode: string;
+  municipalRegistration: string;
+  stateRegistration: string;
+  taxRegime: string;
+  fiscalCity: string;
+  fiscalState: string;
+  invoiceEmail: string;
+  serviceCode: string;
+  serviceDescription: string;
   notes: string;
 };
 
@@ -60,6 +76,14 @@ function emptyDraft(): ClientDraft {
     city: "",
     state: "",
     zipCode: "",
+    municipalRegistration: "",
+    stateRegistration: "",
+    taxRegime: "",
+    fiscalCity: "",
+    fiscalState: "",
+    invoiceEmail: "",
+    serviceCode: "",
+    serviceDescription: "",
     notes: "",
   };
 }
@@ -80,6 +104,14 @@ function toDraft(client: ClientItem): ClientDraft {
     city: client.city ?? "",
     state: client.state ?? "",
     zipCode: client.zipCode ?? "",
+    municipalRegistration: client.municipalRegistration ?? "",
+    stateRegistration: client.stateRegistration ?? "",
+    taxRegime: client.taxRegime ?? "",
+    fiscalCity: client.fiscalCity ?? "",
+    fiscalState: client.fiscalState ?? "",
+    invoiceEmail: client.invoiceEmail ?? "",
+    serviceCode: client.serviceCode ?? "",
+    serviceDescription: client.serviceDescription ?? "",
     notes: client.notes ?? "",
   };
 }
@@ -106,6 +138,14 @@ function payloadFromDraft(draft: ClientDraft) {
     city: draft.city.trim(),
     state: draft.state.trim(),
     zipCode: draft.zipCode.trim(),
+    municipalRegistration: draft.municipalRegistration.trim(),
+    stateRegistration: draft.stateRegistration.trim(),
+    taxRegime: draft.taxRegime.trim(),
+    fiscalCity: draft.fiscalCity.trim(),
+    fiscalState: draft.fiscalState.trim(),
+    invoiceEmail: draft.invoiceEmail.trim(),
+    serviceCode: draft.serviceCode.trim(),
+    serviceDescription: draft.serviceDescription.trim(),
     notes: draft.notes.trim(),
   };
 }
@@ -403,6 +443,35 @@ export default function ClientsShell() {
                     <Field label="Cidade" value={draft.city} onChange={(v) => updateDraft("city", v)} placeholder="Cidade" />
                     <Field label="Estado" value={draft.state} onChange={(v) => updateDraft("state", v)} placeholder="UF/Estado" />
                     <Field label="CEP" value={draft.zipCode} onChange={(v) => updateDraft("zipCode", v)} placeholder="CEP" />
+                  </div>
+                </section>
+
+                <section className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-2)] p-5">
+                  <div className="text-sm font-semibold">Perfil fiscal</div>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <Field
+                      label="Inscrição municipal"
+                      value={draft.municipalRegistration}
+                      onChange={(v) => updateDraft("municipalRegistration", v)}
+                      placeholder="IM"
+                    />
+                    <Field
+                      label="Inscrição estadual"
+                      value={draft.stateRegistration}
+                      onChange={(v) => updateDraft("stateRegistration", v)}
+                      placeholder="IE"
+                    />
+                    <Field label="Regime tributário" value={draft.taxRegime} onChange={(v) => updateDraft("taxRegime", v)} placeholder="Simples, Presumido..." />
+                    <Field label="Cidade fiscal" value={draft.fiscalCity} onChange={(v) => updateDraft("fiscalCity", v)} placeholder="Cidade de emissão" />
+                    <Field label="UF fiscal" value={draft.fiscalState} onChange={(v) => updateDraft("fiscalState", v)} placeholder="UF" />
+                    <Field label="E-mail NF" value={draft.invoiceEmail} onChange={(v) => updateDraft("invoiceEmail", v)} placeholder="E-mail para nota" />
+                    <Field label="Código do serviço" value={draft.serviceCode} onChange={(v) => updateDraft("serviceCode", v)} placeholder="Código fiscal" />
+                    <Field
+                      label="Descrição do serviço"
+                      value={draft.serviceDescription}
+                      onChange={(v) => updateDraft("serviceDescription", v)}
+                      placeholder="Serviço padrão"
+                    />
                   </div>
                 </section>
 
