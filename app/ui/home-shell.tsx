@@ -409,6 +409,24 @@ export default function HomeShell() {
       href: "/clients",
     },
     {
+      id: "fiscal",
+      title: "Fiscal",
+      description: "Área em preparação para os fluxos fiscais da operação.",
+      badge: "Novo",
+      badgeTone: "muted",
+      orbitClass: "hub-card--fiscal",
+      disabled: true,
+    },
+    {
+      id: "financeiro",
+      title: "Financeiro",
+      description: "Área em preparação para os fluxos financeiros da operação.",
+      badge: "Novo",
+      badgeTone: "muted",
+      orbitClass: "hub-card--financeiro",
+      disabled: true,
+    },
+    {
       id: "instagram",
       title: "Instagram",
       description: "Canal em preparação para a próxima etapa da central.",
@@ -484,14 +502,14 @@ export default function HomeShell() {
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {aiAnnounce}
       </div>
-      <div className="relative min-h-screen overflow-hidden">
+      <div className="relative min-h-screen overflow-x-clip overflow-y-visible">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -top-24 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] blur-3xl" />
           <div className="absolute bottom-[-8rem] left-[10%] h-72 w-72 rounded-full bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] blur-3xl" />
           <div className="absolute right-[8%] top-[18%] h-64 w-64 rounded-full bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] blur-3xl" />
         </div>
 
-        <div className="relative z-10 flex min-h-screen flex-col px-5 py-5 md:px-8 md:py-7">
+        <div className="relative z-10 flex min-h-screen flex-col px-5 py-6 md:px-8 md:py-8">
           <header className="flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
@@ -791,18 +809,14 @@ export default function HomeShell() {
                 </div>
               </div>
             ) : (
-              <div className="central-enter mx-auto flex h-full w-full max-w-[1500px] flex-1 flex-col justify-center overflow-hidden py-2">
-                <div className="mx-auto w-full max-w-3xl -translate-y-14 text-center">
-                  <div className="mx-auto inline-flex rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface-1)_88%,transparent)] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--muted)] backdrop-blur">
-                    Central de Atendimento
-                  </div>
-                  <h1 className="mt-4 text-2xl font-semibold tracking-tight md:text-3xl">Centro operacional</h1>
-                  <p className="mx-auto mt-2 max-w-2xl text-sm text-[var(--muted)]">
-                    Todos os módulos ao redor do núcleo. A J.U.S.S.A.R.A. continua com workspace própria e conversas persistentes.
-                  </p>
+              <div className="central-enter mx-auto flex h-full w-full max-w-[1500px] flex-1 flex-col justify-center overflow-visible py-6 md:py-8">
+                <div className="mx-auto w-full max-w-4xl -translate-y-6 px-2 text-center md:-translate-y-8">
+                  <h1 className="text-3xl font-semibold uppercase tracking-[0.26em] md:text-4xl">
+                    CENTRAL DE INTELIGENCIA
+                  </h1>
                 </div>
 
-                <div className="relative mt-6 hidden lg:block">
+                <div className="relative mt-8 hidden lg:block">
                   <div className="hub-orbit mx-auto">
                     <div className="orbit-ring orbit-ring--outer" />
                     <div className="orbit-ring orbit-ring--mid" />
@@ -930,14 +944,14 @@ export default function HomeShell() {
 
         .hub-orbit {
           position: relative;
-          height: min(60vh, 620px);
+          height: min(64vh, 700px);
           width: 100%;
-          max-width: 1240px;
+          max-width: 1320px;
           margin: 0 auto;
           display: flex;
           align-items: center;
           justify-content: center;
-          transform: translateY(-24px);
+          transform: translateY(-4px);
         }
 
         .hub-scene {
@@ -1026,7 +1040,7 @@ export default function HomeShell() {
         }
 
         .hub-card--whatsapp {
-          --orbit-x: -220px;
+          --orbit-x: -240px;
           --orbit-y: -250px;
           z-index: 3;
         }
@@ -1037,7 +1051,7 @@ export default function HomeShell() {
 
         .hub-card--chat {
           --orbit-x: 340px;
-          --orbit-y: 30px;
+          --orbit-y: 0px;
           z-index: 5;
         }
 
@@ -1047,7 +1061,7 @@ export default function HomeShell() {
 
         .hub-card--jussara {
           --orbit-x: -340px;
-          --orbit-y: 30px;
+          --orbit-y: 0px;
           z-index: 7;
         }
 
@@ -1056,7 +1070,7 @@ export default function HomeShell() {
         }
 
         .hub-card--tasks {
-          --orbit-x: 220px;
+          --orbit-x: 240px;
           --orbit-y: -250px;
           z-index: 3;
         }
@@ -1066,8 +1080,8 @@ export default function HomeShell() {
         }
 
         .hub-card--clients {
-          --orbit-x: -180px;
-          --orbit-y: 260px;
+          --orbit-x: -240px;
+          --orbit-y: 250px;
           z-index: 5;
         }
 
@@ -1075,10 +1089,30 @@ export default function HomeShell() {
           transform: translateY(-10px) rotate(-1.5deg) scale(1.04);
         }
 
-        .hub-card--instagram {
-          --orbit-x: 180px;
-          --orbit-y: 260px;
+        .hub-card--fiscal {
+          --orbit-x: -340px;
+          --orbit-y: 250px;
+          z-index: 4;
+        }
+
+        .hub-card--fiscal:hover .hub-card {
+          transform: translateY(-10px) rotate(1deg) scale(1.03);
+        }
+
+        .hub-card--financeiro {
+          --orbit-x: 340px;
+          --orbit-y: 250px;
           z-index: 7;
+        }
+
+        .hub-card--financeiro:hover .hub-card {
+          transform: translateY(-10px) rotate(-1deg) scale(1.03);
+        }
+
+        .hub-card--instagram {
+          --orbit-x: 0px;
+          --orbit-y: 320px;
+          z-index: 6;
         }
 
         .hub-card--instagram:hover .hub-card {
@@ -1145,7 +1179,7 @@ export default function HomeShell() {
 
         @media (max-height: 860px) {
           .hub-orbit {
-            height: min(58vh, 600px);
+            height: min(60vh, 640px);
           }
 
           .hub-card {
@@ -1153,33 +1187,43 @@ export default function HomeShell() {
           }
 
           .hub-card--whatsapp {
-            --orbit-x: -176px;
-            --orbit-y: -210px;
+            --orbit-x: -196px;
+            --orbit-y: -220px;
           }
 
           .hub-card--chat {
             --orbit-x: 274px;
-            --orbit-y: 24px;
+            --orbit-y: 0px;
           }
 
           .hub-card--jussara {
             --orbit-x: -274px;
-            --orbit-y: 24px;
+            --orbit-y: 0px;
           }
 
           .hub-card--tasks {
-            --orbit-x: 176px;
-            --orbit-y: -210px;
+            --orbit-x: 196px;
+            --orbit-y: -220px;
           }
 
           .hub-card--clients {
-            --orbit-x: -146px;
-            --orbit-y: 214px;
+            --orbit-x: -196px;
+            --orbit-y: 220px;
+          }
+
+          .hub-card--fiscal {
+            --orbit-x: -274px;
+            --orbit-y: 220px;
+          }
+
+          .hub-card--financeiro {
+            --orbit-x: 274px;
+            --orbit-y: 220px;
           }
 
           .hub-card--instagram {
-            --orbit-x: 146px;
-            --orbit-y: 214px;
+            --orbit-x: 0px;
+            --orbit-y: 270px;
           }
         }
       `}</style>
