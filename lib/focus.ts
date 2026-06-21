@@ -33,19 +33,98 @@ export async function createFocusInvoice(payload: {
   amountCents: number;
   competenceMonth: string;
 }) {
+  return createFocusNfse({
+    prestador: {
+      cnpj: "",
+      inscricaoMunicipal: "",
+      codigoMunicipio: 4205704,
+    },
+    tomador: {
+      nome: payload.clientName,
+      documento: payload.clientDocument ?? "",
+      endereco: {
+        logradouro: "",
+        numero: "",
+        bairro: "",
+        codigoMunicipio: 4205704,
+        uf: "SC",
+        cep: "",
+      },
+    },
+    servico: {
+      discriminacao: payload.serviceDescription,
+      valorServicosCents: payload.amountCents,
+      itemListaServico: "4.12",
+    },
+    dataEmissao: payload.competenceMonth,
+  });
+}
+
+export async function createFocusNfse(payload: {
+  prestador: {
+    cnpj: string;
+    inscricaoMunicipal: string;
+    codigoMunicipio: number;
+  };
+  tomador: {
+    nome: string;
+    documento: string;
+    email?: string | null;
+    telefone?: string | null;
+    endereco: {
+      logradouro: string;
+      numero: string;
+      bairro: string;
+      codigoMunicipio: number;
+      uf: string;
+      cep: string;
+      complemento?: string | null;
+    };
+  };
+  servico: {
+    discriminacao: string;
+    valorServicosCents: number;
+    itemListaServico: string;
+    aliquota?: number | null;
+    issRetido?: boolean | null;
+  };
+  naturezaOperacao?: number;
+  optanteSimplesNacional?: boolean;
+  dataEmissao?: string;
+}) {
   return focusFetch("/v3/nfe", {
     method: "POST",
     body: JSON.stringify({
-      invoice: {
-        customer: {
-          name: payload.clientName,
-          document: payload.clientDocument ?? undefined,
+      data_emissao: payload.dataEmissao ?? new Date().toISOString(),
+      natureza_operacao: payload.naturezaOperacao ?? 1,
+      optante_simples_nacional: payload.optanteSimplesNacional ?? false,
+      prestador: {
+        cnpj: payload.prestador.cnpj,
+        inscricao_municipal: payload.prestador.inscricaoMunicipal,
+        codigo_municipio: payload.prestador.codigoMunicipio,
+      },
+      tomador: {
+        cnpj: payload.tomador.documento || undefined,
+        razao_social: payload.tomador.nome,
+        endereco: {
+          logradouro: payload.tomador.endereco.logradouro,
+          numero: payload.tomador.endereco.numero,
+          complemento: payload.tomador.endereco.complemento || undefined,
+          bairro: payload.tomador.endereco.bairro,
+          codigo_municipio: payload.tomador.endereco.codigoMunicipio,
+          uf: payload.tomador.endereco.uf,
+          cep: payload.tomador.endereco.cep,
         },
-        service_description: payload.serviceDescription,
-        amount: (payload.amountCents / 100).toFixed(2),
-        competence_month: payload.competenceMonth,
+        telefone: payload.tomador.telefone || undefined,
+        email: payload.tomador.email || undefined,
+      },
+      servico: {
+        discriminacao: payload.servico.discriminacao,
+        valor_servicos: (payload.servico.valorServicosCents / 100).toFixed(2),
+        aliquota: payload.servico.aliquota ?? undefined,
+        item_lista_servico: payload.servico.itemListaServico,
+        iss_retido: payload.servico.issRetido ?? false,
       },
     }),
   });
 }
-

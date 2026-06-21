@@ -340,7 +340,7 @@ export default function FinanceiroShell() {
               <Field label="WhatsApp de cobrança" value={contractForm.billingWhatsapp} onChange={(v) => setContractForm((prev) => ({ ...prev, billingWhatsapp: v }))} />
               <Field label="Início do contrato" value={contractForm.contractStartDate} onChange={(v) => setContractForm((prev) => ({ ...prev, contractStartDate: v }))} />
               <Field label="Fim do contrato" value={contractForm.contractEndDate} onChange={(v) => setContractForm((prev) => ({ ...prev, contractEndDate: v }))} />
-              <Field label="Serviço Focus" value={contractForm.focusServiceId} onChange={(v) => setContractForm((prev) => ({ ...prev, focusServiceId: v }))} />
+              <Field label="Serviço da emissão" value={contractForm.focusServiceId} onChange={(v) => setContractForm((prev) => ({ ...prev, focusServiceId: v }))} />
               <Field label="Conta/Carteira Inter" value={contractForm.interWalletId} onChange={(v) => setContractForm((prev) => ({ ...prev, interWalletId: v }))} />
               <Field label="Código do serviço" value={contractForm.invoiceServiceCode} onChange={(v) => setContractForm((prev) => ({ ...prev, invoiceServiceCode: v }))} />
               <Field label="Descrição do serviço" value={contractForm.invoiceServiceDescription} onChange={(v) => setContractForm((prev) => ({ ...prev, invoiceServiceDescription: v }))} />
