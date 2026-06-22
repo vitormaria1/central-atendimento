@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const items = [
   { href: "/fiscal", label: "Visão geral" },
+  { href: "/fiscal/reports", label: "Relatórios" },
   { href: "/fiscal/invoice", label: "Emissão de nota" },
   { href: "/fiscal/services", label: "Serviços" },
   { href: "/fiscal/alerts", label: "Alertas" },
