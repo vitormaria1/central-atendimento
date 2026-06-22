@@ -5,6 +5,7 @@ import { withApi } from "@/lib/api";
 import { dbQuery } from "@/lib/db";
 import { createFocusNfse } from "@/lib/focus";
 import { OFFICE } from "@/lib/office";
+import { monthStartIso } from "@/lib/finance";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,6 +27,118 @@ const createSchema = z.object({
   tomadorCidade: z.string().max(120).optional(),
   tomadorUf: z.string().max(2).optional(),
   tomadorCep: z.string().max(20).optional(),
+});
+
+const querySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+export const GET = withApi(async (req: Request) => {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const url = new URL(req.url);
+  const parsed = querySchema.safeParse(Object.fromEntries(url.searchParams.entries()));
+  if (!parsed.success) return NextResponse.json({ error: "Invalid query" }, { status: 400 });
+
+  const limit = parsed.data.limit ?? 30;
+
+  const [items, metrics] = await Promise.all([
+    dbQuery<{
+      id: string;
+      competence_month: string | null;
+      due_date: string | null;
+      amount_cents: number;
+      invoice_status: string;
+      boleto_status: string;
+      payment_status: string;
+      email_status: string;
+      whatsapp_status: string;
+      focus_invoice_id: string | null;
+      focus_invoice_number: string | null;
+      focus_invoice_url: string | null;
+      boleto_url: string | null;
+      boleto_barcode: string | null;
+      source_label: string;
+      notes: string | null;
+      client_name: string;
+      updated_at: string;
+    }>(
+      `
+        select
+          bci.id::text,
+          bci.due_date::text,
+          bci.total_amount_cents as amount_cents,
+          bci.invoice_status::text,
+          bci.boleto_status::text,
+          bci.payment_status::text,
+          bci.email_status::text,
+          bci.whatsapp_status::text,
+          bci.focus_invoice_id,
+          bci.focus_invoice_number,
+          bci.focus_invoice_url,
+          bci.boleto_url,
+          bci.boleto_barcode,
+          coalesce(bci.notes, fe.source_label) as source_label,
+          fe.notes,
+          cl.name as client_name,
+          bc.competence_month::text,
+          greatest(bci.updated_at, fe.updated_at, bc.updated_at)::text as updated_at
+        from billing_cycle_items bci
+        join billing_cycles bc on bc.id = bci.cycle_id
+        join financial_entries fe on fe.billing_cycle_item_id = bci.id
+        join clients cl on cl.id = bci.client_id
+        order by greatest(bci.updated_at, fe.updated_at, bc.updated_at) desc, bci.id desc
+        limit $1
+      `,
+      [limit],
+    ),
+    dbQuery<{
+      ready: number;
+      issued: number;
+      failed: number;
+      paid: number;
+    }>(
+      `
+        select
+          count(*) filter (where invoice_status = 'pending' and payment_status = 'open')::int as ready,
+          count(*) filter (where invoice_status = 'issued')::int as issued,
+          count(*) filter (where invoice_status = 'failed')::int as failed,
+          count(*) filter (where payment_status = 'paid')::int as paid
+        from billing_cycle_items
+      `,
+    ),
+  ]);
+
+  return NextResponse.json({
+    metrics: {
+      ready: metrics.rows[0]?.ready ?? 0,
+      issued: metrics.rows[0]?.issued ?? 0,
+      failed: metrics.rows[0]?.failed ?? 0,
+      paid: metrics.rows[0]?.paid ?? 0,
+      competenceMonth: monthStartIso(),
+    },
+    items: items.rows.map((row) => ({
+      id: row.id,
+      competenceMonth: row.competence_month,
+      dueDate: row.due_date,
+      amountCents: row.amount_cents,
+      invoiceStatus: row.invoice_status,
+      boletoStatus: row.boleto_status,
+      paymentStatus: row.payment_status,
+      emailStatus: row.email_status,
+      whatsappStatus: row.whatsapp_status,
+      focusInvoiceId: row.focus_invoice_id,
+      focusInvoiceNumber: row.focus_invoice_number,
+      focusInvoiceUrl: row.focus_invoice_url,
+      boletoUrl: row.boleto_url,
+      boletoBarcode: row.boleto_barcode,
+      sourceLabel: row.source_label,
+      notes: row.notes,
+      clientName: row.client_name,
+      updatedAt: row.updated_at,
+    })),
+  });
 });
 
 export const POST = withApi(async (req: Request) => {

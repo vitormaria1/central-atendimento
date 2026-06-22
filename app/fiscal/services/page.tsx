@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Service = {
   id: string;
@@ -44,12 +44,23 @@ function Field({
   );
 }
 
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+      <div className="mt-2 text-3xl font-semibold tracking-tight">{value}</div>
+    </div>
+  );
+}
+
 export default function FiscalServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [form, setForm] = useState(emptyService);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  const [showActiveOnly, setShowActiveOnly] = useState(false);
 
   async function loadServices() {
     setLoading(true);
@@ -67,6 +78,19 @@ export default function FiscalServicesPage() {
   useEffect(() => {
     void loadServices();
   }, []);
+
+  const filteredServices = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return services.filter((service) => {
+      const matchesActive = showActiveOnly ? service.active : true;
+      const haystack = `${service.code} ${service.name} ${service.description ?? ""} ${service.taxRegime ?? ""}`.toLowerCase();
+      const matchesQuery = q ? haystack.includes(q) : true;
+      return matchesActive && matchesQuery;
+    });
+  }, [query, services, showActiveOnly]);
+
+  const activeCount = services.filter((service) => service.active).length;
+  const inactiveCount = services.length - activeCount;
 
   async function saveService() {
     if (!form.code.trim() || !form.name.trim()) {
@@ -103,10 +127,19 @@ export default function FiscalServicesPage() {
 
   return (
     <section className="space-y-6">
-      <div>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--muted)]">Serviços</div>
-        <h2 className="mt-2 text-3xl font-semibold tracking-tight">Catálogo fiscal.</h2>
-        <p className="mt-2 text-sm text-[var(--muted)]">Cadastro e manutenção dos serviços que podem ser usados na emissão.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--muted)]">Serviços</div>
+          <h2 className="mt-2 text-3xl font-semibold tracking-tight">Catálogo fiscal</h2>
+          <p className="mt-2 text-sm text-[var(--muted)]">Mantém códigos e parâmetros usados na emissão da NFS-e.</p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Stat label="Serviços ativos" value={`${activeCount}`} />
+        <Stat label="Inativos" value={`${inactiveCount}`} />
+        <Stat label="Total cadastrados" value={`${services.length}`} />
+        <Stat label="Filtro atual" value={showActiveOnly ? "Ativos" : "Todos"} />
       </div>
 
       {loading ? <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm text-[var(--muted)]">Carregando serviços...</div> : null}
@@ -114,18 +147,39 @@ export default function FiscalServicesPage() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-3">
-          {services.map((service) => (
-            <div key={service.id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar por código, nome ou regime"
+              className="min-w-[240px] flex-1 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowActiveOnly((prev) => !prev)}
+              className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm font-medium hover:bg-[var(--surface-2)]"
+            >
+              {showActiveOnly ? "Mostrar todos" : "Mostrar ativos"}
+            </button>
+          </div>
+
+          {filteredServices.map((service) => (
+            <div key={service.id} className="rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+              <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="font-semibold">{service.name}</div>
                   <div className="text-xs text-[var(--muted)]">
-                    {service.code} · {service.active ? "ativo" : "inativo"}
+                    {service.code} • {service.active ? "ativo" : "inativo"}
                   </div>
                 </div>
                 <span className="rounded-full border border-[var(--border)] px-2 py-1 text-[10px] text-[var(--muted)]">{service.taxRegime || "sem regime"}</span>
               </div>
-              {service.description ? <div className="mt-2 text-sm text-[var(--muted)]">{service.description}</div> : null}
+              <div className="mt-3 grid gap-2 text-xs text-[var(--muted)] md:grid-cols-2 xl:grid-cols-3">
+                <div>Município: {service.municipalCode || "—"}</div>
+                <div>CNAE: {service.cnae || "—"}</div>
+                <div>Regime: {service.taxRegime || "—"}</div>
+              </div>
+              {service.description ? <div className="mt-3 text-sm text-[var(--muted)]">{service.description}</div> : null}
             </div>
           ))}
         </div>
@@ -144,11 +198,15 @@ export default function FiscalServicesPage() {
               placeholder="Descrição do serviço"
               className="min-h-[92px] rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm"
             />
+            <label className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3">
+              <span className="text-sm font-medium">Ativo</span>
+              <input type="checkbox" checked={form.active} onChange={(e) => setForm((prev) => ({ ...prev, active: e.target.checked }))} className="h-4 w-4" />
+            </label>
             <button
               type="button"
               onClick={() => void saveService()}
               disabled={saving}
-              className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm font-medium hover:bg-[var(--surface-2)] disabled:opacity-60"
+              className="rounded-2xl bg-[var(--primary)] px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
             >
               {saving ? "Salvando..." : "Salvar serviço"}
             </button>
