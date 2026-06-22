@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { centsToCurrency } from "@/lib/finance";
 
 type Agent = { agentId: "vanderlei" | "gustavo"; agentName: "Vanderlei" | "Gustavo" };
 
@@ -32,6 +33,36 @@ type ClientItem = {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+type ContractItem = {
+  id: string;
+  clientId: string;
+  clientName: string;
+  status: "draft" | "active" | "paused" | "closed";
+  monthlyFeeCents: number;
+  dueDay: number;
+  billingEmail: string | null;
+  billingWhatsapp: string | null;
+  sendEmail: boolean;
+  sendWhatsapp: boolean;
+  generateInvoice: boolean;
+  generateBoleto: boolean;
+  invoiceServiceCode: string | null;
+  invoiceServiceDescription: string | null;
+  notes: string | null;
+  updatedAt: string;
+};
+
+type FiscalOverview = {
+  metrics: {
+    activeContracts: number;
+    invoiceReady: number;
+    cyclesPending: number;
+    servicesActive: number;
+    nextCompetenceMonth: string;
+  };
+  contracts: ContractItem[];
 };
 
 type ClientDraft = {
@@ -174,9 +205,33 @@ function Field({
   );
 }
 
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+      <div className="mt-2 text-xl font-semibold tracking-tight">{value}</div>
+    </div>
+  );
+}
+
+function InfoCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+      <div className="mt-2 text-sm font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function isClientReadyForInvoice(client: ClientItem, contract: ContractItem | null) {
+  if (!contract || contract.status !== "active" || !contract.generateInvoice) return false;
+  return Boolean(client.document && client.invoiceEmail && client.fiscalCity && client.fiscalState && client.serviceCode);
+}
+
 export default function ClientsShell() {
   const [me, setMe] = useState<Agent | null>(null);
   const [clients, setClients] = useState<ClientItem[]>([]);
+  const [fiscalOverview, setFiscalOverview] = useState<FiscalOverview | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -188,11 +243,35 @@ export default function ClientsShell() {
   const selectedClient = clients.find((item) => item.id === selectedClientId) ?? null;
   const isEditing = Boolean(selectedClient);
 
+  const contractByClientId = useMemo(() => {
+    const map = new Map<string, ContractItem>();
+    for (const contract of fiscalOverview?.contracts ?? []) map.set(contract.clientId, contract);
+    return map;
+  }, [fiscalOverview]);
+
+  const totalClients = clients.length;
+  const clientsWithFiscalProfile = clients.filter((client) =>
+    Boolean(client.document && client.taxRegime && client.fiscalCity && client.fiscalState && client.invoiceEmail),
+  ).length;
+  const clientsWithContract = clients.filter((client) => contractByClientId.has(client.id)).length;
+  const clientsWithActiveContract = clients.filter((client) => contractByClientId.get(client.id)?.status === "active").length;
+  const clientsReadyForInvoice = clients.filter((client) => {
+    const contract = contractByClientId.get(client.id);
+    return Boolean(contract?.status === "active" && contract.generateInvoice && client.invoiceEmail && client.serviceCode);
+  }).length;
+
   async function loadMe() {
     const res = await fetch("/api/me", { cache: "no-store" });
     if (!res.ok) return;
     const data = (await res.json()) as Agent;
     setMe(data);
+  }
+
+  async function loadFiscalOverview() {
+    const res = await fetch("/api/fiscal/overview", { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as FiscalOverview;
+    setFiscalOverview(data);
   }
 
   async function loadClients(query?: string, preferredId?: string | null) {
@@ -226,6 +305,7 @@ export default function ClientsShell() {
 
   useEffect(() => {
     void loadMe();
+    void loadFiscalOverview();
     void loadClients("", null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -284,11 +364,12 @@ export default function ClientsShell() {
             <div className="min-w-0">
               <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--muted)]">Central de Inteligência</div>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight">Clientes</h1>
-              <div className="mt-2 text-sm text-[var(--muted)]">
-                Cadastre e mantenha os dados principais dos clientes em um só lugar.
-              </div>
+              <div className="mt-2 text-sm text-[var(--muted)]">Cadastro fiscal, comercial e operacional no mesmo fluxo.</div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <Link href="/financeiro/contratos" className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-sm hover:bg-[var(--surface-1)]">
+                Contratos
+              </Link>
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-sm text-[var(--muted)]">
                 {me ? me.agentName : "Carregando..."}
               </div>
@@ -301,7 +382,16 @@ export default function ClientsShell() {
           <div className="grid min-h-[calc(100vh-10rem)] grid-cols-1 xl:grid-cols-[380px_minmax(0,1fr)]">
             <aside className="border-b border-[var(--border)] bg-[var(--surface-2)] xl:border-b-0 xl:border-r">
               <div className="border-b border-[var(--border)] px-5 py-5">
-                <div className="flex gap-2">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <MiniMetric label="Clientes" value={`${totalClients}`} />
+                  <MiniMetric label="Com contrato" value={`${clientsWithContract}`} />
+                  <MiniMetric label="Cadastro fiscal" value={`${clientsWithFiscalProfile}`} />
+                  <MiniMetric label="Prontos para NF" value={`${clientsReadyForInvoice}`} />
+                </div>
+                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-xs text-[var(--muted)]">
+                  {fiscalOverview?.metrics.activeContracts ?? 0} contratos ativos • {clientsWithActiveContract} clientes com contrato ativo • {fiscalOverview?.metrics.invoiceReady ?? 0} prontos para emissão
+                </div>
+                <div className="mt-4 flex gap-2">
                   <input
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
@@ -381,6 +471,13 @@ export default function ClientsShell() {
                           {client.phone ? <span>{client.phone}</span> : null}
                           {client.city ? <span>{client.city}</span> : null}
                           {client.state ? <span>{client.state}</span> : null}
+                          {contractByClientId.get(client.id) ? (
+                            <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1">
+                              {contractByClientId.get(client.id)?.status}
+                            </span>
+                          ) : (
+                            <span className="rounded-full border border-dashed border-[var(--border)] px-2 py-1">Sem contrato</span>
+                          )}
                         </div>
                       </button>
                     ))}
@@ -410,6 +507,18 @@ export default function ClientsShell() {
                   </div>
                 ) : null}
               </div>
+
+              {selectedClient ? (
+                <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+                  <InfoCard label="Contrato" value={contractByClientId.get(selectedClient.id)?.status ?? "Sem contrato"} />
+                  <InfoCard label="Honorário" value={centsToCurrency(contractByClientId.get(selectedClient.id)?.monthlyFeeCents ?? 0)} />
+                  <InfoCard label="Vencimento" value={contractByClientId.get(selectedClient.id)?.dueDay ? `Dia ${contractByClientId.get(selectedClient.id)?.dueDay}` : "—"} />
+                  <InfoCard
+                    label="Cobertura"
+                    value={isClientReadyForInvoice(selectedClient, contractByClientId.get(selectedClient.id) ?? null) ? "Pronto para NF" : "Pendente"}
+                  />
+                </div>
+              ) : null}
 
               <div className="mt-6 grid gap-6">
                 <section className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-2)] p-5">
