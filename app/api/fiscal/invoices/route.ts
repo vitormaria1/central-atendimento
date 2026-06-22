@@ -33,6 +33,25 @@ const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
+function buildMissingRequirements(input: {
+  document: string | null;
+  fiscalCity: string | null;
+  fiscalState: string | null;
+  invoiceEmail: string | null;
+  serviceCode: string | null;
+  contractStatus: string | null;
+  generateInvoice: boolean | null;
+}) {
+  const missing: string[] = [];
+  if (!input.document) missing.push("documento do cliente");
+  if (!input.fiscalCity || !input.fiscalState) missing.push("município fiscal");
+  if (!input.invoiceEmail) missing.push("e-mail de emissão");
+  if (!input.serviceCode) missing.push("código do serviço");
+  if (input.contractStatus !== "active") missing.push("contrato ativo");
+  if (!input.generateInvoice) missing.push("emissão habilitada no contrato");
+  return missing;
+}
+
 export const GET = withApi(async (req: Request) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -165,6 +184,10 @@ export const POST = withApi(async (req: Request) => {
     service_description: string | null;
     service_code: string | null;
     monthly_fee_cents: number | null;
+    contract_status: string | null;
+    contract_generate_invoice: boolean | null;
+    contract_invoice_service_code: string | null;
+    contract_invoice_service_description: string | null;
   }>(
     `
       select
@@ -180,7 +203,11 @@ export const POST = withApi(async (req: Request) => {
         cl.zip_code,
         cl.service_description,
         cl.service_code,
-        coalesce(cc.monthly_fee_cents, 0)::int as monthly_fee_cents
+        coalesce(cc.monthly_fee_cents, 0)::int as monthly_fee_cents,
+        cc.status::text as contract_status,
+        cc.generate_invoice as contract_generate_invoice,
+        cc.invoice_service_code as contract_invoice_service_code,
+        cc.invoice_service_description as contract_invoice_service_description
       from clients cl
       left join client_contracts cc on cc.client_id = cl.id
       where cl.id = $1
@@ -192,8 +219,31 @@ export const POST = withApi(async (req: Request) => {
   const client = rows[0];
   if (!client) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 });
 
+  const missingRequirements = buildMissingRequirements({
+    document: client.document,
+    fiscalCity: client.city,
+    fiscalState: client.state,
+    invoiceEmail: client.email,
+    serviceCode: client.contract_invoice_service_code ?? client.service_code,
+    contractStatus: client.contract_status,
+    generateInvoice: client.contract_generate_invoice,
+  });
+  if (missingRequirements.length) {
+    return NextResponse.json(
+      {
+        error: "Cadastro fiscal incompleto",
+        missingRequirements,
+      },
+      { status: 422 },
+    );
+  }
+
   const amountCents = body.amountCents ?? client.monthly_fee_cents ?? 0;
-  const serviceDescription = body.serviceDescription?.trim() || client.service_description || `Serviço de competência ${body.competenceMonth}`;
+  const serviceDescription =
+    body.serviceDescription?.trim() ||
+    client.contract_invoice_service_description ||
+    client.service_description ||
+    `Serviço de competência ${body.competenceMonth}`;
 
   const providerResponse = await createFocusNfse({
     prestador: {

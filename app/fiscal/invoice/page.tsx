@@ -185,16 +185,16 @@ function money(cents: number) {
 
 function readiness(client: ClientItem | null, contract: ContractItem | null) {
   const checks = [
-    Boolean(client?.document),
-    Boolean(client?.fiscalCity && client?.fiscalState),
-    Boolean(client?.invoiceEmail),
-    Boolean(client?.serviceCode),
-    Boolean(contract?.status === "active"),
-    Boolean(contract?.generateInvoice),
+    { label: "Documento", ok: Boolean(client?.document) },
+    { label: "Município fiscal", ok: Boolean(client?.fiscalCity && client?.fiscalState) },
+    { label: "E-mail de emissão", ok: Boolean(client?.invoiceEmail) },
+    { label: "Código do serviço", ok: Boolean(contract?.invoiceServiceCode || client?.serviceCode) },
+    { label: "Contrato ativo", ok: Boolean(contract?.status === "active") },
+    { label: "Emissão habilitada", ok: Boolean(contract?.generateInvoice) },
   ];
   return {
     total: checks.length,
-    passed: checks.filter(Boolean).length,
+    passed: checks.filter((check) => check.ok).length,
     checks,
   };
 }
@@ -302,7 +302,13 @@ export default function FiscalInvoicePage() {
           tomadorCep: invoice.tomadorCep || null,
         }),
       });
-      if (!res.ok) throw new Error("Falha ao gerar nota");
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string; missingRequirements?: string[] } | null;
+        if (res.status === 422 && data?.missingRequirements?.length) {
+          throw new Error(`${data.error ?? "Cadastro fiscal incompleto"}: ${data.missingRequirements.join(", ")}`);
+        }
+        throw new Error(data?.error ?? "Falha ao gerar nota");
+      }
       setToast("Nota gerada.");
       setInvoice(emptyInvoice);
       const invoicesRes = await fetch("/api/fiscal/invoices?limit=60", { cache: "no-store" });
@@ -396,16 +402,9 @@ export default function FiscalInvoicePage() {
         <section className="space-y-4">
           <div className="rounded-[32px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Checklist</div>
-            <div className="mt-1 text-xl font-semibold">Prontidão do cliente</div>
+          <div className="mt-1 text-xl font-semibold">Prontidão do cliente</div>
             <div className="mt-4 space-y-3">
-              {[
-                { label: "Documento", ok: Boolean(selectedClient?.document) },
-                { label: "Município fiscal", ok: Boolean(selectedClient?.fiscalCity && selectedClient?.fiscalState) },
-                { label: "E-mail de nota", ok: Boolean(selectedClient?.invoiceEmail) },
-                { label: "Código do serviço", ok: Boolean(selectedClient?.serviceCode || selectedContract?.invoiceServiceCode) },
-                { label: "Contrato ativo", ok: Boolean(selectedContract?.status === "active") },
-                { label: "Emissão habilitada", ok: Boolean(selectedContract?.generateInvoice) },
-              ].map((item) => (
+              {readinessState.checks.map((item) => (
                 <div key={item.label} className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3">
                   <span className="text-sm font-medium">{item.label}</span>
                   <Badge tone={item.ok ? "success" : "danger"}>{item.ok ? "OK" : "Pendente"}</Badge>
@@ -415,6 +414,11 @@ export default function FiscalInvoicePage() {
             <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3 text-sm text-[var(--muted)]">
               {readinessState.passed}/{readinessState.total} itens prontos para emissão.
             </div>
+            {readinessState.passed !== readinessState.total ? (
+              <div className="mt-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
+                Complete os itens pendentes antes de gerar a nota.
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-[32px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
