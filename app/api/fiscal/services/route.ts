@@ -18,6 +18,15 @@ const serviceSchema = z.object({
   focusPayload: z.record(z.string(), z.unknown()).default({}),
 });
 
+const patchSchema = serviceSchema
+  .partial()
+  .extend({
+    id: z.coerce.number().int().positive(),
+  })
+  .refine((data) => Object.keys(data).some((key) => key !== "id"), {
+    message: "No changes",
+  });
+
 export const GET = withApi(async () => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -108,4 +117,46 @@ export const POST = withApi(async (req: Request) => {
   const row = rows[0];
   if (!row) return NextResponse.json({ error: "Falha ao salvar serviço" }, { status: 500 });
   return NextResponse.json({ id: row.id });
+});
+
+export const PATCH = withApi(async (req: Request) => {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const json = (await req.json().catch(() => null)) as unknown;
+  const parsed = patchSchema.safeParse(json);
+  if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+
+  const body = parsed.data;
+  const setParts: string[] = [];
+  const values: unknown[] = [];
+
+  const setField = (column: string, value: unknown) => {
+    values.push(value);
+    setParts.push(`${column} = $${values.length}`);
+  };
+
+  if (body.code !== undefined) setField("code", body.code.trim());
+  if (body.name !== undefined) setField("name", body.name.trim());
+  if (body.description !== undefined) setField("description", body.description || null);
+  if (body.municipalCode !== undefined) setField("municipal_code", body.municipalCode || null);
+  if (body.cnae !== undefined) setField("cnae", body.cnae || null);
+  if (body.taxRegime !== undefined) setField("tax_regime", body.taxRegime || null);
+  if (body.active !== undefined) setField("active", body.active);
+  if (body.focusPayload !== undefined) setField("focus_payload", JSON.stringify(body.focusPayload ?? {}));
+
+  if (setParts.length === 0) return NextResponse.json({ error: "No changes" }, { status: 400 });
+
+  values.push(body.id);
+  const { rowCount } = await dbQuery(
+    `
+      update fiscal_service_catalog
+      set ${setParts.join(", ")}
+      where id = $${values.length}
+    `,
+    values,
+  );
+
+  if (!rowCount) return NextResponse.json({ error: "Service not found" }, { status: 404 });
+  return NextResponse.json({ ok: true });
 });
