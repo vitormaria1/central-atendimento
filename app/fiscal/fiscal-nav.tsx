@@ -9,8 +9,6 @@ const items = [
   { href: "/fiscal/services", label: "Serviços" },
   { href: "/fiscal/alerts", label: "Alertas" },
   { href: "/fiscal/cycles", label: "Ciclos" },
-  { href: "/fiscal/clients", label: "Clientes" },
-  { href: "/fiscal/financeiro", label: "Financeiro" },
 ];
 
 export default function FiscalNav() {
