@@ -130,9 +130,6 @@ export const PATCH = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/
   if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
   const patch = parsed.data;
-  if (session.agentId === "gustavo" && patch.assigneeAgentId !== undefined && patch.assigneeAgentId !== "gustavo") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
   if (session.agentId === "gustavo" && patch.taskTypeId !== undefined) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

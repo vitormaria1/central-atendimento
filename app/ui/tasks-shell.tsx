@@ -462,20 +462,19 @@ export default function TasksShell() {
                 </div>
               <select
                 value={details.assignee?.agentId ?? "none"}
-                disabled={me?.agentId !== "vanderlei"}
+                disabled={!me}
                 onChange={(e) => {
-                  const v = e.target.value;
+                  const v = e.target.value as "none" | "vanderlei" | "gustavo";
                   void (async () => {
                     try {
-                      await patchTask(details.id, { assigneeAgentId: v === "none" ? null : v });
-                      await refreshTask(details.id);
+                      await changeTaskAssignee(details.id, v === "none" ? null : v);
                     } catch (err) {
                       setToast(err instanceof Error ? err.message : "Falha ao atualizar");
                     }
                   })();
                 }}
                 className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm outline-none disabled:opacity-60"
-                title={me?.agentId === "vanderlei" ? "Responsável" : "Somente Vanderlei pode alterar"}
+                title="Responsável"
               >
                 <option value="none">Sem responsável</option>
                 <option value="vanderlei">Vanderlei</option>
@@ -1180,6 +1179,20 @@ export default function TasksShell() {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       throw new Error(data?.error ?? "Falha ao atualizar tarefa");
     }
+  }
+
+  async function changeTaskAssignee(taskId: string, assigneeAgentId: "vanderlei" | "gustavo" | null) {
+    await patchTask(taskId, { assigneeAgentId });
+
+    if (me?.agentId === "gustavo" && assigneeAgentId !== "gustavo") {
+      setShowTaskModal(false);
+      setSelectedTaskId(null);
+      await loadTasks();
+      setToast("Tarefa reatribuida");
+      return;
+    }
+
+    await refreshTask(taskId);
   }
 
   async function createTask() {
