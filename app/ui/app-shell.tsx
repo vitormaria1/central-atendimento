@@ -1724,9 +1724,9 @@ export default function AppShell() {
   }, [toast]);
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="flex h-screen">
-        <aside className="w-[440px] shrink-0 border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_92%,var(--background))]">
+    <div className="min-h-screen overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
+      <div className="flex h-screen min-w-0 overflow-hidden">
+        <aside className="w-[clamp(320px,30vw,400px)] shrink-0 border-r border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_92%,var(--background))]">
           <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--border)] relative">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-2xl bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] flex items-center justify-center">
@@ -1997,7 +1997,7 @@ export default function AppShell() {
         </aside>
 
         <main
-          className="flex-1 flex flex-col relative"
+          className="relative flex min-w-0 flex-1 flex-col overflow-hidden"
           onDragEnter={handleDragEnter}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
