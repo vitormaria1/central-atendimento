@@ -219,3 +219,20 @@ export const PATCH = withApi(async (req: Request, ctx: RouteContext<"/api/tasks/
 
   return NextResponse.json({ ok: true });
 });
+
+export const DELETE = withApi(async (_req: Request, ctx: RouteContext<"/api/tasks/[taskId]">) => {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { taskId } = await ctx.params;
+  const id = Number.parseInt(taskId, 10);
+  if (!Number.isFinite(id)) return NextResponse.json({ error: "Invalid taskId" }, { status: 400 });
+
+  if (!(await requireTaskAccess(session, id))) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const { rows } = await dbQuery<{ title: string }>("delete from tasks where id = $1 returning title", [id]);
+  const row = rows[0];
+  if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  return NextResponse.json({ ok: true, title: row.title });
+});

@@ -350,6 +350,7 @@ export default function TasksShell() {
 
   // create task
   const [creating, setCreating] = useState(false);
+  const [deletingTask, setDeletingTask] = useState(false);
   const [newDepartment, setNewDepartment] = useState<Department>("fiscal");
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
@@ -1244,6 +1245,31 @@ export default function TasksShell() {
       setToast(err instanceof Error ? err.message : "Falha ao criar tarefa");
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function deleteTask(taskId: string) {
+    setDeletingTask(true);
+    try {
+      const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`, {
+        method: "DELETE",
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; title?: string; error?: string } | null;
+      if (!res.ok) throw new Error(data?.error ?? "Falha ao excluir tarefa");
+
+      setShowTaskModal(false);
+      setSelectedTaskId(null);
+      setDetails(null);
+      setComments([]);
+      setAttachments([]);
+      setAudit([]);
+      setSubtasks([]);
+      await loadTasks();
+      setToast(data?.title ? `Tarefa excluida: ${data.title}` : "Tarefa excluida");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Falha ao excluir tarefa");
+    } finally {
+      setDeletingTask(false);
     }
   }
 
@@ -2701,13 +2727,32 @@ export default function TasksShell() {
                 <div className="my-4 w-full max-w-[92vw] xl:max-w-[1500px] max-h-none overflow-visible rounded-[36px] bg-[color-mix(in_srgb,var(--background)_95%,black)] ring-1 ring-white/10 p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-semibold">Editar tarefa</div>
-                    <button
-                      type="button"
-                      onClick={() => setShowTaskModal(false)}
-                      className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
-                    >
-                      Fechar
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {details ? (
+                        <button
+                          type="button"
+                          disabled={deletingTask}
+                          onClick={() => {
+                            if (!details) return;
+                            const confirmed = window.confirm(
+                              `Excluir a tarefa "${details.title}"? Esta ação também remove comentários, anexos, auditoria e subtarefas.`,
+                            );
+                            if (!confirmed) return;
+                            void deleteTask(details.id);
+                          }}
+                          className="rounded-xl px-3 py-2 text-xs bg-[color-mix(in_srgb,#dc2626_18%,transparent)] text-[#fecaca] ring-1 ring-[color-mix(in_srgb,#dc2626_35%,transparent)] hover:bg-[color-mix(in_srgb,#dc2626_24%,transparent)] disabled:opacity-60"
+                        >
+                          {deletingTask ? "Excluindo..." : "Excluir tarefa"}
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setShowTaskModal(false)}
+                        className="rounded-xl px-3 py-2 text-xs bg-white/5 ring-1 ring-white/10 hover:bg-white/8"
+                      >
+                        Fechar
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-4">{details ? renderInlineDetails() : <div className="text-sm text-[var(--muted)]">Carregando...</div>}</div>
                 </div>
