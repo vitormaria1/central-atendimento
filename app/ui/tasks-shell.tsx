@@ -1560,11 +1560,14 @@ export default function TasksShell() {
   ).map((d) => ({ value: d.id, label: d.name }));
   const createTaskTypeOptions =
     taskTypes.length > 0 ? taskTypes.map((t) => ({ value: t.id, label: t.name })) : [{ value: "outros", label: "Outros" }];
-  const createTaskAssigneeOptions = [
-    { value: "none", label: "Sem responsável" },
-    { value: "vanderlei", label: "Vanderlei" },
-    { value: "gustavo", label: "Gustavo" },
-  ];
+  const createTaskAssigneeOptions =
+    me?.agentId === "gustavo"
+      ? [{ value: "gustavo", label: "Gustavo" }]
+      : [
+          { value: "none", label: "Sem responsável" },
+          { value: "vanderlei", label: "Vanderlei" },
+          { value: "gustavo", label: "Gustavo" },
+        ];
   const createTaskPriorityOptions = [
     { value: "low", label: "Baixa" },
     { value: "normal", label: "Normal" },
@@ -2653,6 +2656,11 @@ export default function TasksShell() {
                         placeholder="Responsável"
                         title="Responsável"
                       />
+                      {me?.agentId === "gustavo" ? (
+                        <div className="col-span-full text-xs text-[var(--muted)]">
+                          As tarefas criadas por Gustavo ficam atribuídas ao próprio Gustavo.
+                        </div>
+                      ) : null}
                       <ChoiceSelect
                         value={newPriority}
                         onChange={(v) => setNewPriority(v as TaskPriority)}

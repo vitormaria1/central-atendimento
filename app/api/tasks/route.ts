@@ -173,16 +173,16 @@ export const POST = withApi(async (req: Request) => {
   const parsed = createSchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
-  if (session.agentId === "gustavo") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   const title = parsed.data.title.trim();
   const description = parsed.data.description?.trim() || null;
   const department = parsed.data.department;
   const status = parsed.data.status ?? "to_do";
   const priority = parsed.data.priority ?? "normal";
-  const assigneeAgentId = parsed.data.assigneeAgentId ?? session.agentId;
+  const requestedAssigneeAgentId = parsed.data.assigneeAgentId;
+  if (session.agentId === "gustavo" && requestedAssigneeAgentId && requestedAssigneeAgentId !== "gustavo") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const assigneeAgentId = requestedAssigneeAgentId ?? session.agentId;
   const taskTypeId = parsed.data.taskTypeId ?? null;
   const clientId = parsed.data.clientId ? Number.parseInt(parsed.data.clientId, 10) : null;
   const parentTaskId = parsed.data.parentTaskId ? Number.parseInt(parsed.data.parentTaskId, 10) : null;
