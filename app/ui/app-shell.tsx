@@ -3429,7 +3429,7 @@ export default function AppShell() {
       ) : null}
 
       {toast ? (
-        <div className="fixed bottom-5 right-5 rounded-2xl bg-[var(--card)] ring-1 ring-[var(--border)] px-4 py-3 text-sm shadow-2xl">
+        <div className="fixed bottom-5 right-5 z-[110] rounded-2xl bg-[var(--card)] ring-1 ring-[var(--border)] px-4 py-3 text-sm shadow-2xl">
           {toast}
         </div>
       ) : null}

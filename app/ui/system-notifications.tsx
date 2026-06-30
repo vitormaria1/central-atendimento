@@ -165,7 +165,7 @@ export default function SystemNotifications() {
 
   return (
     <>
-      <div className="pointer-events-auto relative">
+      <div className="pointer-events-auto relative z-[120]">
         <button
           ref={bellButtonRef}
           type="button"
@@ -188,7 +188,7 @@ export default function SystemNotifications() {
         {panelOpen ? (
           <div
             ref={panelRef}
-            className="pointer-events-auto absolute right-0 top-full mt-2 w-[min(390px,calc(100vw-1rem))] overflow-hidden rounded-[28px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_92%,var(--background))] shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur"
+            className="pointer-events-auto absolute right-0 top-full z-[130] mt-2 w-[min(390px,calc(100vw-1rem))] overflow-hidden rounded-[28px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--card)_92%,var(--background))] shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur"
           >
             <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
               <div>
@@ -264,7 +264,7 @@ export default function SystemNotifications() {
         ) : null}
       </div>
 
-      <div className="pointer-events-none fixed right-4 top-24 z-[80] w-[min(360px,calc(100vw-1rem))] space-y-2">
+      <div className="pointer-events-none fixed right-4 top-24 z-[135] w-[min(360px,calc(100vw-1rem))] space-y-2">
         {toasts.map((toast) => (
           <div
             key={toast.id}

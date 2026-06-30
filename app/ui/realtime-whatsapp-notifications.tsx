@@ -146,7 +146,7 @@ export default function RealtimeWhatsappNotifications() {
 
   // UI: popup no canto (estilo notificação)
   return (
-    <div className="pointer-events-none fixed bottom-5 right-5 z-50 w-[min(420px,calc(100vw-24px))] space-y-2">
+    <div className="pointer-events-none fixed bottom-5 right-5 z-[140] w-[min(420px,calc(100vw-24px))] space-y-2">
       {toasts.map((t) => (
         <button
           key={t.id}
