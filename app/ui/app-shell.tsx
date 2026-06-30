@@ -97,22 +97,39 @@ function getMessageText(m: MessageItem) {
   return m.text ?? m.content ?? "";
 }
 
-function stripOwnSignature(text: string, agentName?: string | null) {
-  const name = (agentName ?? "").trim();
-  if (!name) return text;
+function parseAgentSignature(text: string) {
+  const t = (text ?? "").replace(/\r\n/g, "\n");
+  const first = (t.split("\n")[0] ?? "").trim().toLowerCase();
+  if (first === "*vanderlei:*" || first === "vanderlei:") return "Vanderlei";
+  if (first === "*gustavo:*" || first === "gustavo:") return "Gustavo";
+  return null;
+}
+
+function stripAgentSignature(text: string) {
   const t = (text ?? "").replace(/\r\n/g, "\n");
   const lines = t.split("\n");
   if (lines.length === 0) return text;
-  const first = (lines[0] ?? "").trim();
-  const sig1 = `*${name}:*`;
-  const sig2 = `${name}:`;
-  if (first === sig1 || first === sig2) {
-    // remove first line + optional empty line following
+  const first = (lines[0] ?? "").trim().toLowerCase();
+  if (first === "*vanderlei:*" || first === "vanderlei:" || first === "*gustavo:*" || first === "gustavo:") {
     const rest = lines.slice(1);
     if (rest[0]?.trim() === "") rest.shift();
     return rest.join("\n").trimStart();
   }
   return text;
+}
+
+function getDisplayMessageText(m: MessageItem) {
+  return m.fromMe ? stripAgentSignature(getMessageText(m)) : getMessageText(m);
+}
+
+function getDisplaySenderName(m: MessageItem, fallbackAgentName?: string | null) {
+  if (!m.fromMe) return m.senderName ?? "Cliente";
+  return parseAgentSignature(getMessageText(m)) ?? fallbackAgentName ?? "Você";
+}
+
+function getDisplayChatPreviewText(text: string) {
+  const normalized = stripAgentSignature(text ?? "");
+  return normalized || text || "";
 }
 
 function includesIgnoreCase(text: string, q: string) {
@@ -706,7 +723,7 @@ export default function AppShell() {
       assignedAgentId: selectedChat.state?.assignedAgentId ?? null,
       tags: selectedChat.state?.tags ?? [],
       unreadCount: selectedChat.unreadCount,
-      lastMessageText: selectedChat.lastMessageText || "Sem mensagem recente",
+      lastMessageText: getDisplayChatPreviewText(selectedChat.lastMessageText) || "Sem mensagem recente",
       lastActivityAt,
     };
   }, [messages, presenceNow, selectedChat]);
@@ -911,16 +928,14 @@ export default function AppShell() {
     const keys: string[] = [];
     for (let idx = 0; idx < messages.length; idx += 1) {
       const m = messages[idx]!;
-      const mine = Boolean(m.fromMe);
-      const rawText = getMessageText(m);
-      const text = mine ? stripOwnSignature(rawText, me?.agentName ?? null) : rawText;
+      const text = getDisplayMessageText(m);
       if (!text) continue;
       if (!includesIgnoreCase(text, q)) continue;
       const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
       keys.push(stableKey);
     }
     return keys;
-  }, [me?.agentName, messages, searchQuery, selectedChatId]);
+  }, [messages, searchQuery, selectedChatId]);
 
   useEffect(() => {
     // reseta cursor quando muda query
@@ -1238,9 +1253,7 @@ export default function AppShell() {
     for (let idx = 0; idx < messages.length; idx += 1) {
       const m = messages[idx]!;
       const stableKey = m.messageid ?? m.id ?? `${m.chatid ?? selectedChatId ?? "chat"}:${m.messageTimestamp ?? "t"}:${idx}`;
-      const mine = Boolean(m.fromMe);
-      const raw = getMessageText(m);
-      const t = mine ? stripOwnSignature(raw, me?.agentName ?? null) : raw;
+      const t = getDisplayMessageText(m);
       byKey.set(stableKey, t);
     }
     const text = keys
@@ -2459,8 +2472,8 @@ export default function AppShell() {
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
                 {messages.map((m, idx) => {
                 const mine = Boolean(m.fromMe);
-                const rawText = getMessageText(m);
-                const text = mine ? stripOwnSignature(rawText, me?.agentName ?? null) : rawText;
+                const text = getDisplayMessageText(m);
+                const senderName = getDisplaySenderName(m, me?.agentName ?? null);
                 const mtLower = (m.messageType ?? "").toLowerCase();
                 const maybeContact = mtLower.includes("contact") || mtLower.includes("vcard") || /BEGIN:VCARD/i.test(text) || /X-WA-BIZ-/i.test(text);
                 const contact = maybeContact ? parseContactFromText(text) : null;
@@ -2527,7 +2540,7 @@ export default function AppShell() {
                     ].join(" ")}
                   >
                     <div className="text-sm font-semibold">
-                      {mine ? (me?.agentName ?? "Você") : (m.senderName ?? "Cliente")}
+                      {senderName}
                       {":"}
                     </div>
 
