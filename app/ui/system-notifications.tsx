@@ -191,13 +191,13 @@ export default function SystemNotifications() {
               type="button"
               aria-label="Fechar notificações"
               onClick={() => setPanelOpen(false)}
-              className="absolute inset-0 bg-[rgba(3,8,20,0.42)] backdrop-blur-sm"
+              className="absolute inset-0 bg-black/45"
             />
-            <div
+            <aside
               ref={panelRef}
-              className="pointer-events-auto absolute right-4 top-20 w-[min(390px,calc(100vw-1rem))] overflow-hidden rounded-[28px] border border-[color-mix(in_srgb,var(--foreground)_12%,var(--background))] bg-[var(--card)] shadow-[0_30px_80px_rgba(3,8,20,0.42)]"
+              className="pointer-events-auto absolute right-0 top-0 h-full w-full max-w-[420px] overflow-y-auto border-l border-[var(--border)] bg-[var(--card)] shadow-2xl"
             >
-              <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--border)] bg-[var(--card)] px-4 py-3">
                 <div>
                   <div className="text-sm font-semibold">Notificações</div>
                   <div className="text-[11px] text-[var(--muted)]">Tarefas e chat interno</div>
@@ -219,21 +219,21 @@ export default function SystemNotifications() {
                   </button>
                 </div>
               </div>
-              <div className="max-h-[min(70vh,520px)] overflow-y-auto p-2">
+              <div className="p-4">
                 {notifications.length === 0 ? (
-                  <div className="px-3 py-8 text-center text-sm text-[var(--muted)]">
+                  <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-10 text-center text-sm text-[var(--muted)]">
                     Nenhuma notificação por enquanto.
                   </div>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-3">
                     {notifications.map((notification) => (
                       <div
                         key={notification.id}
                         className={[
-                          "relative rounded-2xl px-3 py-3 text-left transition",
+                          "relative rounded-3xl border border-[var(--border)] px-4 py-4 text-left transition",
                           notification.read
-                            ? "bg-[color-mix(in_srgb,var(--card)_94%,white)] hover:bg-[color-mix(in_srgb,var(--surface-3)_70%,var(--card))]"
-                            : "bg-[color-mix(in_srgb,var(--primary)_12%,var(--card))] hover:bg-[color-mix(in_srgb,var(--primary)_16%,var(--card))]",
+                            ? "bg-[var(--surface-1)] hover:bg-[var(--surface-2)]"
+                            : "bg-[color-mix(in_srgb,var(--primary)_10%,var(--card))] hover:bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))]",
                         ].join(" ")}
                       >
                         <button
@@ -269,7 +269,7 @@ export default function SystemNotifications() {
                   </div>
                 )}
               </div>
-            </div>
+            </aside>
           </div>
         ) : null}
       </div>
