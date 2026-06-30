@@ -186,10 +186,16 @@ export default function SystemNotifications() {
         </button>
 
         {panelOpen ? (
-          <div className="fixed inset-0 z-[130] pointer-events-none">
+          <div className="fixed inset-0 z-[130]">
+            <button
+              type="button"
+              aria-label="Fechar notificações"
+              onClick={() => setPanelOpen(false)}
+              className="absolute inset-0 bg-[rgba(3,8,20,0.42)] backdrop-blur-sm"
+            />
             <div
               ref={panelRef}
-              className="pointer-events-auto absolute right-4 top-20 w-[min(390px,calc(100vw-1rem))] overflow-hidden rounded-[28px] border border-[var(--border)] bg-[var(--card)] shadow-[0_24px_60px_rgba(15,23,42,0.28)]"
+              className="pointer-events-auto absolute right-4 top-20 w-[min(390px,calc(100vw-1rem))] overflow-hidden rounded-[28px] border border-[color-mix(in_srgb,var(--foreground)_12%,var(--background))] bg-[var(--card)] shadow-[0_30px_80px_rgba(3,8,20,0.42)]"
             >
               <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
                 <div>
@@ -224,8 +230,10 @@ export default function SystemNotifications() {
                       <div
                         key={notification.id}
                         className={[
-                          "relative rounded-2xl px-3 py-3 text-left transition hover:bg-[var(--surface-1)]",
-                          notification.read ? "opacity-80" : "bg-[color-mix(in_srgb,var(--primary)_7%,transparent)]",
+                          "relative rounded-2xl px-3 py-3 text-left transition",
+                          notification.read
+                            ? "bg-[color-mix(in_srgb,var(--card)_94%,white)] hover:bg-[color-mix(in_srgb,var(--surface-3)_70%,var(--card))]"
+                            : "bg-[color-mix(in_srgb,var(--primary)_12%,var(--card))] hover:bg-[color-mix(in_srgb,var(--primary)_16%,var(--card))]",
                         ].join(" ")}
                       >
                         <button
