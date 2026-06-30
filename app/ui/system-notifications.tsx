@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   clearAllNotifications,
   clearNotification,
@@ -80,6 +80,7 @@ function formatTime(iso: number) {
 
 export default function SystemNotifications() {
   const router = useRouter();
+  const pathname = usePathname();
   const { notifications, toasts } = useSystemNotificationsStore();
   const [me, setMe] = useState<Agent | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -163,6 +164,8 @@ export default function SystemNotifications() {
 
   if (!me) return null;
 
+  const isWhatsapp = pathname === "/whatsapp";
+
   return (
     <>
       <div className="pointer-events-auto relative z-[120]">
@@ -195,7 +198,12 @@ export default function SystemNotifications() {
             />
             <aside
               ref={panelRef}
-              className="pointer-events-auto absolute right-0 top-0 h-full w-full max-w-[420px] overflow-y-auto border-l border-[var(--border)] bg-[var(--card)] shadow-2xl"
+              className={[
+                "pointer-events-auto absolute top-0 h-full overflow-y-auto bg-[var(--card)] shadow-2xl",
+                isWhatsapp
+                  ? "left-[clamp(320px,30vw,400px)] right-0 border-l border-[var(--border)]"
+                  : "right-0 w-full max-w-[420px] border-l border-[var(--border)]",
+              ].join(" ")}
             >
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--border)] bg-[var(--card)] px-4 py-3">
                 <div>
