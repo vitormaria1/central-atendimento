@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import {
   clearAllNotifications,
@@ -84,9 +85,10 @@ export default function SystemNotifications() {
   const { notifications, toasts } = useSystemNotificationsStore();
   const [me, setMe] = useState<Agent | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const bellButtonRef = useRef<HTMLButtonElement | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
 
   const unread = notifications.filter((notification) => !notification.read).length;
 
@@ -152,6 +154,10 @@ export default function SystemNotifications() {
   }, [panelOpen]);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     function onPointerDown(event: PointerEvent) {
       const target = event.target as Node | null;
       if (!target) return;
@@ -188,99 +194,103 @@ export default function SystemNotifications() {
           ) : null}
         </button>
 
-        {panelOpen ? (
-          <div className="fixed inset-0 z-[130]">
-            <button
-              type="button"
-              aria-label="Fechar notificações"
-              onClick={() => setPanelOpen(false)}
-              className="absolute inset-0 bg-black/45"
-            />
-            <aside
-              ref={panelRef}
-              className={[
-                "pointer-events-auto absolute top-0 h-full overflow-y-auto bg-[var(--card)] shadow-2xl",
-                isWhatsapp
-                  ? "left-[clamp(320px,30vw,400px)] right-0 border-l border-[var(--border)]"
-                  : "right-0 w-full max-w-[420px] border-l border-[var(--border)]",
-              ].join(" ")}
-            >
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--border)] bg-[var(--card)] px-4 py-3">
-                <div>
-                  <div className="text-sm font-semibold">Notificações</div>
-                  <div className="text-[11px] text-[var(--muted)]">Tarefas e chat interno</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => clearAllNotifications()}
-                    className="rounded-full border border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--muted)] hover:bg-[var(--surface-1)]"
-                  >
-                    Limpar tudo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPanelOpen(false)}
-                    className="rounded-full border border-[var(--border)] px-2.5 py-1.5 text-[11px] text-[var(--muted)] hover:bg-[var(--surface-1)]"
-                  >
-                    Fechar
-                  </button>
-                </div>
-              </div>
-              <div className="p-4">
-                {notifications.length === 0 ? (
-                  <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-10 text-center text-sm text-[var(--muted)]">
-                    Nenhuma notificação por enquanto.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={[
-                          "relative rounded-3xl border border-[var(--border)] px-4 py-4 text-left transition",
-                          notification.read
-                            ? "bg-[var(--surface-1)] hover:bg-[var(--surface-2)]"
-                            : "bg-[color-mix(in_srgb,var(--primary)_10%,var(--card))] hover:bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))]",
-                        ].join(" ")}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPanelOpen(false);
-                            if (notification.href) router.push(notification.href);
-                            if (!notification.read) markAllNotificationsRead();
-                          }}
-                          className="w-full text-left pr-10"
-                        >
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium">{notification.title}</div>
-                            <div className="mt-1 text-xs text-[var(--muted)]">{notification.body}</div>
-                            <div className="mt-2 text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
-                              {notification.kind === "task_assigned" ? "Tarefa" : "Chat interno"} • {formatTime(notification.createdAt)}
-                            </div>
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            clearNotification(notification.id);
-                          }}
-                          className="absolute right-2 top-2 rounded-full px-2 py-1 text-[11px] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
-                          aria-label="Remover notificação"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </aside>
-          </div>
-        ) : null}
       </div>
+
+      {mounted && panelOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-[9999]">
+              <button
+                type="button"
+                aria-label="Fechar notificações"
+                onClick={() => setPanelOpen(false)}
+                className="absolute inset-0 bg-black/45"
+              />
+              <aside
+                ref={panelRef}
+                className={[
+                  "pointer-events-auto absolute top-0 h-full overflow-y-auto bg-[var(--card)] shadow-2xl",
+                  isWhatsapp
+                    ? "left-[clamp(320px,30vw,400px)] right-0 border-l border-[var(--border)]"
+                    : "right-0 w-full max-w-[420px] border-l border-[var(--border)]",
+                ].join(" ")}
+              >
+                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--border)] bg-[var(--card)] px-4 py-3">
+                  <div>
+                    <div className="text-sm font-semibold">Notificações</div>
+                    <div className="text-[11px] text-[var(--muted)]">Tarefas e chat interno</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => clearAllNotifications()}
+                      className="rounded-full border border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--muted)] hover:bg-[var(--surface-1)]"
+                    >
+                      Limpar tudo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPanelOpen(false)}
+                      className="rounded-full border border-[var(--border)] px-2.5 py-1.5 text-[11px] text-[var(--muted)] hover:bg-[var(--surface-1)]"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                </div>
+                <div className="p-4">
+                  {notifications.length === 0 ? (
+                    <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface-1)] px-4 py-10 text-center text-sm text-[var(--muted)]">
+                      Nenhuma notificação por enquanto.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {notifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          className={[
+                            "relative rounded-3xl border border-[var(--border)] px-4 py-4 text-left transition",
+                            notification.read
+                              ? "bg-[var(--surface-1)] hover:bg-[var(--surface-2)]"
+                              : "bg-[color-mix(in_srgb,var(--primary)_10%,var(--card))] hover:bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))]",
+                          ].join(" ")}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPanelOpen(false);
+                              if (notification.href) router.push(notification.href);
+                              if (!notification.read) markAllNotificationsRead();
+                            }}
+                            className="w-full text-left pr-10"
+                          >
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium">{notification.title}</div>
+                              <div className="mt-1 text-xs text-[var(--muted)]">{notification.body}</div>
+                              <div className="mt-2 text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
+                                {notification.kind === "task_assigned" ? "Tarefa" : "Chat interno"} • {formatTime(notification.createdAt)}
+                              </div>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              clearNotification(notification.id);
+                            }}
+                            className="absolute right-2 top-2 rounded-full px-2 py-1 text-[11px] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
+                            aria-label="Remover notificação"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </aside>
+            </div>,
+            document.body,
+          )
+        : null}
 
       <div className="pointer-events-none fixed right-4 top-24 z-[135] w-[min(360px,calc(100vw-1rem))] space-y-2">
         {toasts.map((toast) => (
