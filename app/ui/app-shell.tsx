@@ -1398,7 +1398,7 @@ export default function AppShell() {
     if (!selectedChatId) return;
     const kind = inferMediaType(file);
     const type = opts?.recorded ? "ptt" : kind;
-    const caption = (opts?.caption ?? composer).trim();
+    const caption = (opts?.caption ?? "").trim();
     const form = new FormData();
     form.set("type", type);
     form.set("file", file, file.name);
@@ -1420,11 +1420,12 @@ export default function AppShell() {
   async function sendMediaFile(file: File, opts?: { recorded?: boolean; caption?: string }) {
     if (!selectedChatId) return;
     const clientRequestId = crypto.randomUUID();
+    const caption = opts?.caption?.trim() ?? "";
     setUploading(true);
     try {
-      await uploadMediaFile(file, { ...opts, clientRequestId });
+      await uploadMediaFile(file, { ...opts, caption, clientRequestId });
+      setComposer("");
       await refreshAll("sent-media");
-      if (opts?.caption === undefined) setComposer("");
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Falha ao enviar arquivo");
     } finally {
@@ -1447,10 +1448,10 @@ export default function AppShell() {
           clientRequestId: attachment.clientRequestId,
         });
       }
-      await refreshAll("sent-media");
       for (const attachment of attachments) URL.revokeObjectURL(attachment.objectUrl);
       setComposer("");
       setPendingAttachments([]);
+      await refreshAll("sent-media");
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Falha ao enviar arquivos");
     } finally {

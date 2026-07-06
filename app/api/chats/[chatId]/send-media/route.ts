@@ -22,10 +22,25 @@ const bodySchema = z.object({
   clientRequestId: z.string().min(8).max(80).optional(),
 });
 
-const MAX_MEDIA_BYTES = 9_000_000;
+const MAX_MEDIA_BYTES = 20_000_000;
 
 function agentLabel(agentName: "Vanderlei" | "Gustavo") {
   return `*${agentName}:*`;
+}
+
+function guessMimeFromFilename(fileName?: string | null) {
+  const name = (fileName ?? "").toLowerCase();
+  if (name.endsWith(".pdf")) return "application/pdf";
+  if (name.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  if (name.endsWith(".doc")) return "application/msword";
+  if (name.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (name.endsWith(".xls")) return "application/vnd.ms-excel";
+  if (name.endsWith(".pptx")) return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+  if (name.endsWith(".ppt")) return "application/vnd.ms-powerpoint";
+  if (name.endsWith(".txt")) return "text/plain";
+  if (name.endsWith(".csv")) return "text/csv";
+  if (name.endsWith(".zip")) return "application/zip";
+  return undefined;
 }
 
 async function fileToBase64(file: File) {
@@ -77,8 +92,8 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
       return NextResponse.json({ error: "File too large" }, { status: 413 });
     }
     base64 = await fileToBase64(uploadedFile);
-    mimetype = mimetype ?? (uploadedFile.type || undefined);
     fileName = fileName ?? (uploadedFile.name || undefined);
+    mimetype = mimetype ?? (uploadedFile.type || guessMimeFromFilename(fileName) || undefined);
   } else {
     const raw = await req.json().catch(() => null);
     const parsed = bodySchema.safeParse(raw);
@@ -92,14 +107,14 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
     base64 = parsed.data.base64?.trim();
 
     if (!base64) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
-    if (base64.length > 12_000_000) {
+    if (base64.length > 28_000_000) {
       return NextResponse.json({ error: "File too large" }, { status: 413 });
     }
   }
 
   const text = caption ? `${agentLabel(session.agentName)}\n${caption}` : agentLabel(session.agentName);
 
-  const mime = mimetype?.trim() || "";
+  const mime = (mimetype?.trim() || guessMimeFromFilename(fileName) || "").trim();
   const payloadBase64 = base64.trim();
   // A API aceita "base64 puro" e também "data URI". Para maximizar compatibilidade, enviamos como data URI
   // quando tivermos o mimeType.
