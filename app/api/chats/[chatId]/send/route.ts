@@ -51,9 +51,6 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
   if (existing?.inserted === false && existing.status === "pending") {
     return NextResponse.json({ error: "Request already in progress", clientRequestId }, { status: 409 });
   }
-  if (existing?.inserted === false && existing.status === "failed") {
-    return NextResponse.json({ error: "Previous request failed", clientRequestId }, { status: 409 });
-  }
 
   try {
     log("info", "whatsapp.text.send", {

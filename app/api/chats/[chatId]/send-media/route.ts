@@ -129,9 +129,6 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
   if (reserved?.inserted === false && reserved.status === "pending") {
     return NextResponse.json({ error: "Request already in progress", clientRequestId }, { status: 409 });
   }
-  if (reserved?.inserted === false && reserved.status === "failed") {
-    return NextResponse.json({ error: "Previous request failed", clientRequestId }, { status: 409 });
-  }
 
   log("info", "whatsapp.media.send", {
     chatId: id,
