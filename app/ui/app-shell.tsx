@@ -545,6 +545,7 @@ function capDownloadCache(
 
 type PendingAttachment = {
   id: string;
+  clientRequestId: string;
   file: File;
   objectUrl: string;
   kind: "image" | "video" | "audio" | "document";
@@ -660,6 +661,7 @@ export default function AppShell() {
   const sidebarMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const dragCounterRef = useRef(0);
   const pendingAttachmentsRef = useRef<PendingAttachment[]>([]);
+  const textRequestRef = useRef<{ draft: string; clientRequestId: string } | null>(null);
 
   const selectedChat = useMemo(
     () => chats.find((c) => c.chatId === selectedChatId) ?? null,
@@ -1275,19 +1277,24 @@ export default function AppShell() {
       return;
     }
     if (!text) return;
+    const existingRequest = textRequestRef.current;
+    const clientRequestId =
+      existingRequest && existingRequest.draft === text ? existingRequest.clientRequestId : crypto.randomUUID();
+    textRequestRef.current = { draft: text, clientRequestId };
 
     setSending(true);
     try {
       const res = await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}/send`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, clientRequestId }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(data?.error || "Falha ao enviar");
       }
       setComposer("");
+      textRequestRef.current = null;
       await refreshAll("sent");
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Falha ao enviar");
@@ -1374,6 +1381,7 @@ export default function AppShell() {
     const objectUrl = URL.createObjectURL(file);
     return {
       id: `${Date.now()}:${Math.random().toString(36).slice(2)}`,
+      clientRequestId: crypto.randomUUID(),
       file,
       objectUrl,
       kind,
@@ -1386,7 +1394,7 @@ export default function AppShell() {
     setPendingAttachments((prev) => [...prev, ...files.map((file) => createPendingAttachment(file, opts?.recorded))]);
   }
 
-  async function uploadMediaFile(file: File, opts?: { recorded?: boolean; caption?: string }) {
+  async function uploadMediaFile(file: File, opts?: { recorded?: boolean; caption?: string; clientRequestId?: string }) {
     if (!selectedChatId) return;
     const kind = inferMediaType(file);
     const type = opts?.recorded ? "ptt" : kind;
@@ -1397,6 +1405,7 @@ export default function AppShell() {
     form.set("fileName", file.name);
     if (file.type) form.set("mimetype", file.type);
     if (caption.length > 0) form.set("caption", caption);
+    if (opts?.clientRequestId) form.set("clientRequestId", opts.clientRequestId);
 
     const res = await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}/send-media`, {
       method: "POST",
@@ -1410,9 +1419,10 @@ export default function AppShell() {
 
   async function sendMediaFile(file: File, opts?: { recorded?: boolean; caption?: string }) {
     if (!selectedChatId) return;
+    const clientRequestId = crypto.randomUUID();
     setUploading(true);
     try {
-      await uploadMediaFile(file, opts);
+      await uploadMediaFile(file, { ...opts, clientRequestId });
       await refreshAll("sent-media");
       if (opts?.caption === undefined) setComposer("");
     } catch (err) {
@@ -1434,6 +1444,7 @@ export default function AppShell() {
         await uploadMediaFile(attachment.file, {
           recorded: attachment.recorded,
           caption: idx === 0 ? caption : "",
+          clientRequestId: attachment.clientRequestId,
         });
       }
       await refreshAll("sent-media");

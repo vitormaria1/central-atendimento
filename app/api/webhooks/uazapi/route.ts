@@ -5,6 +5,7 @@ import { getEnv } from "@/lib/env";
 import { dbQuery } from "@/lib/db";
 import { publish, recordWebhookDebug } from "@/lib/stream";
 import { parsePresenceUpdate } from "@/lib/chat-presence";
+import { recordWebhookEvent } from "@/lib/whatsapp-ops";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,12 @@ export const POST = withApi(async (req: Request) => {
   const parsed = payloadSchema.safeParse(maybeItem);
   if (!parsed.success) {
     recordWebhookDebug({ at: Date.now(), accepted: false, reason: "invalid_payload", payload: maybeItem });
+    void recordWebhookEvent({
+      eventType: "invalid_payload",
+      accepted: false,
+      reason: "invalid_payload",
+      payload: maybeItem,
+    }).catch(() => null);
     return NextResponse.json({ ok: true, accepted: false }, { status: 200 });
   }
 
@@ -84,6 +91,15 @@ export const POST = withApi(async (req: Request) => {
       payload: parsed.data,
     });
   }
+  void recordWebhookEvent({
+    eventType: parsed.data.EventType,
+    chatId,
+    accepted,
+    reason: accepted
+      ? null
+      : `rejected:${baseUrlOk ? "" : "baseUrl"}${instanceOk ? "" : "|instance"}${tokenOk ? "" : "|token"}`,
+    payload: parsed.data,
+  }).catch(() => null);
 
   if (accepted) {
     const eventType = (parsed.data.EventType ?? "").toLowerCase();

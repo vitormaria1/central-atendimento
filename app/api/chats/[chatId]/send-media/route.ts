@@ -4,6 +4,11 @@ import { getSession } from "@/lib/auth";
 import { withApi } from "@/lib/api";
 import { log } from "@/lib/logger";
 import { sendMedia } from "@/lib/uazapi";
+import {
+  completeOutboundRequest,
+  failOutboundRequest,
+  reserveOutboundRequest,
+} from "@/lib/whatsapp-ops";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,6 +19,7 @@ const bodySchema = z.object({
   fileName: z.string().min(1).max(200).optional(),
   mimetype: z.string().min(1).max(100).optional(),
   caption: z.string().max(4000).optional(),
+  clientRequestId: z.string().min(8).max(80).optional(),
 });
 
 const MAX_MEDIA_BYTES = 9_000_000;
@@ -41,6 +47,7 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
   let mimetype: string | undefined;
   let base64: string | undefined;
   let uploadedFile: File | null = null;
+  let clientRequestId: string | undefined;
 
   if (contentType.includes("multipart/form-data")) {
     const form = await req.formData().catch(() => null);
@@ -50,6 +57,7 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
       fileName: form.get("fileName"),
       mimetype: form.get("mimetype"),
       caption: form.get("caption"),
+      clientRequestId: form.get("clientRequestId"),
     });
     if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
@@ -57,6 +65,7 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
     caption = parsed.data.caption?.trim() ?? "";
     fileName = parsed.data.fileName?.trim() || undefined;
     mimetype = parsed.data.mimetype?.trim() || undefined;
+    clientRequestId = parsed.data.clientRequestId?.trim() || undefined;
 
     const fileField = form.get("file");
     if (!(fileField instanceof File)) {
@@ -79,6 +88,7 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
     caption = parsed.data.caption?.trim() ?? "";
     fileName = parsed.data.fileName?.trim() || undefined;
     mimetype = parsed.data.mimetype?.trim() || undefined;
+    clientRequestId = parsed.data.clientRequestId?.trim() || undefined;
     base64 = parsed.data.base64?.trim();
 
     if (!base64) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
@@ -96,6 +106,33 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
   const filePayload = mime ? `data:${mime};base64,${payloadBase64}` : payloadBase64;
 
   const sizeBytes = uploadedFile?.size ?? Math.floor((payloadBase64.length * 3) / 4);
+  clientRequestId = clientRequestId || crypto.randomUUID();
+  const reserved = await reserveOutboundRequest({
+    clientRequestId,
+    kind: "media",
+    chatId: id,
+    requestMeta: {
+      type,
+      fileName: fileName ?? null,
+      mimetype: mime || null,
+      sizeBytes,
+      transport: uploadedFile ? "multipart" : "json",
+      captionLength: caption.length,
+    },
+    createdByAgentId: session.agentId,
+  });
+  if (reserved?.inserted === false && reserved.status === "completed") {
+    const responseMeta = reserved.responseMeta ?? {};
+    const messageId = typeof reserved.resultMessageId === "string" ? reserved.resultMessageId : null;
+    return NextResponse.json({ ok: true, messageId, ...responseMeta, idempotent: true, clientRequestId });
+  }
+  if (reserved?.inserted === false && reserved.status === "pending") {
+    return NextResponse.json({ error: "Request already in progress", clientRequestId }, { status: 409 });
+  }
+  if (reserved?.inserted === false && reserved.status === "failed") {
+    return NextResponse.json({ error: "Previous request failed", clientRequestId }, { status: 409 });
+  }
+
   log("info", "whatsapp.media.send", {
     chatId: id,
     type,
@@ -103,6 +140,7 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
     mimetype: mime || null,
     sizeBytes,
     transport: uploadedFile ? "multipart" : "json",
+    clientRequestId,
   });
 
   try {
@@ -122,9 +160,32 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
       fileName: fileName ?? null,
       mimetype: mime || null,
       sizeBytes,
+      clientRequestId,
     });
 
-    return NextResponse.json(result);
+    const messageId = typeof result.messageid === "string" ? result.messageid : typeof result.id === "string" ? result.id : null;
+    try {
+      await completeOutboundRequest({
+        clientRequestId,
+        responseMeta: {
+          ok: true,
+          messageId,
+        },
+        resultMessageId: messageId,
+      });
+    } catch (persistErr) {
+      log("error", "whatsapp.media.send.persist_failed", {
+        chatId: id,
+        type,
+        fileName: fileName ?? null,
+        mimetype: mime || null,
+        sizeBytes,
+        clientRequestId,
+        error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+      });
+    }
+
+    return NextResponse.json({ ...result, clientRequestId });
   } catch (err) {
     log("error", "whatsapp.media.send.failed", {
       chatId: id,
@@ -132,12 +193,30 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
       fileName: fileName ?? null,
       mimetype: mime || null,
       sizeBytes,
+      clientRequestId,
       error: err instanceof Error ? err.message : String(err),
     });
+    try {
+      await failOutboundRequest({
+        clientRequestId,
+        errorText: err instanceof Error ? err.message : String(err),
+      });
+    } catch (persistErr) {
+      log("error", "whatsapp.media.send.fail_persist_failed", {
+        chatId: id,
+        type,
+        fileName: fileName ?? null,
+        mimetype: mime || null,
+        sizeBytes,
+        clientRequestId,
+        error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+      });
+    }
     return NextResponse.json(
       {
         error: "Failed to send media",
         details: err instanceof Error ? err.message : String(err),
+        clientRequestId,
       },
       { status: 502 },
     );
