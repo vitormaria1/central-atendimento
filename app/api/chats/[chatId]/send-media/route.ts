@@ -43,6 +43,10 @@ function guessMimeFromFilename(fileName?: string | null) {
   return undefined;
 }
 
+function formValueToString(value: FormDataEntryValue | null) {
+  return typeof value === "string" ? value.trim() : undefined;
+}
+
 async function fileToBase64(file: File) {
   const buf = Buffer.from(await file.arrayBuffer());
   return buf.toString("base64");
@@ -68,19 +72,19 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
     const form = await req.formData().catch(() => null);
     if (!form) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
     const parsed = bodySchema.safeParse({
-      type: form.get("type"),
-      fileName: form.get("fileName"),
-      mimetype: form.get("mimetype"),
-      caption: form.get("caption"),
-      clientRequestId: form.get("clientRequestId"),
+      type: formValueToString(form.get("type")),
+      fileName: formValueToString(form.get("fileName")),
+      mimetype: formValueToString(form.get("mimetype")),
+      caption: formValueToString(form.get("caption")),
+      clientRequestId: formValueToString(form.get("clientRequestId")),
     });
     if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
     type = parsed.data.type;
-    caption = parsed.data.caption?.trim() ?? "";
-    fileName = parsed.data.fileName?.trim() || undefined;
-    mimetype = parsed.data.mimetype?.trim() || undefined;
-    clientRequestId = parsed.data.clientRequestId?.trim() || undefined;
+    caption = parsed.data.caption ?? "";
+    fileName = parsed.data.fileName || undefined;
+    mimetype = parsed.data.mimetype || undefined;
+    clientRequestId = parsed.data.clientRequestId || undefined;
 
     const fileField = form.get("file");
     if (!(fileField instanceof File)) {
