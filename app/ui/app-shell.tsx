@@ -1361,17 +1361,6 @@ export default function AppShell() {
     return "Documento";
   }
 
-  async function fileToBase64(file: File) {
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error("Falha ao ler arquivo"));
-      reader.onload = () => resolve(String(reader.result ?? ""));
-      reader.readAsDataURL(file);
-    });
-    const parts = dataUrl.split(",");
-    return parts.length > 1 ? parts[1]! : dataUrl;
-  }
-
   function inferMediaType(file: File): "image" | "video" | "audio" | "document" {
     const mt = (file.type ?? "").toLowerCase();
     if (mt.startsWith("image/")) return "image";
@@ -1399,21 +1388,19 @@ export default function AppShell() {
 
   async function uploadMediaFile(file: File, opts?: { recorded?: boolean; caption?: string }) {
     if (!selectedChatId) return;
-    const base64 = await fileToBase64(file);
     const kind = inferMediaType(file);
     const type = opts?.recorded ? "ptt" : kind;
     const caption = (opts?.caption ?? composer).trim();
+    const form = new FormData();
+    form.set("type", type);
+    form.set("file", file, file.name);
+    form.set("fileName", file.name);
+    if (file.type) form.set("mimetype", file.type);
+    if (caption.length > 0) form.set("caption", caption);
 
     const res = await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}/send-media`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        type,
-        base64,
-        fileName: file.name,
-        mimetype: file.type || undefined,
-        caption: caption.length > 0 ? caption : undefined,
-      }),
+      body: form,
     });
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string; details?: string } | null;

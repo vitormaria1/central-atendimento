@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { withApi } from "@/lib/api";
+import { log } from "@/lib/logger";
 import { publish } from "@/lib/stream";
 import { sendText } from "@/lib/uazapi";
 
@@ -24,14 +25,37 @@ export const POST = withApi(async (req: Request, ctx: RouteContext<"/api/chats/[
   const decodedChatId = decodeURIComponent(chatId);
   const textWithSignature = `*${session.agentName}:*\n${parsed.data.text}`;
 
-  const result = await sendText({
-    number: decodedChatId,
-    text: textWithSignature,
-    linkPreview: parsed.data.linkPreview ?? false,
-  });
+  try {
+    log("info", "whatsapp.text.send", {
+      chatId: decodedChatId,
+      agentId: session.agentId,
+      textLength: parsed.data.text.length,
+      linkPreview: parsed.data.linkPreview ?? false,
+    });
 
-  const messageId = typeof result.messageid === "string" ? result.messageid : typeof result.id === "string" ? result.id : null;
+    const result = await sendText({
+      number: decodedChatId,
+      text: textWithSignature,
+      linkPreview: parsed.data.linkPreview ?? false,
+    });
 
-  publish({ type: "chat_updated", chatId: decodedChatId });
-  return NextResponse.json({ ok: true, messageId });
+    const messageId = typeof result.messageid === "string" ? result.messageid : typeof result.id === "string" ? result.id : null;
+
+    publish({ type: "chat_updated", chatId: decodedChatId });
+    return NextResponse.json({ ok: true, messageId });
+  } catch (err) {
+    log("error", "whatsapp.text.send.failed", {
+      chatId: decodedChatId,
+      agentId: session.agentId,
+      textLength: parsed.data.text.length,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return NextResponse.json(
+      {
+        error: "Failed to send message",
+        details: err instanceof Error ? err.message : String(err),
+      },
+      { status: 502 },
+    );
+  }
 });

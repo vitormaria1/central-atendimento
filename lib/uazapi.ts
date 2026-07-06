@@ -1,4 +1,5 @@
 import { getEnv } from "./env";
+import { log } from "./logger";
 
 export type UazapiChat = {
   id?: string;
@@ -69,6 +70,12 @@ async function uazapiFetch<T>(path: string, init: RequestInit = {}) {
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    log("warn", "uazapi.request.failed", {
+      path,
+      status: res.status,
+      statusText: res.statusText,
+      responsePreview: text.slice(0, 500),
+    });
     throw new Error(`UAZAPI ${res.status} ${res.statusText}: ${text}`);
   }
   return (await res.json()) as T;
@@ -231,6 +238,10 @@ export async function sendText(params: {
       }),
     },
   );
+  log("info", "uazapi.sendText.ok", {
+    path: sendTextPath,
+    hasMessageId: typeof data.messageid === "string" || typeof data.id === "string",
+  });
   return data;
 }
 
@@ -256,6 +267,11 @@ export async function sendMedia(params: {
       readchat: params.readchat ?? false,
       delay: params.delay ?? 0,
     }),
+  });
+  log("info", "uazapi.sendMedia.ok", {
+    path: "/send/media",
+    type: params.type,
+    hasMessageId: typeof data.messageid === "string" || typeof data.id === "string",
   });
   return data;
 }
