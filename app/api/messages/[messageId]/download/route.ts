@@ -18,6 +18,12 @@ function safeFilename(input: string) {
   return cleaned.replace(/[^\w.\-() ]+/g, "_").slice(0, 160) || "arquivo";
 }
 
+function copyToArrayBuffer(bytes: Uint8Array) {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+}
+
 export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/messages/[messageId]/download">) => {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -51,7 +57,7 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/message
 
       const filenameSource = fileURL || `message-${id}`;
       const filename = safeFilename(filenameSource);
-      const body = new Blob([bytes], { type: mimetype });
+      const body = copyToArrayBuffer(bytes);
       return new Response(body, {
         headers: {
           "content-type": mimetype,
