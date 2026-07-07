@@ -567,7 +567,10 @@ type FileDragEvent = {
 };
 
 type ClipboardWithFiles = {
+  currentTarget: EventTarget | null;
+  target: EventTarget | null;
   preventDefault: () => void;
+  stopPropagation: () => void;
   clipboardData: DataTransfer;
 };
 
@@ -1322,9 +1325,11 @@ export default function AppShell() {
 
   function handlePaste(event: ClipboardWithFiles) {
     if (!selectedChatId) return;
+    if (event.currentTarget !== event.target) return;
     const files = extractClipboardFiles(event.clipboardData);
     if (files.length === 0) return;
     event.preventDefault();
+    event.stopPropagation();
     addPendingAttachments(files);
   }
 
@@ -1571,6 +1576,10 @@ export default function AppShell() {
     },
     [downloadByMessageId],
   );
+
+  function downloadHrefForMessageId(messageId: string) {
+    return `/api/messages/${encodeURIComponent(messageId)}/download?raw=1`;
+  }
 
   // Scroll para o final quando o chat abre/atualiza pela primeira vez após a troca.
   useLayoutEffect(() => {
@@ -2643,16 +2652,27 @@ export default function AppShell() {
                             <div className="text-xs text-[var(--muted)]">Áudio sem ID</div>
                           )
                         ) : mediaUrl && showImage ? (
-                          <a href={mediaUrl} target="_blank" rel="noreferrer" className="block">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={mediaUrl}
-                              alt="Imagem enviada"
-                              className="max-w-full rounded-[16px] ring-1 ring-[color-mix(in_srgb,var(--foreground)_10%,var(--background))]"
-                              style={{ maxHeight: 420 }}
-                              loading="lazy"
-                            />
-                          </a>
+                          <div className="w-fit max-w-full overflow-hidden rounded-[16px] bg-[color-mix(in_srgb,var(--surface-2)_92%,var(--background))] ring-1 ring-[color-mix(in_srgb,var(--foreground)_10%,var(--background))]">
+                            <a href={mediaUrl} target="_blank" rel="noreferrer" className="block">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={mediaUrl}
+                                alt="Imagem enviada"
+                                className="max-w-full rounded-[16px]"
+                                style={{ maxHeight: 420 }}
+                                loading="lazy"
+                              />
+                            </a>
+                            <div className="flex items-center justify-end gap-2 border-t border-[color-mix(in_srgb,var(--foreground)_10%,var(--background))] px-3 py-2">
+                              <a
+                                href={id ? downloadHrefForMessageId(id) : mediaUrl}
+                                download={fileNameFromUrl(mediaUrl, "imagem")}
+                                className="text-sm rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 hover:bg-white/8"
+                              >
+                                Baixar
+                              </a>
+                            </div>
+                          </div>
                         ) : mediaUrl && showVideo ? (
                           <div className="rounded-[16px] bg-[color-mix(in_srgb,var(--surface-2)_92%,var(--background))] p-3 ring-1 ring-[color-mix(in_srgb,var(--foreground)_10%,var(--background))]">
                             <video controls preload="metadata" src={mediaUrl} className="w-[520px] max-w-full rounded-[16px]" />
@@ -2664,6 +2684,13 @@ export default function AppShell() {
                                 className="text-sm rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 hover:bg-white/8"
                               >
                                 Abrir
+                              </a>
+                              <a
+                                href={id ? downloadHrefForMessageId(id) : mediaUrl}
+                                download
+                                className="text-sm rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 hover:bg-white/8"
+                              >
+                                Baixar
                               </a>
                             </div>
                           </div>
@@ -2695,7 +2722,7 @@ export default function AppShell() {
                                 Abrir
                               </a>
                               <a
-                                href={mediaUrl}
+                                href={id ? downloadHrefForMessageId(id) : mediaUrl}
                                 download
                                 className="text-sm rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 hover:bg-white/8"
                               >
@@ -2730,7 +2757,7 @@ export default function AppShell() {
                                 Abrir
                               </a>
                               <a
-                                href={mediaUrl}
+                                href={id ? downloadHrefForMessageId(id) : mediaUrl}
                                 download
                                 className="text-sm rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 hover:bg-white/8"
                               >

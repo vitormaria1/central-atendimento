@@ -42,6 +42,7 @@ export default function TeamChatShell() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const lastIdRef = useRef<number>(0);
+  const messageIdsRef = useRef<Set<string>>(new Set());
   const [streamSinceId, setStreamSinceId] = useState<number | null>(null);
   const [threadRoot, setThreadRoot] = useState<TeamMessage | null>(null);
   const [threadMessages, setThreadMessages] = useState<TeamMessage[]>([]);
@@ -57,6 +58,41 @@ export default function TeamChatShell() {
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, []);
+
+  function resetMessageTracking(items: TeamMessage[] = []) {
+    messageIdsRef.current = new Set(items.map((item) => item.id));
+    const last = items[items.length - 1];
+    if (!last?.id) {
+      lastIdRef.current = 0;
+      return;
+    }
+    const idNum = Number.parseInt(last.id, 10);
+    lastIdRef.current = Number.isFinite(idNum) ? idNum : 0;
+  }
+
+  function appendUniqueMessages(items: TeamMessage[]) {
+    if (items.length === 0) return;
+
+    setMessages((prev) => {
+      const seen = new Set(messageIdsRef.current);
+      const next = [...prev];
+      let changed = false;
+
+      for (const item of items) {
+        if (seen.has(item.id)) continue;
+        seen.add(item.id);
+        next.push(item);
+        changed = true;
+
+        const idNum = Number.parseInt(item.id, 10);
+        if (Number.isFinite(idNum)) lastIdRef.current = Math.max(lastIdRef.current, idNum);
+      }
+
+      if (!changed) return prev;
+      messageIdsRef.current = seen;
+      return next;
+    });
+  }
 
   const loadMe = useCallback(async () => {
     const res = await fetch("/api/me", { cache: "no-store" });
@@ -87,11 +123,7 @@ export default function TeamChatShell() {
     }
     const data = (await res.json()) as { items: TeamMessage[] };
     setMessages(data.items);
-    const last = data.items[data.items.length - 1];
-    if (last?.id) {
-      const idNum = Number.parseInt(last.id, 10);
-      if (Number.isFinite(idNum)) lastIdRef.current = idNum;
-    }
+    resetMessageTracking(data.items);
     setStreamSinceId(lastIdRef.current);
     queueMicrotask(scrollToBottom);
   }, [channel, scrollToBottom]);
@@ -118,13 +150,7 @@ export default function TeamChatShell() {
     if (!res.ok) return;
     const data = (await res.json()) as { items: TeamMessage[] };
     if (!data.items.length) return;
-    setMessages((prev) => {
-      const next = [...prev, ...data.items];
-      const last = data.items[data.items.length - 1];
-      const idNum = last?.id ? Number.parseInt(last.id, 10) : Number.NaN;
-      if (Number.isFinite(idNum)) lastIdRef.current = Math.max(lastIdRef.current, idNum);
-      return next;
-    });
+    appendUniqueMessages(data.items);
     queueMicrotask(scrollToBottom);
   }, [channel, scrollToBottom]);
 
@@ -263,11 +289,13 @@ export default function TeamChatShell() {
   }, [loadChannels, loadMe]);
 
   useEffect(() => {
+    setStreamSinceId(null);
     void loadInitial();
     setThreadRoot(null);
     setThreadMessages([]);
     setSearch("");
     setSearchResults([]);
+    resetMessageTracking();
   }, [channel, loadInitial]);
 
   useEffect(() => {
@@ -292,12 +320,7 @@ export default function TeamChatShell() {
         const data = JSON.parse(ev.data) as { type: string; item?: TeamMessage };
         if (data.type === "ping" || data.type === "hello") return;
         if (data.type === "message" && data.item) {
-          setMessages((prev) => {
-            if (prev.length > 0 && prev[prev.length - 1]?.id === data.item!.id) return prev;
-            const idNum = Number.parseInt(data.item!.id, 10);
-            if (Number.isFinite(idNum)) lastIdRef.current = Math.max(lastIdRef.current, idNum);
-            return [...prev, data.item!];
-          });
+          appendUniqueMessages([data.item]);
           queueMicrotask(scrollToBottom);
         }
       };

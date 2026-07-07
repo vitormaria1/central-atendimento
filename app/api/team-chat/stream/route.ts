@@ -7,8 +7,11 @@ import { dbQuery } from "@/lib/db";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function encodeSse(data: unknown) {
-  return `data: ${JSON.stringify(data)}\n\n`;
+function encodeSse(data: unknown, id?: string) {
+  const lines: string[] = [];
+  if (id) lines.push(`id: ${id}`);
+  lines.push(`data: ${JSON.stringify(data)}`);
+  return `${lines.join("\n")}\n\n`;
 }
 
 const querySchema = z.object({
@@ -29,7 +32,10 @@ export const GET = withApi(async (req: Request) => {
   if (!parsed.success) return NextResponse.json({ error: "Invalid query" }, { status: 400 });
 
   const channel = (parsed.data.channel ?? "geral").trim() || "geral";
-  let lastId = parsed.data.sinceId ? Number.parseInt(parsed.data.sinceId, 10) : 0;
+  const lastEventId = req.headers.get("last-event-id");
+  const sinceId = parsed.data.sinceId ? Number.parseInt(parsed.data.sinceId, 10) : 0;
+  const resumedId = lastEventId ? Number.parseInt(lastEventId, 10) : 0;
+  let lastId = Math.max(Number.isFinite(sinceId) ? sinceId : 0, Number.isFinite(resumedId) ? resumedId : 0);
   if (!Number.isFinite(lastId)) lastId = 0;
 
   const encoder = new TextEncoder();
@@ -37,7 +43,7 @@ export const GET = withApi(async (req: Request) => {
 
   const stream = new ReadableStream({
     start(controller) {
-      const send = (event: unknown) => controller.enqueue(encoder.encode(encodeSse(event)));
+      const send = (event: unknown, id?: string) => controller.enqueue(encoder.encode(encodeSse(event, id)));
       send({ type: "hello", channel });
 
       const heartbeat = setInterval(() => send({ type: "ping", at: Date.now() }), 25_000);
@@ -77,7 +83,7 @@ export const GET = withApi(async (req: Request) => {
                   body: row.body,
                   createdAt: row.created_at,
                 },
-              });
+              }, row.id);
             }
 
             await sleep(1500);
