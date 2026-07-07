@@ -51,7 +51,7 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/message
 
       const filenameSource = fileURL || `message-${id}`;
       const filename = safeFilename(filenameSource);
-      const body = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+      const body = new Blob([bytes], { type: mimetype });
       return new Response(body, {
         headers: {
           "content-type": mimetype,
