@@ -51,7 +51,8 @@ export const GET = withApi(async (_req: Request, ctx: RouteContext<"/api/message
 
       const filenameSource = fileURL || `message-${id}`;
       const filename = safeFilename(filenameSource);
-      return new Response(bytes, {
+      const body = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+      return new Response(body, {
         headers: {
           "content-type": mimetype,
           "content-disposition": `attachment; filename="${filename}"`,
