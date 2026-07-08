@@ -665,6 +665,7 @@ export default function AppShell() {
   const dragCounterRef = useRef(0);
   const pendingAttachmentsRef = useRef<PendingAttachment[]>([]);
   const textRequestRef = useRef<{ draft: string; clientRequestId: string } | null>(null);
+  const outboundInFlightRef = useRef(false);
 
   const selectedChat = useMemo(
     () => chats.find((c) => c.chatId === selectedChatId) ?? null,
@@ -1273,6 +1274,7 @@ export default function AppShell() {
 
   async function sendMessage() {
     if (!selectedChatId) return;
+    if (outboundInFlightRef.current) return;
     const text = composer.trim();
     if (!text && pendingAttachments.length === 0) return;
     if (pendingAttachments.length > 0) {
@@ -1285,6 +1287,7 @@ export default function AppShell() {
       existingRequest && existingRequest.draft === text ? existingRequest.clientRequestId : crypto.randomUUID();
     textRequestRef.current = { draft: text, clientRequestId };
 
+    outboundInFlightRef.current = true;
     setSending(true);
     try {
       const res = await fetch(`/api/chats/${encodeURIComponent(selectedChatId)}/send`, {
@@ -1303,6 +1306,7 @@ export default function AppShell() {
       setToast(err instanceof Error ? err.message : "Falha ao enviar");
     } finally {
       setSending(false);
+      outboundInFlightRef.current = false;
     }
   }
 
@@ -1441,6 +1445,8 @@ export default function AppShell() {
 
   async function sendPendingAttachments() {
     if (!selectedChatId || pendingAttachments.length === 0) return;
+    if (outboundInFlightRef.current) return;
+    outboundInFlightRef.current = true;
     setUploading(true);
     const attachments = pendingAttachments;
     const caption = composer.trim();
@@ -1461,6 +1467,7 @@ export default function AppShell() {
       setToast(err instanceof Error ? err.message : "Falha ao enviar arquivos");
     } finally {
       setUploading(false);
+      outboundInFlightRef.current = false;
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
