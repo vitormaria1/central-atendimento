@@ -31,7 +31,7 @@ Acesse `http://localhost:3000`.
 
 ## Webhook (UAZAPI → Central)
 Configure na UAZAPI o webhook apontando para:
-- `https://prazer.varinteligencia.com/api/webhooks/uazapi`
+- `https://central-atendimento.varinteligencia.com/api/webhooks/uazapi`
 
 O endpoint valida:
 - `BaseUrl` == `UAZAPI_BASE_URL`
@@ -47,7 +47,7 @@ O endpoint valida:
 docker compose up -d --build
 ```
 
-O Caddy vai provisionar TLS automaticamente para `prazer.varinteligencia.com`.
+O Caddy vai provisionar TLS automaticamente para `central-atendimento.varinteligencia.com`.
 
 ## Observação sobre endpoints UAZAPI
 Se sua instância usa caminhos diferentes, ajuste:
