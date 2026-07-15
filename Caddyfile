@@ -1,4 +1,4 @@
-prazer.varinteligencia.com {
+central-atendimento.varinteligencia.com {
 	encode gzip zstd
 	reverse_proxy app:3000
 }
